@@ -43,12 +43,20 @@ jobs:
           ./tangled/target/debug/lp tangle lp.typ --check
 
       - name: weave the document
-        run: ./tangled/target/debug/lp weave lp.typ lp.pdf
+        run: |
+          set -euo pipefail
+          ./tangled/target/debug/lp weave lp.typ lp.pdf
+          ./tangled/target/debug/lp weave lp.typ lp.html --features html
 
       - uses: actions/upload-artifact@v7
         with:
           name: pdf
           path: lp.pdf
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: html
+          path: lp.html
 
       - name: hand the generation to the seed branch
         run: |
