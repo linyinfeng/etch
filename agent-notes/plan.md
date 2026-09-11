@@ -22,6 +22,11 @@
 - **oracle 一致性测试**：同一批 fixture 上，`typst-syntax` 抽出的 `{label, lang, text}` 必须与 `typst eval`（CLI）输出完全一致。这条测试同时守住 trim 语义和将来的版本升级。
 - 质量门：所有报错形如 `doc.typ:16:5: dangling chunk <<body>> referenced from <<main.c>>`，并带 `.typ` 源码片段。
 
+**M1 起点（避免重新推导）**
+- 布局：仓库根建 package `lp`（`src/main.rs` + `src/{syntax,chunks,tangle,map,cli}.rs`）；`experiments/` 不进 workspace（根 Cargo.toml 里 `[workspace] exclude = ["experiments/*"]`，probe 自带 Cargo.lock 与自己的 `cargo run` 用法）。
+- 先写这三个测试再写实现：① `parse` fixture 化（复用 probe.typ 的 5 种形态：列表内嵌/同行 label/独行 label/重复 label/无 label）；② `typst eval` oracle 一致性；③ 同名 label 拼接顺序。
+- `.lpmap.json` schema 在 M1 定死并写进仓库 README（形如 `{ "<输出文件>": { typ, lang, lines: [[outLine, typLine]], chunks: [{name, typLine}] } }`），`lp map` 只读它，不改它。
+
 ### M2 — 多文件工程 + watch + explain
 - 多根 chunk → 目录结构（`src/`、`tests/`）；`--out` 与文档内相对路径的语义定死（相对 `.typ` 所在目录）。
 - `lp watch <doc.typ>`：`notify` + `notify-debouncer-full`，正确处理编辑器原子写；出错只打印不退出。
