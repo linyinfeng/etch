@@ -222,8 +222,7 @@ fn run() -> Result<i32, LpError> {
         }
         Command::Metadata { docs } => {
             let typst = metadata::binary()?;
-            let cwd = std::env::current_dir().map_err(|err| LpError::plain(err.to_string()))?;
-            for declaration in metadata::declarations(&typst, &docs, &cwd)? {
+            for declaration in metadata::declarations(&typst, &docs)? {
                 println!(
                     "{:<6} {:<28} {:<8} {}",
                     declaration.lp,

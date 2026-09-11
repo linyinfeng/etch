@@ -224,12 +224,10 @@ pub struct Plan {
 
 pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
     let typst = metadata::binary()?;
-    let cwd = std::env::current_dir().map_err(|err| LpError::plain(err.to_string()))?;
-
-    let blocks: Vec<Block> = metadata::declarations(&typst, docs, &cwd)?
+    let blocks: Vec<Block> = metadata::declarations(&typst, docs)?
         .into_iter()
         .map(|declaration| Block {
-            root: declaration.is_file(),
+            root: declaration.kind().expect("checked") == metadata::Kind::File,
             name: declaration.name,
             lang: declaration.lang,
             text: declaration.text,

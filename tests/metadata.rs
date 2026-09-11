@@ -174,6 +174,79 @@ fn a_document_that_does_not_evaluate_says_so() {
 }
 
 #[test]
+fn a_document_outside_the_working_directory_can_be_tangled() {
+    // The wrapper document has to live where Typst's root can reach the file it
+    // includes, so it goes next to the documents rather than in the cwd.
+    if !typst_available() {
+        eprintln!("skipping: typst is not on PATH");
+        return;
+    }
+
+    let documents = TempDir::new().expect("documents");
+    write(
+        documents.path(),
+        "book.typ",
+        "#file(\"src/main.py\", ```py\nprint('elsewhere')\n```)\n",
+    );
+
+    let workdir = TempDir::new().expect("workdir");
+    let doc = documents.path().join("book.typ");
+    let out = workdir.path().join("out");
+    let output = lp(
+        workdir.path(),
+        &[
+            "tangle",
+            doc.to_str().expect("utf8"),
+            "--out",
+            out.to_str().expect("utf8"),
+        ],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(out.join("src/main.py")).expect("output"),
+        "print('elsewhere')\n"
+    );
+
+    // And the wrapper is gone again.
+    let leftovers: Vec<String> = std::fs::read_dir(documents.path())
+        .expect("read_dir")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().to_string())
+        .filter(|name| name.starts_with(".lp-decl-"))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "wrapper files left behind: {leftovers:?}"
+    );
+}
+
+#[test]
+fn a_declaration_of_an_unknown_kind_is_an_error() {
+    // Only `chunk` and `file` exist; anything else means the package and the tool
+    // disagree, and that must not be read as a fragment.
+    if !typst_available() {
+        eprintln!("skipping: typst is not on PATH");
+        return;
+    }
+
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(
+        dir.path().join("odd.typ"),
+        "= Odd\n\n#metadata((lp: \"sideways\", name: \"x\", text: \"y\"))<lp-decl>\n",
+    )
+    .expect("doc");
+    let path = dir.path().to_path_buf();
+
+    let output = lp(&path, &["metadata", "odd.typ"]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("unknown declaration kind"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn a_document_without_declarations_says_what_to_do() {
     if !typst_available() {
         eprintln!("skipping: typst is not on PATH");
