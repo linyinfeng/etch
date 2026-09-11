@@ -5,7 +5,7 @@
 ## 30 秒
 
 - **是什么**：`lp` —— 基于 Typst 的 literate programming 工具。同一个 `.typ` 既是可排版的文档（weave = `typst compile`），也是多种目标语言源码的唯一真相（tangle = `lp tangle`）。目标语言正交：算法里没有任何目标语言知识。
-- **仓库形态（D19 + D21）**：tracked 只有 **五样**——`README.md`/`AGENTS.md`（各一行指针）、`lp.typ`、`seed/`、`agent-notes/`。其余一切——crate、包、示例、控制文件——都是 `lp tangle lp.typ --out .` 的产物。flake 与 skill 已于 2026-09-11 移除（D21）：前者被「nix 只认 tracked 文件」困住，后者被认为不需要（读这本书就能写出 skill）。
+- **仓库形态（D19 + D21）**：tracked 只有 **六样**——`README.md`/`AGENTS.md`（各一行指针）、`lp.typ`、`seed/`、`agent-notes/`、以及根上的 `.gitignore`（它必须留在根上才能忽略输出目录）。其余一切——crate、包、示例、控制文件——都是 `lp tangle lp.typ` 的产物，默认写进文档旁边的 **`tangled/`**（`--out` 只在需要时写）。flake 与 skill 已于 2026-09-11 移除，`lp execute` 不做（D21）。
 - **`lp.typ` 已重排成一篇论证**（约 6100 行，其中约 1250 行散文）。阅读顺序即"构建顺序"：
 
   ```text
@@ -20,7 +20,7 @@
   边编辑边保持同步              src/watch.rs
   命令面                        src/main.rs
   测试怎么写                    tests/*.rs（五个文件，一个用例一个片段）
-  构建环境 / 仓库携带什么 / git 忽略什么   Cargo.toml、.lpignore、.gitignore
+  构建环境 / 仓库携带什么 / git 忽略什么   Cargo.toml、.lpignore、.gitignore（都在 tangled/ 里）
   从零开始 / 换种子 / 规则
   例子                          examples/demo/**（按它自己的小节拆）
   ```
@@ -63,7 +63,6 @@
 
 ## 下一步候选
 
-- **`--out out/` 搬家**（用户已提出）：把根上除五样之外的产出都收进一个 gitignore 的目录。自包含与 skill/flake 的移除已经把它变简单了——没有东西必须留在根上了。代价：每个声明的路径加 `out/` 前缀、`cargo test` 变 `--manifest-path out/Cargo.toml`、种子变成 out 形状、文档与 dev.sh 的命令跟着改。
 - **脚本的可执行位**：tangle 写出的文件是 0644，所以脚本要 `bash run.sh`。要改就得给 `#file` 加一个声明式标志（`executable: true`），**不能**按名字猜。
 - `lp explain --format cargo`（`cargo_metadata` 解 `--message-format=json`）；命令面一章里就写着它是"not yet"。
 - 把包发布到 `@preview`（包是文档产物，剩下的是流程问题）。
@@ -72,7 +71,8 @@
 ## 环境陷阱
 
 - **环境不在仓库里**（flake 已移除，D21）：`typst` 必须在 PATH（或 `LP_TYPST`；tangle 与 `cargo test` 都要它），Rust 侧要**含链接器**的完整工具链（只给 cargo 会失败在 `linker cc not found`）。
-- **自用脚本**：`agent-notes/dev.sh gates`（或 `test`/`fmt`/`clippy`/`check`/`demo`/`weave`，或 `dev.sh <任意命令>`）。它是临时的，环境有别的着落时删掉即可。
+- **自用脚本**：`agent-notes/dev.sh gates`（或 `test`/`fmt`/`clippy`/`check`/`demo`/`weave`/`bootstrap`，或 `dev.sh <任意命令>`）。它是临时的，环境有别的着落时删掉即可。
+- **输出目录**：默认是文档旁边的 `tangled/`，并且它**是一个 git repo**（bootstrap 里 `git init tangled`，幂等）——生成的代码有独立的历史，`tangled/.lpignore` 里的 `/.git` 就是这句话。`cargo` 的命令要带 `--manifest-path tangled/Cargo.toml`。
 - **包是自包含的**：工具把内置包解压到 `<doc>/.lp/{local/lp/0.1.0}/` 并传给 `typst --package-path`；纯 `typst` 的步骤（weave、LSP）要自己设 `TYPST_PACKAGE_PATH=<doc>/.lp`。
 - **`--out` 就是仓库根**：`lp tangle lp.typ --out . --check` 是干跑、随时可跑；`lp unaccounted … --delete` 等于对全仓库动刀，看清单再动手。
 - **本机噪声**：pi-lens 偶尔报 `~/.config/pi-web/...` 的路径，那是 harness 的 cwd 假象；以仓库内路径为准。

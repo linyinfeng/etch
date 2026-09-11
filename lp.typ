@@ -2978,6 +2978,19 @@ fn main() {
     <<main: the exit status>>
 }
 
+/// Where tangled files go: the directory that was named, or `tangled` next to the documents —
+/// `tangled` in the working directory for a command that takes no documents. The document is what
+/// decides, because it is the document's output.
+fn out_dir(given: Option<PathBuf>, docs: &[PathBuf]) -> PathBuf {
+    if let Some(path) = given {
+        return path;
+    }
+    match docs.first().and_then(|doc| doc.parent()) {
+        Some(dir) if !dir.as_os_str().is_empty() => dir.join("tangled"),
+        _ => PathBuf::from("tangled"),
+    }
+}
+
 fn run() -> Result<i32, LpError> {
     match Cli::parse().command {
         <<main: tangle, and what it reports>>
@@ -3046,9 +3059,10 @@ Tangle {
     /// Documents to tangle, e.g. examples/demo/literate.typ
     #[arg(required = true)]
     docs: Vec<PathBuf>,
-    /// Directory the root chunk names resolve into
-    #[arg(long, default_value = "out")]
-    out: PathBuf,
+    /// Directory the root chunk names resolve into (default: tangled/ next to the
+    /// documents, or in the working directory for commands that take none)
+    #[arg(long)]
+    out: Option<PathBuf>,
     /// Write nothing; fail if the generated files are out of date
     #[arg(long)]
     check: bool,
@@ -3067,16 +3081,16 @@ Map {
     /// Line of the generated file (required with --file)
     #[arg(long)]
     line: Option<usize>,
-    #[arg(long, default_value = "out")]
-    out: PathBuf,
+    #[arg(long)]
+    out: Option<PathBuf>,
 },
 ````)
 
 #chunk("main: explain", ````rust
 /// Rewrite diagnostics so they name the chunk that produced the line
 Explain {
-    #[arg(long, default_value = "out")]
-    out: PathBuf,
+    #[arg(long)]
+    out: Option<PathBuf>,
     /// Diagnostic format on stdin
     #[arg(long, default_value = "generic", value_parser = ["generic", "cargo"])]
     format: String,
@@ -3089,8 +3103,8 @@ Watch {
     /// Documents to watch, e.g. examples/demo/literate.typ
     #[arg(required = true)]
     docs: Vec<PathBuf>,
-    #[arg(long, default_value = "out")]
-    out: PathBuf,
+    #[arg(long)]
+    out: Option<PathBuf>,
     /// Coalesce editor events for this many milliseconds
     #[arg(long, default_value_t = 200)]
     debounce: u64,
@@ -3126,8 +3140,8 @@ Unaccounted {
     /// Documents that decide what counts as produced
     #[arg(required = true)]
     docs: Vec<PathBuf>,
-    #[arg(long, default_value = "out")]
-    out: PathBuf,
+    #[arg(long)]
+    out: Option<PathBuf>,
     /// Delete them: the explicit alternative to declaring them
     #[arg(long)]
     delete: bool,
@@ -3166,6 +3180,7 @@ module gets a new function.
 
 #chunk("main: tangle, and what it reports", ````rust
 Command::Tangle { docs, out, check } => {
+    let out = out_dir(out, &docs);
     let outcome = tangle::run(&docs, &out, check)?;
     for output in &outcome.changed {
         println!(
@@ -3212,6 +3227,7 @@ Command::Watch {
     debounce,
     check_cmd,
 } => {
+    let out = out_dir(out, &docs);
     watch::run(watch::Options {
         docs,
         out,
@@ -3229,6 +3245,7 @@ Command::Map {
     line,
     out,
 } => {
+    let out = out_dir(out, &[]);
     let maps = map::LpMap::read_all(&out);
 ````)
 
@@ -3287,6 +3304,7 @@ refusal to guess) and then asks that map for the run covering the line.
 
 #chunk("main: explain, a filter on stdin", ````rust
 Command::Explain { out, format } => {
+    let out = out_dir(out, &[]);
     let mut input = String::new();
     std::io::stdin()
         .read_to_string(&mut input)
@@ -3328,6 +3346,7 @@ Command::Metadata { docs } => {
 
 #chunk("main: unaccounted, which needs a plan", ````rust
 Command::Unaccounted { docs, out, delete } => {
+    let out = out_dir(out, &docs);
     let plan = tangle::plan(&docs)?;
     status::run(&out, &tangle::produced(&plan), delete)
 }
@@ -5119,9 +5138,12 @@ use std::process::Command;
 /// which stopped being true the moment the document was refactored (ADR D15).
 #[test]
 fn the_document_regenerates_the_sources_we_are_running() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    // The crate lives in `tangled/`, one level below the document it is generated from.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("repository root");
     let output = Command::new(env!("CARGO_BIN_EXE_lp"))
-        .args(["tangle", "lp.typ", "--out", ".", "--check"])
+        .args(["tangle", "lp.typ", "--check"])
         .current_dir(root)
         .output()
         .expect("run lp");
@@ -5213,86 +5235,61 @@ whatever is not the crate, the package, the example or a control file — and th
 files cargo and nix maintain, which no chunk has any business owning.
 
 #file(".lpignore", ````gitignore
-# What the working tree carries besides the document's output.
+# What the tangled tree carries besides the document's output.
 #
-# Matching here means *protect* (ADR D10): every file under the output directory is
-# either produced by a #file declaration or listed here, and this lists what the
-# document does not produce. The output directory is the repository root.
+# Matching here means *protect* (ADR D10): every file under the output directory is either
+# produced by a #file declaration or listed here, and this lists what the document does not
+# produce. The output directory is `tangled/`, the crate the document generates.
 
-# The example writes here: `examples/demo/literate.typ` produces Cargo.toml and src/,
-# and its own .lpignore governs everything else in the directory. This pass does not
-# manage that tree — a nested document's output is not this document's business.
-/examples/demo/build
-
+# `tangled/` is a repository of its own, so that the generated code has a history separate
+# from the document's (the bootstrap makes it one; `git init tangled`). Its metadata is not
+# content, and this is the line that says so.
 /.git
-/.direnv
-/.pi
-/AGENTS.md
+
+# cargo's own files, and the example's build directory — whose own .lpignore governs what is
+# inside it, because a nested document's output is not this document's business.
 /Cargo.lock
-/README.md
-/agent-notes
-/lp.typ
-/result
-/seed
 /target
+/examples/demo/build
 ````)
 
 = What git is asked to ignore
 
-The crate, the package, the example and the two control files above are all generated,
-so none of them is tracked. What remains in git is the document, the seed, the notes,
-and the two pointers.
-
-#file(".gitignore", ````gitignore
-# Everything here is generated from lp.typ by `lp tangle lp.typ --out .`.
-# Tracked: README.md, AGENTS.md, lp.typ, seed/, agent-notes/.
-
-/Cargo.toml
-/Cargo.lock
-.lp/
-/src/
-/tests/
-/lit/
-/examples/
-/.gitignore
-/.lpignore
-.lpmap.json
-target/
-result
-.direnv/
-
-# Artifacts of the archived experiments in agent-notes/experiments: they are runs,
-# not evidence.
-*.pdf
-*.png
-out/
-````)
+Everything under `tangled/` is generated, so the whole directory is ignored: the crate, the
+package, the example, the protect list and the maps. What is tracked at the root is the document,
+the seed, the notes, the two pointers — and one `.gitignore`, because a file that ignores the
+output directory cannot be inside it.
 
 = Starting from nothing
 
 A fresh clone holds five things and nothing else: this document, the seed, the notes, and the two
 one-line files that point here. Everything else is produced by tangling:
 
-The seed is a whole older generation — a built crate, the package it was written with,
-and its devshell — so the first move is to lay it down. It covers the one thing this
-document cannot produce for itself: the package has to exist on disk before the document
-can be evaluated at all, because the document imports it.
+The seed is a whole older generation — a built crate and the package it is built with — laid out
+the way the document expects to write it: under `tangled/`. So the first move is to copy it into
+place. It covers the one thing this document cannot produce for itself, since the package has to
+exist before the document can be evaluated at all — and the tool carries its own copy, so even that
+is a fallback rather than a requirement (D21).
 
 ```sh
-cp -r seed/. .
-cargo build
-./target/debug/lp tangle lp.typ --out .
-cargo test
+cp -r seed/. .                                     # the previous generation, into tangled/
+git init tangled                                   # the generated code gets its own history
+cargo build --manifest-path tangled/Cargo.toml
+./tangled/target/debug/lp tangle lp.typ            # writes to tangled/, next to the document
+cargo test --manifest-path tangled/Cargo.toml
 ```
 
 These commands assume `typst` and `cargo` are on the path. This repository does not carry an
 environment of its own: a flake in it would be a tracked file that the document could not produce,
 since nix will not evaluate a flake whose files are not in git. Borrowing the tools for one command
-is a line long — `nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo test` — and
-that is the whole of the story; there is no command that assembles the environment for you.
+is a line long — `nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo test
+--manifest-path tangled/Cargo.toml` — and that is the whole of the story; there is no command that
+assembles the environment for you.
 
-The third command is the interesting one: the older lp reads the declarations here and
-writes this generation over itself — crate, package, example, control files. The
+The tangle writes to `tangled/` without being told to: when `--out` is not given it is the
+directory `tangled` next to the document, because the document is what the output belongs to. The
+older lp reads the declarations here and writes this generation over its own tree — crate, package,
+example, protect list. The
 seed is then just a directory again, and it stays untouched until someone decides the
 current generation should become the next seed.
 
@@ -5394,6 +5391,8 @@ the chapters above are — which is the point being made, made twice.
 ````)
 
 == What the example demonstrates
+
+Its document is tangled into `tangled/examples/demo/`, next to the crate that run it.
 
 The order of its sections is the argument of a much smaller program, and it is worth reading as
 one: what the crate is, the three files as skeletons, then the pieces each in the section that
@@ -5577,7 +5576,7 @@ illustration: it tangles the crate, builds it, runs it, compares the output with
 document says it should be, weaves the PDF, checks for drift, and then breaks one line on
 purpose so that a real rustc error can be translated back to the chunk it came from.
 
-The files in `examples/demo/build/` are the demonstration's own territory, and its `.lpignore`
+The files in `tangled/examples/demo/build/` are the demonstration's own territory, and its `.lpignore`
 says which of them other tools own — cargo's directory and lock file, the PDF, the frames
 `run.sh` produces for the transcript.
 
@@ -5601,9 +5600,9 @@ looking at the name.
 # translating a real rustc error back into the document.
 # Run with: bash examples/demo/run.sh (typst and cargo on the path)
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../.."          # the tangled tree, which holds this crate
 
-LP=(cargo run --quiet --)
+LP=(cargo run --quiet --manifest-path Cargo.toml)
 DOC=examples/demo/literate.typ
 OUT=examples/demo/build
 

@@ -21,34 +21,36 @@ case "${1:-}" in
 gates)
 	run bash -c '
 		set -e
-		./target/debug/lp tangle lp.typ --out . >/dev/null
-		printf "tests  %s suites\n" "$(cargo test 2>&1 | grep -cE "^test result: ok")"
-		cargo fmt --check && echo "fmt    ok"
-		echo "clippy $(cargo clippy --all-targets 2>&1 | grep -cE "^(warning|error)" || true) findings"
-		./target/debug/lp tangle lp.typ --out . --check >/dev/null && echo "check  ok"
-		echo "strays $(./target/debug/lp tangle lp.typ --out . 2>&1 | grep -c "declared without a language" || true) (language), 0 expected"
+		./tangled/target/debug/lp tangle lp.typ >/dev/null
+		printf "tests  %s suites\n" "$(cargo test --manifest-path tangled/Cargo.toml 2>&1 | grep -cE "^test result: ok")"
+		cargo fmt --manifest-path tangled/Cargo.toml --check && echo "fmt    ok"
+		echo "clippy $(cargo clippy --manifest-path tangled/Cargo.toml --all-targets 2>&1 | grep -cE "^(warning|error)" || true) findings"
+		./tangled/target/debug/lp tangle lp.typ --check >/dev/null && echo "check  ok"
+		echo "strays $(./tangled/target/debug/lp tangle lp.typ 2>&1 | grep -c "declared without a language" || true) (language), 0 expected"
 		echo "weave  $(TYPST_PACKAGE_PATH=$PWD/.lp typst compile lp.typ /tmp/lp.pdf 2>&1 | grep -c warning || true) warnings"
-		printf "demo   %s\n" "$(bash examples/demo/run.sh 2>&1 | tail -1)"
+		printf "demo   %s\n" "$(bash tangled/examples/demo/run.sh 2>&1 | tail -1)"
 	'
 	;;
-test) run cargo test ;;
-fmt) run cargo fmt --check ;;
-clippy) run cargo clippy --all-targets ;;
-tangle) run ./target/debug/lp tangle lp.typ --out . ;;
-check) run ./target/debug/lp tangle lp.typ --out . --check ;;
-list) run ./target/debug/lp list lp.typ ;;
-demo) run bash examples/demo/run.sh ;;
+test) run cargo test --manifest-path tangled/Cargo.toml ;;
+fmt) run cargo fmt --manifest-path tangled/Cargo.toml --check ;;
+clippy) run cargo clippy --manifest-path tangled/Cargo.toml --all-targets ;;
+tangle) run ./tangled/target/debug/lp tangle lp.typ ;;
+check) run ./tangled/target/debug/lp tangle lp.typ --check ;;
+list) run ./tangled/target/debug/lp list lp.typ ;;
+demo) run bash tangled/examples/demo/run.sh ;;
 weave)
 	run env TYPST_PACKAGE_PATH="$PWD/.lp" typst compile lp.typ /tmp/lp.pdf
 	echo "wrote /tmp/lp.pdf"
 	;;
 shell) run bash ;;
 bootstrap)
-	# what a fresh clone does: lay the seed down, build it, let it write this generation
+	# what a fresh clone does: lay the seed down, make the tree a repository, build it, and let the
+	# older lp write this generation into it
 	cp -r seed/. .
-	run cargo build
-	run ./target/debug/lp tangle lp.typ --out .
-	run cargo test
+	[ -d tangled/.git ] || git init -q tangled
+	run cargo build --manifest-path tangled/Cargo.toml
+	run ./tangled/target/debug/lp tangle lp.typ
+	run cargo test --manifest-path tangled/Cargo.toml
 	;;
 "") sed -n '2,12p' "$0" ;;
 *) run "$@" ;;

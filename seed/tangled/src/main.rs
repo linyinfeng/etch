@@ -28,9 +28,10 @@ enum Command {
         /// Documents to tangle, e.g. examples/demo/literate.typ
         #[arg(required = true)]
         docs: Vec<PathBuf>,
-        /// Directory the root chunk names resolve into
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
+        /// Directory the root chunk names resolve into (default: tangled/ next to the
+        /// documents, or in the working directory for commands that take none)
+        #[arg(long)]
+        out: Option<PathBuf>,
         /// Write nothing; fail if the generated files are out of date
         #[arg(long)]
         check: bool,
@@ -46,13 +47,13 @@ enum Command {
         /// Line of the generated file (required with --file)
         #[arg(long)]
         line: Option<usize>,
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
+        #[arg(long)]
+        out: Option<PathBuf>,
     },
     /// Rewrite diagnostics so they name the chunk that produced the line
     Explain {
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
+        #[arg(long)]
+        out: Option<PathBuf>,
         /// Diagnostic format on stdin
         #[arg(long, default_value = "generic", value_parser = ["generic", "cargo"])]
         format: String,
@@ -62,8 +63,8 @@ enum Command {
         /// Documents to watch, e.g. examples/demo/literate.typ
         #[arg(required = true)]
         docs: Vec<PathBuf>,
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
+        #[arg(long)]
+        out: Option<PathBuf>,
         /// Coalesce editor events for this many milliseconds
         #[arg(long, default_value_t = 200)]
         debounce: u64,
@@ -85,8 +86,8 @@ enum Command {
         /// Documents that decide what counts as produced
         #[arg(required = true)]
         docs: Vec<PathBuf>,
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
+        #[arg(long)]
+        out: Option<PathBuf>,
         /// Delete them: the explicit alternative to declaring them
         #[arg(long)]
         delete: bool,
@@ -108,9 +109,23 @@ fn main() {
     }
 }
 
+/// Where tangled files go: the directory that was named, or `tangled` next to the documents —
+/// `tangled` in the working directory for a command that takes no documents. The document is what
+/// decides, because it is the document's output.
+fn out_dir(given: Option<PathBuf>, docs: &[PathBuf]) -> PathBuf {
+    if let Some(path) = given {
+        return path;
+    }
+    match docs.first().and_then(|doc| doc.parent()) {
+        Some(dir) if !dir.as_os_str().is_empty() => dir.join("tangled"),
+        _ => PathBuf::from("tangled"),
+    }
+}
+
 fn run() -> Result<i32, LpError> {
     match Cli::parse().command {
         Command::Tangle { docs, out, check } => {
+            let out = out_dir(out, &docs);
             let outcome = tangle::run(&docs, &out, check)?;
             for output in &outcome.changed {
                 println!(
@@ -149,6 +164,7 @@ fn run() -> Result<i32, LpError> {
             debounce,
             check_cmd,
         } => {
+            let out = out_dir(out, &docs);
             watch::run(watch::Options {
                 docs,
                 out,
@@ -163,6 +179,7 @@ fn run() -> Result<i32, LpError> {
             line,
             out,
         } => {
+            let out = out_dir(out, &[]);
             let maps = map::LpMap::read_all(&out);
 
             if let Some(chunk) = typ {
@@ -206,6 +223,7 @@ fn run() -> Result<i32, LpError> {
             Ok(0)
         }
         Command::Explain { out, format } => {
+            let out = out_dir(out, &[]);
             let mut input = String::new();
             std::io::stdin()
                 .read_to_string(&mut input)
@@ -234,6 +252,7 @@ fn run() -> Result<i32, LpError> {
             Ok(0)
         }
         Command::Unaccounted { docs, out, delete } => {
+            let out = out_dir(out, &docs);
             let plan = tangle::plan(&docs)?;
             status::run(&out, &tangle::produced(&plan), delete)
         }

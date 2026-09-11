@@ -108,8 +108,8 @@ fn ref_target(line: &str) -> Option<(&str, &str)> {
 }
 
 /// A line that reads as a reference but has to stay literal: `@<<name>>` comes out
-/// as `<<name>>`. A document quoting the syntax itself — this project's own skill,
-/// for one — needs it (ADR D17).
+/// as `<<name>>`. A document quoting the syntax itself — this one, for example —
+/// needs it (D17).
 fn escaped_ref(line: &str) -> Option<String> {
     let indent = &line[..line.len() - line.trim_start().len()];
     let rest = line.trim().strip_prefix('@')?;

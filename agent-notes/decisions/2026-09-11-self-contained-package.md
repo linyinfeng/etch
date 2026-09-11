@@ -46,3 +46,13 @@
 
 - **`lp execute`：不做**（用户 2026-09-11 决定）。它原本的动机是"在输出目录里带着环境跑命令"，但目的不明确：工具链是使用者的前提，借一行 `nix shell` 就够了；而 nix 的 tracked-flake 限制有别的解法（`path:`、非 flake 的 `shell.nix`），不值得为它发明一个命令。
 - **skill 是否保留**：用户仍在评估（论点是"书本身够短、够清楚，agent 自己就能写出 skill"）。在评估结论出来之前，skill 保持现状（由文档产出），因为它的维护成本是零。
+
+## 输出目录：`tangled/`，以及它自己的仓库（2026-09-11 实现）
+
+用户接着要求：**所有产出收进一个 gitignore 的目录**，并且"解开后应保证它自己是一个 git repo，便于人类/agent 自行版本管理"。
+
+- **名字**：`tangled/`（`out/` 只是占位）。**默认就是它，且是文档旁边的那个**：`--out` 未给时取文档所在目录下的 `tangled`（无文档的命令用 cwd 下的 `tangled`）。所以 `lp tangle lp.typ` 就够了。
+- **声明路径不变**：`#file("src/…")` 依旧是相对输出目录的；搬的是*调用*与*文件的物理位置*，不是文档里的路径。这一点先做错过一次（给每个声明加 `tangled/` 前缀），结果是根目录成了输出目录、所有权检查开始抱怨根上的 README/AGENTS/seed——目录决定范围，前缀不行。
+- **它自己的仓库由流程建立，不由工具建立**：`git init tangled` 写在 bootstrap 与 `dev.sh bootstrap` 里（幂等），`tangled/.lpignore` 里写一行 `/.git`。理由：工具在别人的输出目录里悄悄 `git init` 是越界；而且 ADR D10 明定了**没有 git 特例**（`.git/` 是普通内容，`tests/owned.rs` 里有用例钉着）。这样文档仓库管源、`tangled/` 管产物。
+- **代价**：根上多一个 tracked 文件——`.gitignore`（3 行，`/tangled/`），因为忽略输出目录的文件不可能在输出目录里面；`cargo` 的命令带 `--manifest-path tangled/Cargo.toml`。
+- **种子**：随之为 out 形状（`seed/tangled/{Cargo.toml,Cargo.lock,src,tests,lit}`），`cp -r seed/. .` 照旧铺下整棵树。

@@ -1,0 +1,13 @@
+# The tangled tree is the document's output: generated, ignored, and a repository of its own.
+/tangled/
+
+# The package the tool unpacks for Typst, wherever it sits next to a document.
+.lp/
+
+# Build and run artifacts, anywhere in the tree.
+target/
+result
+.direnv/
+*.pdf
+*.png
+out/
