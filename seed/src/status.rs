@@ -68,6 +68,14 @@ pub fn unaccounted(
             continue;
         }
         let rel = relative(out, path);
+        // The directory the package is unpacked into is the tool's own scratch space, like the two
+        // control files: a document does not have to declare it, and neither does a project (D21).
+        if rel
+            .split('/')
+            .any(|part| part == crate::metadata::PACKAGE_ROOT)
+        {
+            continue;
+        }
         let (dir, name) = crate::map::split(&rel);
         if produced.get(dir).is_some_and(|names| names.contains(name)) {
             continue;
@@ -100,7 +108,8 @@ pub fn unaccounted(
         .collect())
 }
 
-/// `lp`'s own control files are never content.
+/// `lp`'s own control files are never content, and neither is the directory it unpacks its
+/// package into.
 fn is_control_file(path: &Path) -> bool {
     path.file_name()
         .is_some_and(|name| name == MAP_FILE || name == IGNORE_FILE)

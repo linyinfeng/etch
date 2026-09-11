@@ -66,6 +66,36 @@ impl Decl {
     }
 }
 
+/// The package this tool is written with, compiled into the binary: a document should not have
+/// to ship a copy of it to be tangled, or find one (D21). `include_str!` is the whole
+/// mechanism — the standard library, no dependency, checked at compile time.
+const PACKAGE_MANIFEST: &str = include_str!("../lit/typst.toml");
+const PACKAGE_ENTRY: &str = include_str!("../lit/lp.typ");
+
+/// The directory, next to a document, that the package is unpacked into. It belongs to the tool,
+/// so the ownership check treats it like a control file rather than content.
+pub const PACKAGE_ROOT: &str = ".lp";
+
+/// Where a document's import (`@local/lp:0.1.0`) resolves inside that directory: namespace,
+/// name, version.
+const PACKAGE_DIR: &str = "local/lp/0.1.0";
+
+/// Write the embedded package to `<root>/.lp/…` so Typst can resolve what the document imports,
+/// and hand back the directory to point `--package-path` at. Only changed bytes are written, so
+/// a pass in a loop does not touch the disk.
+fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
+    let packages = root.join(PACKAGE_ROOT);
+    let dir = packages.join(PACKAGE_DIR);
+    std::fs::create_dir_all(&dir).map_err(|err| LpError::io(&dir, err))?;
+    for (name, text) in [("typst.toml", PACKAGE_MANIFEST), ("lib.typ", PACKAGE_ENTRY)] {
+        let path = dir.join(name);
+        if std::fs::read_to_string(&path).ok().as_deref() != Some(text) {
+            std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
+        }
+    }
+    Ok(packages)
+}
+
 /// Locate the `typst` binary: an explicit override, then `PATH`.
 pub fn binary() -> Result<PathBuf, LpError> {
     if let Some(path) = std::env::var_os("LP_TYPST") {
@@ -101,11 +131,13 @@ pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError
     // directory *and* every document. The wrapper lives next to the documents (it
     // must be inside the root to be readable) and includes them relatively.
     let root = common_ancestor(
-        &[cwd.clone()]
-            .into_iter()
-            .chain(docs.iter().cloned())
+        &docs
+            .iter()
+            .cloned()
+            .chain([cwd.clone()])
             .collect::<Vec<_>>(),
     );
+    let packages = unpack_package(&common_ancestor(&docs))?;
     let wrapper = Wrapper::write(&common_ancestor(&docs), &docs)?;
     let output = Command::new(typst)
         .arg("eval")
@@ -114,6 +146,8 @@ pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError
         .arg(&wrapper.path)
         .arg("--root")
         .arg(&root)
+        .arg("--package-path")
+        .arg(&packages)
         .current_dir(&cwd)
         .output();
     drop(wrapper);

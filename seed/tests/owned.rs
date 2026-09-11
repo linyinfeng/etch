@@ -322,3 +322,8 @@ fn a_missing_output_directory_is_not_an_io_error() {
     );
     assert!(!path.join("out").exists(), "--check writes nothing at all");
 }
+#[test]
+fn the_unpacked_package_is_not_content() {
+    let (_guard, dir) = tangled("", &[(".lp/local/lp/0.1.0/lib.typ", "the package")]);
+    assert!(dir.join("out/.lp/local/lp/0.1.0/lib.typ").exists());
+}

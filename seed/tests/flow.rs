@@ -385,6 +385,18 @@ fn an_empty_chunk_is_an_error() {
     assert!(!output.status.success());
     assert!(stderr(&output).contains("is empty"), "{}", stderr(&output));
 }
+#[test]
+fn a_declaration_without_a_language_warns() {
+    let body = "#file(\"main.py\", ```\nprint(1)\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("chunk ⟪main.py⟫ is declared without a language"),
+        "{}",
+        stderr(&output)
+    );
+}
 
 #[test]
 fn a_file_declaration_can_name_a_nested_path() {

@@ -275,6 +275,20 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
         }
     }
 
+    // The language tag is data: the map records it, the woven page shows it, and downstream
+    // tools read it. It cannot be recovered from a file name — and this program will not try,
+    // because a guess dressed as data is worse than a gap — so a declaration that does not
+    // carry one is said out loud. It is a warning rather than an error: a `.lpignore` has no
+    // language to declare (D18).
+    for name in set.names() {
+        let missing = set
+            .get(name)
+            .is_some_and(|blocks| blocks.iter().any(|block| block.lang.is_none()));
+        if missing {
+            warnings.push(format!("chunk ⟪{name}⟫ is declared without a language"));
+        }
+    }
+
     let mut maps: BTreeMap<PathBuf, LpMap> = BTreeMap::new();
     let mut texts: BTreeMap<String, String> = BTreeMap::new();
     let mut produced: BTreeSet<String> = BTreeSet::new();

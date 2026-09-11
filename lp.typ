@@ -5296,7 +5296,7 @@ rm -rf seed/src seed/tests seed/lit
 mkdir -p seed/src seed/tests seed/lit
 cp src/*.rs seed/src/
 cp tests/*.rs seed/tests/
-cp lit/lp.typ seed/lit/
+cp lit/lp.typ lit/typst.toml seed/lit/
 ```
 
 The seed is then one generation behind again, which is all it has to be: old enough to
