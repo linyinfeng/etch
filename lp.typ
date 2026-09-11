@@ -4251,6 +4251,24 @@ nix develop -c ./target/debug/lp watch lp.typ --out . --check-cmd 'cargo build -
 able to reproduce the sources it was built from, so hand-editing `src/` or `tests/` fails
 a test instead of quietly working.
 
+== Replacing the seed
+
+The seed only ever reads, and it is only replaced on purpose: when this document starts
+using syntax the seed cannot read — which has already happened once, with the escape in
+D17 — the current generation becomes the next seed. It is a copy, not a build step:
+
+```sh
+cp -f Cargo.toml Cargo.lock flake.nix flake.lock seed/
+rm -rf seed/src seed/tests seed/lit
+mkdir -p seed/src seed/tests seed/lit
+cp src/*.rs seed/src/
+cp tests/*.rs seed/tests/
+cp lit/lp.typ seed/lit/
+```
+
+The seed is then one generation behind again, which is all it has to be: old enough to
+read this document, complete enough to be built.
+
 == The rules
 
 These are not style preferences; each one was paid for. The decisions behind them are in
