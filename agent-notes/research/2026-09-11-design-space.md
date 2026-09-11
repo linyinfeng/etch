@@ -107,27 +107,36 @@
 
 ---
 
-## 6. 待拍板（需要用户决策）
+## 6. 已拍板（2026-09-11）
 
-1. **首要使用场景**：个人文档型项目 / 多文件库 / agent 工作流，哪个先做透？
-2. **主文件形态**：A（纯 `.typ`）还是 B（独立格式）还是两条都支持？
-3. **实现语言**：Python 原型（最快）／Rust（`typst-syntax` 能拿 span，可发单文件二进制）／Node/TS（与 pi 生态一致，typst.ts 可选）。
-4. **生成物入库 + CI 策略**：入库+check / gitignore+watch / 两者可配置。
-5. **错误定位**：D1 / D2 / D1+D2。
+| 问题 | 决定 | 详见 |
+| --- | --- | --- |
+| 首要使用场景 | 多文件库/工程 | ADR D1 |
+| 主文件形态 | A（纯 `.typ`） | ADR D2 |
+| 实现语言 | Rust 原型 → 冻结为 bootstrap → 自举 | ADR D3 |
+| 生成物入库 | 不入库 + `lp watch` + CI `--check` | ADR D4 |
+| 错误定位 | D1（sidecar map + `lp explain`） | ADR D5 |
 
-（chunk 引用语法、根 chunk 判定、缩进语义按 §2 的倾向先定，属可逆细节。）
+原文的候选与理由保留在上文 §1–§5；ADR 记录落选方案，见 `../decisions/2026-09-11-mvp-decisions.md`。执行计划见 `../plan.md`。
+
+---
+
+## 6.5 自举带来的新约束（D3 的后果）
+
+工具自身源码会是一个 literate `.typ` 文档，tangle 出 `src/*.rs`。这带来几条硬约束：
+
+1. **工具必须把自己能构成的复杂度降到最低**。文档里的 chunk 组合会成为我们每天编辑的源码；如果 `<<ref>>` 语义模糊、报错不精确，自举时天天被它坑。→ 这就是 M1 把"严格报错"列为质量门的原因。
+2. **固定点可测**。自举的验收标准不是"看起来对"，而是 `bootstrap tangle self.typ` 与手写原型**逐字节一致**（见 plan.md 的自举不变量）。这条测试同时守住了"重复 label 容忍"等未文档化行为。
+3. **生成物不入库 + 需要种子**。既然 tangle 产物 gitignore，就必须保留一份**非工具生成**的可编译手写源码作为 bootstrap 种子；种子不能删，但也不再是待维护的活代码（改动只进 `self.typ`）。
+4. **`lp explain` 的第一个后端必须是 rustc/cargo**：自举时唯一的消费者是我们自己。
+5. **多根 chunk = 多文件**在自举里是常态（`src/main.rs`、`src/chunk.rs`、`tests/*.rs`），并且 Rust 的 `mod`/crate 布局意味着**目录结构由文档控制**，不能靠工具猜。
+6. **反例警告**：自举本身对本项目是一个**可用性测试**。如果作者（含 agent）在自举时频繁回到手写源码，说明 chunk 组合语义或错误定位不可用——这比任何用户调研都真实。
 
 ---
 
 ## 7. MVP 范围建议（lazy 版）
 
-```
-lp tangle <doc.typ> [--out DIR] [--check] [--watch]   # 核心
-lit.typ                                                # Typst 库：chunk 渲染 + 引用链接 + 编号
-```
-- 不做：双向同步、IR/provenance 数据库、多格式适配器、语言执行（Calepin 那条线）、编辑器插件。
-- 必须做（否则没差异化）：悬空引用/环/重复定义报错、`--check`、行号映射、`lp` 在文档有错时把 typst 诊断透出。
-- 检查方式：spike 里已有的 `run.sh` 模式（tangle → 跑生成的程序 → 比对输出 → check）。
+见 `../plan.md`（M0–M3）。一句话：`lp tangle --check` + `lp map` + `lp watch` + `lp explain`，配一个 `lit.typ` 渲染库；不做双向同步、IR、多格式适配器、代码执行。
 
 ---
 

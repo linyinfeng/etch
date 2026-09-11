@@ -5,7 +5,8 @@
 ## 怎么跑
 
 ```sh
-nix shell nixpkgs#typst nixpkgs#python3 -c ./run.sh
+nix develop -c ./run.sh
+# 或单独装： nix shell nixpkgs#typst nixpkgs#python3 -c ./run.sh
 # 或： TYPST=/path/to/typst ./run.sh
 ```
 

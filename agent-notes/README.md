@@ -13,14 +13,17 @@
 
 ## 索引
 
+- `decisions/2026-09-11-mvp-decisions.md` — **已拍板的 5 个决定**（场景=多文件工程，形态=纯 `.typ`，实现=Rust 原型→自举，生成物不入库，错误定位=D1）+ 落选方案与理由。
+- `plan.md` — M0–M3 实施计划：CLI 表面、依赖预算、测试策略、自举不变量、明确不做的清单。
 - `research/2026-09-11-prior-art.md` — 现有 literate programming 工具盘点（noweb/littst/Entangled/Ravel/typst-unlit/Calepin/org-babel/…），Typst 生态现状，以及 AI 时代的四篇相关工作。含"我们的差异化在哪"。
 - `research/2026-09-11-typst-engine-facts.md` — **只用 typst 自己当解析器**这套架构的全部实测事实：`typst eval` / `query`、label 当 chunk 名、raw info string 的坑、plugin 不能写文件、show rule 里的 label/link 语义。所有结论都附可复现命令。
-- `research/2026-09-11-design-space.md` — 三种候选架构对比、推荐方案、需要用户拍板的决策清单、正交性的边界（哪些目标语言会破坏"语言无关"）、下一步 backlog。
+- `research/2026-09-11-design-space.md` — 三种候选架构对比、推荐方案、正交性的边界（哪些目标语言会破坏"语言无关"）、自举带来的新约束、backlog。
 - `../experiments/2026-09-11-chunk-spike/` — 可运行的最小验证：纯 `.typ` 同时 weave 成 PDF、tangle 成可运行的 `hello.py`，带 `--check` 漂移检测和行号映射。
 
 ## 当前状态（截至 2026-09-11）
 
-- 仓库刚起步，只有调研 + spike，**没有产品代码**。
+- 调研 + spike + 决策已完成；**产品代码还没开始**。
 - 核心假设已用 spike 证实：`.typ` 里的 fenced raw block + Typst label 就是 chunk，`typst eval` 就是 tangle 的解析器，weave 就是 `typst compile`。不需要自写 Typst 解析器，也不需要给文档加预处理语法。
-- 尚未决定：实现语言、chunk 引用语法、生成物是否入库、错误定位方案。见 design-space 的决策清单。
-- 已知最大缺口（同时也是本项目的主要差异化）：**tangled 文件里的报错如何映射回 `.typ` 行号**。现有 Typst 方案（littst、typst-unlit）都明确不解决这个。
+- 下一步：**M0 已完成**（`flake.nix` devShell 实测可用：typst 0.15.1 / cargo 1.97 / rustfmt / clippy / python3，spike 在 devShell 里跑通）。接着做 M1（Rust 原型：tangle + check + map，严格报错）。见 `plan.md`。
+- 主要差异化：**tangled 文件里的报错如何映射回 `.typ` 行号**（D1，spike 已产出映射数据）+ 生成物漂移检测。littst / typst-unlit 都不解决这两点。
+- 长期目标（D3）：原型冻结为 bootstrap，工具自身源码改写成 literate `.typ` 并自举；固定点测试保证 bootstrap 与自举产物逐字节一致。

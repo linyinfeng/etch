@@ -4,7 +4,14 @@
 
 ## 状态
 
-调研 + 可行性 spike 阶段，**还没有产品代码**。
+调研 + 可行性 spike + MVP 决策已完成，进入原型阶段（M1，见 [`agent-notes/plan.md`](agent-notes/plan.md)）。
+
+开发环境：
+
+```sh
+nix develop                        # typst 0.15.1 + cargo 1.97 + python3
+nix develop -c experiments/2026-09-11-chunk-spike/run.sh   # 跑通 spike
+```
 
 - 调研与决策记录：[`agent-notes/`](agent-notes/README.md)
 - 可运行的最小验证：[`experiments/2026-09-11-chunk-spike/`](experiments/2026-09-11-chunk-spike/README.md)
