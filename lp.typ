@@ -5239,15 +5239,21 @@ files cargo and nix maintain, which no chunk has any business owning.
 
 Everything under `tangled/` is generated, so the whole directory is ignored: the crate, the
 package, the example, the protect list and the maps. What is tracked at the root is the document,
-the notes, the two pointers — and one `.gitignore`, because a file that ignores the output
-directory cannot be inside it. The seed is not tracked in the working tree either: it is a branch
+the notes, the pointer — and one `.gitignore`, because a file that ignores the output directory
+cannot be inside it. `README.md` is that pointer and `AGENTS.md` is a symlink to it: the two names
+exist because tools look for different ones, and a symlink is the only way to have two names and
+still one text. The notes are the other half of the repository, and the conventions for working in
+it are a note: `agent-notes/README.md` is the index, `agent-notes/decisions/` holds the records
+behind the rules, `agent-notes/working-agreements.md` the process — worktrees, the borrowed
+toolchain, what a note is for. The seed is not tracked in the working tree either: it is a branch
 of this same repository, which is the one place output can live without being a file next to the
 document.
 
 = Starting from nothing
 
-A fresh clone holds five things and nothing else: this document, the notes, the two one-line files
-that point here, and the `.gitignore` that keeps the output out of git. Everything else is produced
+A fresh clone holds five things and nothing else: this document, the notes, the two names at the
+root that point here — one file, one symlink to it — and the `.gitignore` that keeps the output out
+of git. Everything else is produced
 by tangling — except the one thing this document cannot produce for itself, the binary that reads
 it, because the package has to exist before the document can be evaluated at all.
 

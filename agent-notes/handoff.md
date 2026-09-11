@@ -5,7 +5,7 @@
 ## 30 秒
 
 - **是什么**：`lp` —— 基于 Typst 的 literate programming 工具。同一个 `.typ` 既是可排版的文档（weave = `typst compile`），也是多种目标语言源码的唯一真相（tangle = `lp tangle`）。目标语言正交：算法里没有任何目标语言知识。
-- **仓库形态（D19 + D21）**：main 的树里只有 **五样 + 一个 `.gitignore`**——`README.md`/`AGENTS.md`（各一行指针）、`lp.typ`、`agent-notes/`，加根上的 `.gitignore`（不能住进输出目录的那个文件）。其余一切——crate、包、示例、控制文件——都是 `lp tangle lp.typ` 的产物，默认写进文档旁边的 **`tangled/`**（`--out` 只在需要时写）。**seed 不再是目录，而是 `seed` 分支**（见下）。flake 与 skill 已于 2026-09-11 移除，`lp execute` 不做（D21）。
+- **仓库形态（D19 + D21）**：main 的树里只有 **五样 + 一个 `.gitignore`**——`README.md`（一行指针）+ `AGENTS.md`（指向它的软链接，两个名字一份文本）、`lp.typ`、`agent-notes/`，加根上的 `.gitignore`（不能住进输出目录的那个文件）。其余一切——crate、包、示例、控制文件——都是 `lp tangle lp.typ` 的产物，默认写进文档旁边的 **`tangled/`**（`--out` 只在需要时写）。**seed 不再是目录，而是 `seed` 分支**（见下）。flake 与 skill 已于 2026-09-11 移除，`lp execute` 不做（D21）。
 - **`lp.typ` 已重排成一篇论证**（约 6100 行，其中约 1250 行散文）。阅读顺序即"构建顺序"：
 
   ```text
