@@ -5357,10 +5357,11 @@ what is inside one.
 
 == What the branch carries, and what it does not
 
-The branch carries what the tree's own repository commits: the declared files, and `Cargo.lock` —
-the one file in the seed that no declaration produces, because a pinned resolution is a decision
-and not a derivation. Everything else the tangle writes stays out, and each for a reason that is
-worth being able to say:
+The branch carries what the tree's own repository commits: the declared files, `Cargo.lock`, and
+the tree's own `.gitignore`. The lock file is the one file in the seed that no declaration produces
+— a pinned resolution is a decision, not a derivation — and the `.gitignore` is a setting of the
+inner repository, protected next to `.git` for that reason. Everything else the tangle writes stays
+out, and each for a reason worth being able to say:
 
 - `.lpmap.json`, in every directory that received a file. The tool classifies it as a *control
   file* rather than content — the same list `--check` exempts — and it is derived from the document
