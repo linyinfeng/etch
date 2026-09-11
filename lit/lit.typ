@@ -7,8 +7,18 @@
 // so weaving cost grows with chunks x references. Replace with a single
 // precomputed index if a book-sized document ever gets slow to compile.
 
-#let ref-re = regex("^\\s*<<([^<>]+)>>\\s*$")
+// A reference line is indentation + `<<name>>` (+ trailing space). That leading
+// indentation is what the tangler copies onto every expanded line, so the weaver
+// must show it: otherwise the document lies about the code it produces.
+#let ref-re = regex("^(\\s*)<<([^<>]+)>>\\s*$")
 #let chunk-label(it) = it.at("label", default: none)
+
+/// The indentation a reference line contributes to the expanded chunk, or "" when
+/// the line is not a reference. Exposed for the check in examples/demo/run.sh.
+#let ref-indent(line) = {
+  let m = line.match(ref-re)
+  if m == none { "" } else { m.captures.at(0) }
+}
 
 #let ref-link(name) = context {
   let target = query(raw.where(block: true)).find(block => {
@@ -34,7 +44,7 @@
         #for line in it.lines {
           let m = line.text.match(ref-re)
           if m == none { line.body } else {
-            raw(line.text.slice(0, m.start)) + ref-link(m.captures.at(0))
+            raw(m.captures.at(0)) + ref-link(m.captures.at(1))
           }
           linebreak()
         }

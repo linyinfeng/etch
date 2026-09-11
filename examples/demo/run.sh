@@ -19,6 +19,16 @@ diff -u examples/demo/expected.txt "$OUT/run.txt" && echo "output matches the do
 echo "== weave (PDF in $OUT) =="
 typst compile --root . "$DOC" "$OUT/demo.pdf"
 
+# A reference line's indentation decides the indentation of the expanded chunk, so
+# the woven document has to show it (regression: it used to render flush left).
+echo "== weave: references keep their indentation =="
+indent=$(typst eval '{ import "lit/lit.typ": ref-indent; ref-indent("    <<print-results>>") }')
+if [ "$indent" != '"    "' ]; then
+    echo "FAIL: reference indentation is lost when weaving (got $indent)" >&2
+    exit 1
+fi
+echo "reference indent survives: $indent"
+
 echo "== drift check =="
 "${LP[@]}" tangle "$DOC" --out "$OUT" --check
 

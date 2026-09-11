@@ -104,6 +104,21 @@ fn indentation_follows_the_reference_site() {
 }
 
 #[test]
+fn typst_dedents_the_block_and_the_reference_adds_it_back() {
+    // A chunk written inside a list item is indented in the document; Typst strips
+    // that common indentation, so it tangles flush left and only the reference
+    // site decides the indentation of the expansion.
+    let doc = "- step one:\n\n  ```py\n  print(1)\n  print(2)\n  ``` <body>\n\n```py\nif x:\n    <<body>>\n``` <main.py>\n";
+    let (_guard, dir) = project(doc);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(dir.join("out/main.py")).expect("main"),
+        "if x:\n    print(1)\n    print(2)\n"
+    );
+}
+
+#[test]
 fn check_reports_drift_with_the_typ_line() {
     let (_guard, dir) = project(DOC);
     assert!(
