@@ -140,17 +140,17 @@ $ echo 'src/main.rs:6:38: error: …' | lp explain
 
 `lp.typ` 描述这个 crate 自己：`Cargo.toml`、`src/*.rs`、`tests/*.rs` 都是它的声明，**都不入库**。仓库里 tracked 的是 `seed/`——冻结的种子，不随文档更新（工具坏掉时它是唯一可信起点）。
 
-clone 之后先跑种子，再跑工具：
+clone 下来只有一个文档、一个种子和笔记：devshell 本身也是文档的产物，所以第一遍用**种子自带的**那套环境（`seed/flake.nix`，冻结在它那一代）：
 
 ```sh
-nix develop -c cargo build --manifest-path seed/Cargo.toml
-nix develop -c ./seed/target/debug/lp tangle lp.typ --out .
-nix develop -c cargo test
+nix develop ./seed -c cargo build --manifest-path seed/Cargo.toml   # 造出种子的二进制
+nix develop ./seed -c ./seed/target/debug/lp tangle lp.typ --out .   # 产出这一代（含根 flake.nix）
+nix develop -c cargo test                                           # 之后走这一代的 devshell
 ```
 
 之后改工具就是改 `lp.typ`（实时回路：`lp watch lp.typ --out . --check-cmd 'cargo build --message-format=short'`）。手改 `src/` 会被 `tests/self.rs` 抓住——它跑 `lp tangle lp.typ --out . --check`，要求文档复现**正在运行的那份源码**。
 
-`--out` 是仓库根，所以根 `.lpignore` 列出所有手写资产（`lit/`、`agent-notes/`、`seed/`、`examples/`……）；新增顶层文件要顺手声明它，否则 `tangle` 报"未处置"。选型与落选方案见 [`agent-notes/decisions/2026-09-11-self-hosting-layout.md`](agent-notes/decisions/2026-09-11-self-hosting-layout.md)。
+`--out` 是仓库根，所以根 `.lpignore` 列出文档不产出的东西（`lp.typ`、`seed/`、`agent-notes/`、两个一行文件与两个 lock）；新增顶层文件要顺手声明它，否则 `tangle` 报"未处置"。选型与落选方案见 [`agent-notes/decisions/2026-09-11-final-shape.md`](agent-notes/decisions/2026-09-11-final-shape.md)。
 
 ## 状态
 
