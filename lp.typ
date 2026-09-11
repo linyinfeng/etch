@@ -30,6 +30,373 @@ thinking checkable. Reading front to back is meant to be the design walk: what a
 declaration is, what a pass does with it, how the result is read back, and why each of
 those choices is the one it is.
 
+= Asking the document what it declares
+
+This is the one thing `lp` cannot work out for itself. Typst is Turing-complete: a chunk can
+come from a loop, a branch, a function, or a file that was `#include`d, so the only authority
+on what a document declares is evaluating it. Rather than parse the document — which would
+mean being wrong exactly where the document is clever — the tool asks Typst a question and
+reads the answer.
+
+The question is one `query`, and the package is what makes it possible: `chunk` and `file`
+attach a metadata record to every declaration they are called with, carrying the name, the
+language and the text. Everything else in this program works from that stream. Nothing is
+recovered from the source afterwards, which is why the sources are never read.
+
+== The shape of the file
+
+#file("src/metadata.rs", ````rust
+<<metadata: the module note>>
+
+<<metadata: the imports>>
+
+<<metadata: the one query>>
+
+<<metadata: what a declaration says>>
+
+<<metadata: the two kinds>>
+
+impl Decl {
+    <<metadata: a kind we do not know>>
+}
+
+<<metadata: finding typst>>
+
+/// Evaluate the documents and read their declarations.
+///
+/// Typst resolves `#include` against its project root, which is the directory of
+/// the file being evaluated. So the wrapper is written where every document lives
+/// and includes them relatively: a document outside the working directory works
+/// the same as one inside it. (Writing the wrapper into the working directory, as
+/// this did at first, silently refused any document that was not under it.)
+pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError> {
+    <<metadata: absolute documents, and where we are>>
+
+    <<metadata: where the wrapper goes>>
+    <<metadata: ask typst, and let the wrapper go>>
+
+    <<metadata: when the document does not evaluate>>
+
+    <<metadata: read the answer>>
+    <<metadata: a document that declares nothing>>
+    <<metadata: every kind is checked here>>
+    Ok(declarations)
+}
+
+<<metadata: the wrapper document>>
+
+impl Wrapper {
+    <<metadata: writing the wrapper>>
+}
+
+<<metadata: removing it, whatever happens>>
+
+<<metadata: the deepest directory that contains every document>>
+
+<<metadata: the wrapper's directory, pinned>>
+````)
+
+== The query, which is the contract with the package
+
+The record's field names are written twice: once in the package that emits them, and once in
+the struct below that reads them. Nothing checks that the two agree — a mismatch shows up as
+a serde error at runtime, reported with the raw output that Typst actually printed. That is
+the weakest joint in the program, and it is a joint by construction: two languages, two
+files, one agreement.
+
+#chunk("metadata: the module note", ````
+//! What the document declares its chunks to be.
+//!
+//! Typst is Turing-complete: a chunk can come from a loop, a branch, a function
+//! or an `#include`d file, so the only authority is evaluation. The document
+//! declares its chunks through the `lp` package (`lit/lp.typ`), whose `chunk` and
+//! `file` functions take the code block as an argument and emit one metadata
+//! record each:
+//!
+//! ```typ
+//! #chunk("imports", ```rust
+//! use std::fmt;
+//! ```)
+//!
+//! #file("src/main.rs", ```rust
+//! <<imports>>
+//! ```)
+//! ```
+//!
+//! A declaration carries name, language and text, so nothing has to be recovered
+//! from the source afterwards — which is why the sources are not read at all.
+````)
+
+#chunk("metadata: the imports", ````
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use serde::Deserialize;
+
+use crate::diag::LpError;
+````)
+
+#chunk("metadata: the one query", ````
+/// Every declaration, in the order the document produced them.
+const QUERY: &str = "query(<lp-decl>).map(declaration => declaration.value)";
+````)
+
+== What a declaration says, and the two kinds it can be
+
+A declaration is data: which of the two functions produced it, the name, the language from
+the fence, and the text. The kind is not free-form — the package emits `"chunk"` or
+`"file"` — so anything else is a mistake in the package or in whatever produced the
+metadata, and it is an error rather than a default. A third kind would mean the package grew
+a feature the tool has not learned yet, which is not something to guess at.
+
+#chunk("metadata: what a declaration says", ````
+#[derive(Debug, Clone, Deserialize)]
+pub struct Decl {
+    /// `"chunk"` or `"file"`.
+    pub lp: String,
+    /// The fragment's name, or the path for a file declaration.
+    pub name: String,
+    #[serde(default)]
+    pub lang: Option<String>,
+    #[serde(default)]
+    pub text: String,
+}
+````)
+
+#chunk("metadata: the two kinds", ````
+/// What the two declaration functions mean.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// `#chunk(name, …)`: a fragment that only exists where it is referenced.
+    Chunk,
+    /// `#file(path, …)`: a chunk whose name is the path it is written to.
+    File,
+}
+````)
+
+#chunk("metadata: a kind we do not know", ````
+/// A declaration that says something else is a mistake in the package or in
+/// whatever emitted the metadata — not a fragment by default.
+pub fn kind(&self) -> Result<Kind, LpError> {
+    match self.lp.as_str() {
+        "chunk" => Ok(Kind::Chunk),
+        "file" => Ok(Kind::File),
+        other => Err(LpError::plain(format!(
+            "{}: unknown declaration kind {other:?}",
+            self.name
+        ))
+        .with_help("the package emits `lp: \"chunk\"` or `lp: \"file\"`")),
+    }
+}
+````)
+
+== Finding typst
+
+The binary is a hard dependency: without it there are no declarations to read. An explicit
+override first, then `PATH`, and if neither works the error says what to do rather than
+failing later with a confusing message.
+
+#chunk("metadata: finding typst", ````
+/// Locate the `typst` binary: an explicit override, then `PATH`.
+pub fn binary() -> Result<PathBuf, LpError> {
+    if let Some(path) = std::env::var_os("LP_TYPST") {
+        return Ok(PathBuf::from(path));
+    }
+    let name = if cfg!(windows) { "typst.exe" } else { "typst" };
+    std::env::var_os("PATH")
+        .and_then(|paths| std::env::split_paths(&paths).map(|dir| dir.join(name)).find(|candidate| candidate.is_file()))
+        .ok_or_else(|| {
+            LpError::plain("no `typst` binary found").with_help(
+                "tangling asks the document for its declarations, so typst has to be available (set LP_TYPST or put it on PATH)",
+            )
+        })
+}
+````)
+
+== Asking the question
+
+#chunk("metadata: absolute documents, and where we are", ````
+let cwd = std::env::current_dir()
+    .map_err(|err| LpError::plain(format!("cannot read the working directory: {err}")))?;
+let docs: Vec<PathBuf> = docs
+    .iter()
+    .map(|doc| std::path::absolute(doc).unwrap_or_else(|_| cwd.join(doc)))
+    .collect();
+````)
+
+#chunk("metadata: where the wrapper goes", ````
+// Typst refuses to read outside its project root, and a document may import a
+// package from outside its own directory, so the root has to cover the working
+// directory *and* every document. The wrapper lives next to the documents (it
+// must be inside the root to be readable) and includes them relatively.
+let root = common_ancestor(
+    &[cwd.clone()]
+        .into_iter()
+        .chain(docs.iter().cloned())
+        .collect::<Vec<_>>(),
+);
+````)
+
+Two constraints meet here. Typst refuses to read outside its project root, and a document may
+import a package from outside its own directory — so the root has to cover the working
+directory *and* every document, and the wrapper has to live inside that root to be readable
+at all. Hence a wrapper next to the documents, including them relatively, with the root
+computed as the deepest directory that contains everything involved.
+
+#chunk("metadata: ask typst, and let the wrapper go", ````
+let wrapper = Wrapper::write(&common_ancestor(&docs), &docs)?;
+let output = Command::new(typst)
+    .arg("eval")
+    .arg(QUERY)
+    .arg("--in")
+    .arg(&wrapper.path)
+    .arg("--root")
+    .arg(&root)
+    .current_dir(&cwd)
+    .output();
+drop(wrapper);
+````)
+
+#chunk("metadata: when the document does not evaluate", ````
+let output =
+    output.map_err(|err| LpError::plain(format!("cannot run {}: {err}", typst.display())))?;
+if !output.status.success() {
+    let message = String::from_utf8_lossy(&output.stderr);
+    return Err(LpError::plain(format!(
+        "the document did not evaluate, so there are no chunks to tangle:\n{}",
+        message.trim_end()
+    )));
+}
+````)
+
+The failure is reported with Typst's own message, because that is the message the person who
+wrote the document needs to see — a missing bracket in a chunk is a document error, not a
+tool error.
+
+#chunk("metadata: read the answer", ````
+let declarations: Vec<Decl> = serde_json::from_slice(&output.stdout).map_err(|err| {
+    LpError::plain(format!("cannot read the document's declarations: {err}"))
+        .with_help(String::from_utf8_lossy(&output.stdout).to_string())
+})?;
+````)
+
+#chunk("metadata: a document that declares nothing", ````
+if declarations.is_empty() {
+    return Err(LpError::plain("the document declares no chunks").with_help(
+        "import the package and declare them: `#import \"lp.typ\": chunk, file`, then `#chunk(\"name\", ```…```)` or `#file(\"src/main.rs\", ```…```)`",
+    ));
+}
+````)
+
+#chunk("metadata: every kind is checked here", ````
+for declaration in &declarations {
+    declaration.kind()?;
+}
+````)
+
+== A file that exists for one command
+
+The wrapper is a temporary document holding one `#include` per document named on the command
+line. It is removed when it goes out of scope, and that includes the failing and panicking
+paths: a leftover `.lp-decl-*.typ` in someone's directory would surface as an unaccounted file
+on the next pass, which is a bug in the user's tree caused by a tool that forgot to clean up.
+
+#chunk("metadata: the wrapper document", ````
+/// A wrapper document, removed when it goes out of scope — including when the
+/// evaluation fails, and including on panic.
+struct Wrapper {
+    path: PathBuf,
+}
+````)
+
+#chunk("metadata: writing the wrapper", ````
+fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
+    let path = root.join(format!(".lp-decl-{}.typ", std::process::id()));
+    let mut text = String::new();
+    for doc in docs {
+        let relative = doc.strip_prefix(root).unwrap_or(doc);
+        // Quoted, because that is how Typst takes a path; a quote or backslash
+        // in a file name must not break the wrapper open.
+        let quoted = relative
+            .to_string_lossy()
+            .replace('\\', "/")
+            .replace('"', "\\\"");
+        text.push_str(&format!("#include \"{quoted}\"\n"));
+    }
+    std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
+    Ok(Self { path })
+}
+````)
+
+The paths are quoted and their backslashes and quotes escaped: a file name must not be able to
+break the wrapper open, and on some systems a file name may contain a quote.
+
+#chunk("metadata: removing it, whatever happens", ````
+impl Drop for Wrapper {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+````)
+
+== The directory the wrapper lives in
+
+The deepest directory containing every document, which is also the directory the wrapper is
+written into. The unit test is here rather than in `tests/` because this arithmetic — walk up
+until every path fits — is easy to get subtly wrong, and the failure mode is quiet: a wrapper
+written outside the root is simply refused by Typst, with a message about a path, not about
+this function.
+
+#chunk("metadata: the deepest directory that contains every document", ````
+/// The deepest directory that contains every document.
+fn common_ancestor(docs: &[PathBuf]) -> PathBuf {
+    let mut root = docs
+        .first()
+        .and_then(|doc| doc.parent())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("/"));
+
+    for doc in docs.iter().skip(1) {
+        while !doc.starts_with(&root) {
+            match root.parent() {
+                Some(parent) => root = parent.to_path_buf(),
+                None => return root,
+            }
+        }
+    }
+    root
+}
+````)
+
+#chunk("metadata: the wrapper's directory, pinned", ````
+#[cfg(test)]
+mod tests {
+    use super::common_ancestor;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn the_wrapper_goes_where_every_document_lives() {
+        assert_eq!(
+            common_ancestor(&[
+                PathBuf::from("/a/b/book.typ"),
+                PathBuf::from("/a/b/chapter.typ")
+            ]),
+            Path::new("/a/b")
+        );
+        assert_eq!(
+            common_ancestor(&[
+                PathBuf::from("/a/book.typ"),
+                PathBuf::from("/a/c/chapter.typ")
+            ]),
+            Path::new("/a")
+        );
+        assert_eq!(
+            common_ancestor(&[PathBuf::from("/a/book.typ")]),
+            Path::new("/a")
+        );
+    }
+}
+````)
 = What a pass does with the declarations
 
 Everything up to here has been reading: the document declares chunks, and two other pieces
@@ -1843,6 +2210,739 @@ mod tests {
     }
 }
 ````)
+= Keeping the files in step while the document is edited
+
+`lp watch` is what makes the document usable as a source: save, and the generated files
+follow. It is possible at all because of a property of the design that has been measured —
+expanding a two-thousand-line document takes about a millisecond — and it exists because of a
+failure that is easy to underestimate: a tool that rebuilds the world on every keystroke
+teaches its user to stop saving, and that is the end of the loop the whole thing depends on.
+
+Three properties matter more than speed, and they are the three the file states in its own
+note. Only real changes are written, so a file that did not change keeps its mtime and cargo
+and rust-analyzer stay asleep. A half-written document is not tangled: a syntax error is
+printed and the pass is skipped, which leaves the last good output in place while the editor
+is mid-keystroke. And editor events are coalesced — a debouncer plus draining the events our
+own writes produced — so a burst of edits is one pass.
+
+The cost is recorded in the file rather than hidden: every pass re-reads and re-evaluates the
+whole document and re-expands every root. That is a deliberate ceiling, with the measurement
+next to it, and the note says what would have to change if a book-sized document ever makes it
+hurt.
+
+== The shape of the file
+
+#file("src/watch.rs", ````rust
+<<watch: the module note>>
+
+<<watch: the imports>>
+
+<<watch: what the command line passes in>>
+
+pub fn run(options: Options) -> Result<(), LpError> {
+    <<watch: one debouncer, one channel>>
+
+    <<watch: the directories, not the files>>
+
+    <<watch: say what is being watched>>
+
+    <<watch: pass once, then wait>>
+    Ok(())
+}
+
+/// One pass. `initial` only changes the wording when there is nothing to do.
+/// Returns whether the pass rewrote anything.
+fn pass(options: &Options, initial: bool, events: &mpsc::Receiver<()>) -> bool {
+    let started = Instant::now();
+
+    <<watch: the events our own writes caused>>
+
+    <<watch: one pass, through tangle>>
+
+    <<watch: the warnings, and how long it took>>
+
+    <<watch: nothing to do>>
+
+    <<watch: say what happened, then check>>
+    true
+}
+
+fn check(options: &Options) {
+    <<watch: no check command, no check>>
+
+    <<watch: run the command, whatever it is>>
+
+    <<watch: its output, both streams>>
+
+    <<watch: the same translation as lp explain>>
+}
+
+<<watch: the last resort>>
+````)
+
+== What the command line passes in
+
+The watched documents, the output directory, the debounce window, and an optional command to
+run after a pass that changed something. Nothing here knows about `lp` itself; this is the
+part of the program that touches the outside world.
+
+#chunk("watch: the module note", ````
+//! `lp watch`: keep the generated files in step with the document while it is
+//! being edited, and fuse the check loop in.
+//!
+//! Three properties matter more than raw speed here:
+//!
+//! 1. **Only real changes are written.** A pass compares the tangled bytes with
+//!    what is on disk, so files that did not change keep their mtime — cargo and
+//!    rust-analyzer stay asleep instead of rebuilding the world on every keypress.
+//! 2. **Half-written documents are not tangled.** Mid-edit states are normal, so a
+//!    syntax error prints and skips the pass, leaving the last good output alone.
+//! 3. **Editor events are coalesced.** `notify`'s debouncer plus draining our own
+//!    writes means one pass per burst, not one per keystroke.
+//!
+//! ponytail: every pass re-reads and re-parses the whole document and re-expands
+//! every root (measured: ~1ms for 2k lines, see agent-notes). Reverse-reachability
+//! and `typst-syntax`'s reparser are only worth it if that ever shows up in a
+//! profile on a book-sized document.
+````)
+
+#chunk("watch: the imports", ````
+use std::path::{Path, PathBuf};
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
+
+use notify_debouncer_full::notify::RecursiveMode;
+use notify_debouncer_full::{DebounceEventResult, new_debouncer};
+
+use crate::diag::LpError;
+use crate::tangle;
+````)
+
+#chunk("watch: what the command line passes in", ````
+pub struct Options {
+    pub docs: Vec<PathBuf>,
+    pub out: PathBuf,
+    pub debounce: Duration,
+    /// Run after a pass that changed something, e.g.
+    /// `cargo build --message-format=short`.
+    pub check_cmd: Option<String>,
+}
+````)
+
+== Starting up, and what to watch
+
+#chunk("watch: one debouncer, one channel", ````
+let (tx, rx) = mpsc::channel();
+let mut debouncer = new_debouncer(
+    options.debounce,
+    None,
+    move |result: DebounceEventResult| {
+        if result.is_ok() {
+            let _ = tx.send(());
+        }
+    },
+)
+.map_err(|err| LpError::plain(format!("cannot start the file watcher: {err}")))?;
+````)
+
+#chunk("watch: the directories, not the files", ````
+// Watch the containing directories, not the files: editors save by renaming a
+// temporary file over the target, which drops a file-level watch.
+let mut watched: Vec<PathBuf> = Vec::new();
+for doc in &options.docs {
+    let dir = doc
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+        .to_path_buf();
+    if watched.contains(&dir) {
+        continue;
+    }
+    debouncer
+        .watch(&dir, RecursiveMode::NonRecursive)
+        .map_err(|err| LpError::plain(format!("cannot watch {}: {err}", dir.display())))?;
+    watched.push(dir);
+}
+````)
+
+The directories are watched rather than the files, and that is not a detail: editors save by
+writing a temporary file and renaming it over the target, which silently kills a watch on the
+file itself. Watching the directory is also why the first pass matters — the loop has to be
+correct *before* the first event arrives, since the document may already be out of step.
+
+#chunk("watch: say what is being watched", ````
+eprintln!(
+    "watching {} -> {}",
+    options
+        .docs
+        .iter()
+        .map(|doc| doc.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", "),
+    options.out.display()
+);
+````)
+
+#chunk("watch: pass once, then wait", ````
+pass(&options, true, &rx);
+while rx.recv().is_ok() {
+    pass(&options, false, &rx);
+}
+````)
+
+== One pass
+
+#chunk("watch: the events our own writes caused", ````
+// Drop events queued while we were working (our own writes included) so a
+// single edit cannot trigger a second, useless pass.
+while events.try_recv().is_ok() {}
+````)
+
+The drain is the part that is easy to miss: a pass writes files, the watcher sees those
+writes, and without emptying the queue first every pass would trigger one more. This is also
+where the design's honesty shows: the tool's own output is nobody's edit.
+
+#chunk("watch: one pass, through tangle", ````
+let outcome = match tangle::run(&options.docs, &options.out, false) {
+    Ok(outcome) => outcome,
+    Err(err) => {
+        report(err);
+        return false;
+    }
+};
+````)
+
+A failed pass does not end the loop — the error is printed and the pass returns without
+writing anything, which is the half-written document case. The alternative, exiting, would
+turn a moment of typing into a dead process.
+
+#chunk("watch: the warnings, and how long it took", ````
+for warning in &outcome.warnings {
+    eprintln!("warning: {warning}");
+}
+let ms = started.elapsed().as_secs_f64() * 1000.0;
+let dormant = outcome.changed.is_empty();
+````)
+
+#chunk("watch: nothing to do", ````
+if dormant {
+    if initial {
+        eprintln!(
+            "sync   up to date ({} files, {ms:.1}ms)",
+            outcome.unchanged.len()
+        );
+    }
+    return false;
+}
+````)
+
+#chunk("watch: say what happened, then check", ````
+// Report even when nothing was written: deleting a root chunk leaves a file
+// behind without changing any other output.
+eprintln!(
+    "sync   {} rewritten, {} untouched ({ms:.1}ms): {}",
+    outcome.changed.len(),
+    outcome.unchanged.len(),
+    outcome
+        .changed
+        .iter()
+        .map(|output| output.root.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
+);
+if !dormant {
+    check(options);
+}
+````)
+
+== The check command
+
+Running the check only when something was rewritten is the fusion that makes `--check-cmd`
+worth having: a compiler invoked on every save would spend the user's morning rebuilding
+nothing, and a warning printed on every save is a warning nobody reads.
+
+#chunk("watch: no check command, no check", ````
+let Some(command) = &options.check_cmd else {
+    return;
+};
+````)
+
+#chunk("watch: run the command, whatever it is", ````
+let output = match std::process::Command::new("sh")
+    .arg("-c")
+    .arg(command)
+    .output()
+{
+    Ok(output) => output,
+    Err(err) => {
+        eprintln!("check  cannot run {command:?}: {err}");
+        return;
+    }
+};
+````)
+
+#chunk("watch: its output, both streams", ````
+let text = format!(
+    "{}{}",
+    String::from_utf8_lossy(&output.stdout),
+    String::from_utf8_lossy(&output.stderr)
+);
+````)
+
+Both streams, because compilers are not consistent about which one carries the diagnostic —
+cargo writes errors to stderr and notes to stdout, and a filter that reads one of them is
+wrong half the time.
+
+#chunk("watch: the same translation as lp explain", ````
+// Same translation as `lp explain`, reading the maps we just wrote.
+let _ = crate::explain::run(&options.out, "generic", &text);
+````)
+
+== The last resort
+
+#chunk("watch: the last resort", ````
+fn report(err: LpError) {
+    eprintln!("{:?}", miette::Report::new(err));
+}
+````)
+= The command line, and what each command is for
+
+This is the file that turns the library into a program. It has two jobs and no third:
+describe the surface, so that `lp --help` is the contract and clap writes it; and translate a
+command into calls on the modules the earlier chapters described, printing what happened and
+choosing an exit status.
+
+Nothing here decides anything about tangling, mapping or ownership. That is the point — the
+surface is a table, and the table is small enough to read in one sitting, which is how a
+reader finds out what the tool can do without reading the tool.
+
+== The shape of the file
+
+#file("src/main.rs", ````rust
+<<main: the modules, and what they are called>>
+
+<<main: the surface, as clap sees it>>
+
+#[derive(Subcommand)]
+enum Command {
+    <<main: tangle>>
+    <<main: map>>
+    <<main: explain>>
+    <<main: watch>>
+    <<main: list>>
+    <<main: metadata>>
+    <<main: unaccounted>>
+}
+
+fn main() {
+    <<main: how an error is printed>>
+    <<main: the exit status>>
+}
+
+fn run() -> Result<i32, LpError> {
+    match Cli::parse().command {
+        <<main: tangle, and what it reports>>
+        <<main: watch, and its options>>
+        <<main: the map arm>>
+
+        <<main: map, in reverse>>
+
+        <<main: map, forward>>
+
+        <<main: map, the answer>>
+        }
+        <<main: explain, a filter on stdin>>
+        <<main: list, one document>>
+        <<main: metadata, the stream itself>>
+        <<main: unaccounted, which needs a plan>>
+    }
+}
+
+fn list(docs: &[PathBuf]) -> Result<(), LpError> {
+    <<main: plan, and who is referenced>>
+
+    <<main: one row per declaration>>
+
+    <<main: the outputs at the end>>
+    Ok(())
+}
+````)
+
+== The surface
+
+The declarations are the contract, so they are also where the help text lives: the comments
+in this file are `lp --help`. Each command gets its own fragment, because each one is a
+promise about what the tool does.
+
+#chunk("main: the modules, and what they are called", ````
+mod diag;
+mod explain;
+mod map;
+mod metadata;
+mod status;
+mod tangle;
+mod watch;
+
+use std::collections::BTreeSet;
+use std::io::Read;
+use std::path::PathBuf;
+
+use clap::{Parser, Subcommand};
+
+use diag::LpError;
+````)
+
+#chunk("main: the surface, as clap sees it", ````
+#[derive(Parser)]
+#[command(name = "lp", version, about = "Typst-based literate programming")]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+````)
+
+#chunk("main: tangle", ````
+/// Expand a .typ document into its source files
+Tangle {
+    /// Documents to tangle, e.g. examples/demo/literate.typ
+    #[arg(required = true)]
+    docs: Vec<PathBuf>,
+    /// Directory the root chunk names resolve into
+    #[arg(long, default_value = "out")]
+    out: PathBuf,
+    /// Write nothing; fail if the generated files are out of date
+    #[arg(long)]
+    check: bool,
+},
+````)
+
+#chunk("main: map", ````
+/// Tell which chunk produced a line of a generated file (or the reverse)
+Map {
+    /// Generated file, relative to --out (a unique basename also works)
+    #[arg(long, conflicts_with = "typ")]
+    file: Option<String>,
+    /// Reverse mode: list the generated lines that came from this chunk
+    #[arg(long, conflicts_with = "file")]
+    typ: Option<String>,
+    /// Line of the generated file (required with --file)
+    #[arg(long)]
+    line: Option<usize>,
+    #[arg(long, default_value = "out")]
+    out: PathBuf,
+},
+````)
+
+#chunk("main: explain", ````
+/// Rewrite diagnostics so they name the chunk that produced the line
+Explain {
+    #[arg(long, default_value = "out")]
+    out: PathBuf,
+    /// Diagnostic format on stdin
+    #[arg(long, default_value = "generic", value_parser = ["generic", "cargo"])]
+    format: String,
+},
+````)
+
+#chunk("main: watch", ````
+/// Keep the generated files in step while the document is edited
+Watch {
+    /// Documents to watch, e.g. examples/demo/literate.typ
+    #[arg(required = true)]
+    docs: Vec<PathBuf>,
+    #[arg(long, default_value = "out")]
+    out: PathBuf,
+    /// Coalesce editor events for this many milliseconds
+    #[arg(long, default_value_t = 200)]
+    debounce: u64,
+    /// Command to run after a pass that changed something, e.g.
+    /// 'cargo build --message-format=short'; its diagnostics get translated
+    #[arg(long)]
+    check_cmd: Option<String>,
+},
+````)
+
+#chunk("main: list", ````
+/// List the chunks a document declares
+List { doc: PathBuf },
+````)
+
+`list` and `metadata` are the two commands that exist for the person debugging a document
+rather than for the build. They answer the questions a reader of this document asks all the
+time — which chunks exist, in what order, and what does Typst actually hand over — and they do
+it without writing anything.
+
+#chunk("main: metadata", ````
+/// Ask the documents which chunks they have, in order
+Metadata {
+    /// Documents to ask, e.g. book.typ chapter.typ
+    #[arg(required = true)]
+    docs: Vec<PathBuf>,
+},
+````)
+
+#chunk("main: unaccounted", ````
+/// List (or delete) files under the output directory that nothing accounts for
+Unaccounted {
+    /// Documents that decide what counts as produced
+    #[arg(required = true)]
+    docs: Vec<PathBuf>,
+    #[arg(long, default_value = "out")]
+    out: PathBuf,
+    /// Delete them: the explicit alternative to declaring them
+    #[arg(long)]
+    delete: bool,
+},
+````)
+
+== How errors leave the program
+
+Every error in this program is an `LpError`, and this is the only place it becomes text. The
+report handler is installed once, so no module has to think about rendering; and the exit
+status is 1 for every failure, which is all a shell needs to know.
+
+#chunk("main: how an error is printed", ````
+let _ = miette::set_hook(Box::new(|_| {
+    Box::new(miette::GraphicalReportHandler::new_themed(
+        miette::GraphicalTheme::unicode(),
+    ))
+}));
+````)
+
+#chunk("main: the exit status", ````
+match run() {
+    Ok(code) => std::process::exit(code),
+    Err(err) => {
+        eprintln!("{:?}", miette::Report::new(err));
+        std::process::exit(1);
+    }
+}
+````)
+
+== Dispatch, one arm per promise
+
+Each arm is short on purpose: parse the arguments, call the module, print. Where an arm grows
+a decision, that decision belongs in the module it calls, and the arm gets thinner or the
+module gets a new function.
+
+#chunk("main: tangle, and what it reports", ````
+Command::Tangle { docs, out, check } => {
+    let outcome = tangle::run(&docs, &out, check)?;
+    for output in &outcome.changed {
+        println!(
+            "wrote  {}  ({} lines, {})",
+            output.root,
+            output.lines,
+            output.lang.as_deref().unwrap_or("-")
+        );
+    }
+    for output in &outcome.unchanged {
+        println!("ok     {}", output.root);
+    }
+    for line in &outcome.stale {
+        eprintln!("{line}");
+    }
+    for warning in &outcome.warnings {
+        eprintln!("warning: {warning}");
+    }
+    for group in &outcome.unaccounted {
+        let label = if group.dir.is_empty() {
+            "."
+        } else {
+            group.dir.as_str()
+        };
+        eprintln!(
+            "note: {} entr{} in {label}/ that nothing accounts for (run `lp unaccounted`)",
+            group.entries.len(),
+            if group.entries.len() == 1 { "y" } else { "ies" }
+        );
+    }
+    Ok(i32::from(!outcome.stale.is_empty()))
+}
+````)
+
+Tangling is the one command with a *report* rather than a result: what was written, what was
+already right, what drifted, what was warned about, and what nothing accounts for. The exit
+status is 1 when there is drift and 0 otherwise, so `--check` is usable from a script without
+parsing anything.
+
+#chunk("main: watch, and its options", ````
+Command::Watch {
+    docs,
+    out,
+    debounce,
+    check_cmd,
+} => {
+    watch::run(watch::Options {
+        docs,
+        out,
+        debounce: std::time::Duration::from_millis(debounce),
+        check_cmd,
+    })?;
+    Ok(0)
+}
+````)
+
+#chunk("main: the map arm", ````
+Command::Map {
+    file,
+    typ,
+    line,
+    out,
+} => {
+    let maps = map::LpMap::read_all(&out);
+````)
+
+`map` has two directions, and they are different enough to be separate fragments. In reverse
+it scans every run in every file, which is a linear search — acceptable because it runs when
+a person asks, not in a loop.
+
+#chunk("main: map, in reverse", ````
+    if let Some(chunk) = typ {
+        // Reverse: which generated lines came from this chunk?
+        let mut hits = 0;
+        for (dir, map) in &maps {
+            for (name, file) in &map.files {
+                for run in &file.runs {
+                    if run.chunk == chunk {
+                        for line in run.first..=run.last {
+                            println!("{}:{}", map::join(dir, name), line);
+                            hits += 1;
+                        }
+                    }
+                }
+            }
+        }
+        if hits == 0 {
+            eprintln!("note: nothing in the generated files came from chunk ⟪{chunk}⟫");
+        }
+        return Ok(0);
+    }
+````)
+
+Forward, it resolves the file to one map (the search from the map chapter, including its
+refusal to guess) and then asks that map for the run covering the line.
+
+#chunk("main: map, forward", ````
+    let (Some(file), Some(line)) = (file, line) else {
+        return Err(LpError::plain("lp map --file needs a --line").with_help(
+            "use `lp map --file src/main.rs --line 42` for a generated line, or `lp map --typ <chunk>` the other way",
+        ));
+    };
+    let (dir, name, entry) = map::resolve_all(&maps, &file)?;
+    let rel = map::join(dir, name);
+    let Some((run, offset)) = entry.locate(line) else {
+        return Err(LpError::plain(format!(
+            "{rel}:{line}: no map knows this file"
+        )));
+    };
+````)
+
+#chunk("main: map, the answer", ````
+    // Where to edit: the chunk, and how far into it this line is. Typst
+    // exposes no source positions, so a name is the pointer (ADR D14).
+    println!("chunk ⟪{}⟫, line {offset} of it", run.chunk);
+    println!("    find it with: rg '#chunk(\"{}\")'", run.chunk);
+    Ok(0)
+````)
+
+#chunk("main: explain, a filter on stdin", ````
+Command::Explain { out, format } => {
+    let mut input = String::new();
+    std::io::stdin()
+        .read_to_string(&mut input)
+        .map_err(|e| LpError::plain(e.to_string()))?;
+    let mapped = explain::run(&out, &format, &input)?;
+    if mapped == 0 {
+        eprintln!("note: no diagnostic line matched any map");
+    }
+    Ok(0)
+}
+````)
+
+Reading standard input rather than taking a file means the command composes: anything that
+prints diagnostics can be piped in, and the note about nothing matching goes to stderr so the
+pipeline's stdout stays exactly what it was.
+
+#chunk("main: list, one document", ````
+Command::List { doc } => {
+    list(std::slice::from_ref(&doc))?;
+    Ok(0)
+}
+````)
+
+#chunk("main: metadata, the stream itself", ````
+Command::Metadata { docs } => {
+    let typst = metadata::binary()?;
+    for declaration in metadata::declarations(&typst, &docs)? {
+        println!(
+            "{:<6} {:<28} {:<8} {}",
+            declaration.lp,
+            declaration.name,
+            declaration.lang.as_deref().unwrap_or("-"),
+            declaration.text.lines().next().unwrap_or("")
+        );
+    }
+    Ok(0)
+}
+````)
+
+#chunk("main: unaccounted, which needs a plan", ````
+Command::Unaccounted { docs, out, delete } => {
+    let plan = tangle::plan(&docs)?;
+    status::run(&out, &tangle::produced(&plan), delete)
+}
+````)
+
+== The one command with a view of its own
+
+`list` is a debug view, and it is the one place in this file where the program looks at the
+plan's contents rather than handing them to a module: it needs the set of names that are
+referenced, which `plan` computes internally and does not expose. Widening `Plan` for a
+debug command seemed the worse trade, so the three lines are repeated here — a wart, kept
+deliberately, and this is where it is recorded.
+
+#chunk("main: plan, and who is referenced", ````
+let plan = tangle::plan(docs)?;
+let set = tangle::ChunkSet::new(&plan.blocks);
+let referenced: BTreeSet<String> = plan.blocks.iter().flat_map(tangle::refs_of).collect();
+````)
+
+#chunk("main: one row per declaration", ````
+for doc in docs {
+    println!("{}", doc.display());
+}
+for block in &plan.blocks {
+    let kind = if block.root { "file" } else { "frag" };
+    let used = if referenced.contains(&block.name) || block.root {
+        String::new()
+    } else {
+        "unreferenced".to_string()
+    };
+    println!(
+        "  {kind}  {:<28} {:<8} {}",
+        format!("⟪{}⟫", block.name),
+        block.lang.as_deref().unwrap_or("-"),
+        used
+    );
+}
+````)
+
+#chunk("main: the outputs at the end", ````
+let roots = set.roots();
+println!(
+    "\noutputs: {}",
+    if roots.is_empty() {
+        "(none)".to_string()
+    } else {
+        roots
+            .iter()
+            .map(|root| format!("<{root}>"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+);
+````)
 = Not yet arranged
 
 The declarations below are the rest of this repository, still waiting for their chapters.
@@ -1930,685 +3030,6 @@ impl miette::Diagnostic for LpError {
             .as_ref()
             .map(|help| Box::new(help.clone()) as Box<dyn fmt::Display + '_>)
     }
-}
-````)
-
-#file("src/main.rs", ````rust
-mod diag;
-mod explain;
-mod map;
-mod metadata;
-mod status;
-mod tangle;
-mod watch;
-
-use std::collections::BTreeSet;
-use std::io::Read;
-use std::path::PathBuf;
-
-use clap::{Parser, Subcommand};
-
-use diag::LpError;
-
-#[derive(Parser)]
-#[command(name = "lp", version, about = "Typst-based literate programming")]
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// Expand a .typ document into its source files
-    Tangle {
-        /// Documents to tangle, e.g. examples/demo/literate.typ
-        #[arg(required = true)]
-        docs: Vec<PathBuf>,
-        /// Directory the root chunk names resolve into
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
-        /// Write nothing; fail if the generated files are out of date
-        #[arg(long)]
-        check: bool,
-    },
-    /// Tell which chunk produced a line of a generated file (or the reverse)
-    Map {
-        /// Generated file, relative to --out (a unique basename also works)
-        #[arg(long, conflicts_with = "typ")]
-        file: Option<String>,
-        /// Reverse mode: list the generated lines that came from this chunk
-        #[arg(long, conflicts_with = "file")]
-        typ: Option<String>,
-        /// Line of the generated file (required with --file)
-        #[arg(long)]
-        line: Option<usize>,
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
-    },
-    /// Rewrite diagnostics so they name the chunk that produced the line
-    Explain {
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
-        /// Diagnostic format on stdin
-        #[arg(long, default_value = "generic", value_parser = ["generic", "cargo"])]
-        format: String,
-    },
-    /// Keep the generated files in step while the document is edited
-    Watch {
-        /// Documents to watch, e.g. examples/demo/literate.typ
-        #[arg(required = true)]
-        docs: Vec<PathBuf>,
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
-        /// Coalesce editor events for this many milliseconds
-        #[arg(long, default_value_t = 200)]
-        debounce: u64,
-        /// Command to run after a pass that changed something, e.g.
-        /// 'cargo build --message-format=short'; its diagnostics get translated
-        #[arg(long)]
-        check_cmd: Option<String>,
-    },
-    /// List the chunks a document declares
-    List { doc: PathBuf },
-    /// Ask the documents which chunks they have, in order
-    Metadata {
-        /// Documents to ask, e.g. book.typ chapter.typ
-        #[arg(required = true)]
-        docs: Vec<PathBuf>,
-    },
-    /// List (or delete) files under the output directory that nothing accounts for
-    Unaccounted {
-        /// Documents that decide what counts as produced
-        #[arg(required = true)]
-        docs: Vec<PathBuf>,
-        #[arg(long, default_value = "out")]
-        out: PathBuf,
-        /// Delete them: the explicit alternative to declaring them
-        #[arg(long)]
-        delete: bool,
-    },
-}
-
-fn main() {
-    let _ = miette::set_hook(Box::new(|_| {
-        Box::new(miette::GraphicalReportHandler::new_themed(
-            miette::GraphicalTheme::unicode(),
-        ))
-    }));
-    match run() {
-        Ok(code) => std::process::exit(code),
-        Err(err) => {
-            eprintln!("{:?}", miette::Report::new(err));
-            std::process::exit(1);
-        }
-    }
-}
-
-fn run() -> Result<i32, LpError> {
-    match Cli::parse().command {
-        Command::Tangle { docs, out, check } => {
-            let outcome = tangle::run(&docs, &out, check)?;
-            for output in &outcome.changed {
-                println!(
-                    "wrote  {}  ({} lines, {})",
-                    output.root,
-                    output.lines,
-                    output.lang.as_deref().unwrap_or("-")
-                );
-            }
-            for output in &outcome.unchanged {
-                println!("ok     {}", output.root);
-            }
-            for line in &outcome.stale {
-                eprintln!("{line}");
-            }
-            for warning in &outcome.warnings {
-                eprintln!("warning: {warning}");
-            }
-            for group in &outcome.unaccounted {
-                let label = if group.dir.is_empty() {
-                    "."
-                } else {
-                    group.dir.as_str()
-                };
-                eprintln!(
-                    "note: {} entr{} in {label}/ that nothing accounts for (run `lp unaccounted`)",
-                    group.entries.len(),
-                    if group.entries.len() == 1 { "y" } else { "ies" }
-                );
-            }
-            Ok(i32::from(!outcome.stale.is_empty()))
-        }
-        Command::Watch {
-            docs,
-            out,
-            debounce,
-            check_cmd,
-        } => {
-            watch::run(watch::Options {
-                docs,
-                out,
-                debounce: std::time::Duration::from_millis(debounce),
-                check_cmd,
-            })?;
-            Ok(0)
-        }
-        Command::Map {
-            file,
-            typ,
-            line,
-            out,
-        } => {
-            let maps = map::LpMap::read_all(&out);
-
-            if let Some(chunk) = typ {
-                // Reverse: which generated lines came from this chunk?
-                let mut hits = 0;
-                for (dir, map) in &maps {
-                    for (name, file) in &map.files {
-                        for run in &file.runs {
-                            if run.chunk == chunk {
-                                for line in run.first..=run.last {
-                                    println!("{}:{}", map::join(dir, name), line);
-                                    hits += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-                if hits == 0 {
-                    eprintln!("note: nothing in the generated files came from chunk ⟪{chunk}⟫");
-                }
-                return Ok(0);
-            }
-
-            let (Some(file), Some(line)) = (file, line) else {
-                return Err(LpError::plain("lp map --file needs a --line").with_help(
-                    "use `lp map --file src/main.rs --line 42` for a generated line, or `lp map --typ <chunk>` the other way",
-                ));
-            };
-            let (dir, name, entry) = map::resolve_all(&maps, &file)?;
-            let rel = map::join(dir, name);
-            let Some((run, offset)) = entry.locate(line) else {
-                return Err(LpError::plain(format!(
-                    "{rel}:{line}: no map knows this file"
-                )));
-            };
-
-            // Where to edit: the chunk, and how far into it this line is. Typst
-            // exposes no source positions, so a name is the pointer (ADR D14).
-            println!("chunk ⟪{}⟫, line {offset} of it", run.chunk);
-            println!("    find it with: rg '#chunk(\"{}\")'", run.chunk);
-            Ok(0)
-        }
-        Command::Explain { out, format } => {
-            let mut input = String::new();
-            std::io::stdin()
-                .read_to_string(&mut input)
-                .map_err(|e| LpError::plain(e.to_string()))?;
-            let mapped = explain::run(&out, &format, &input)?;
-            if mapped == 0 {
-                eprintln!("note: no diagnostic line matched any map");
-            }
-            Ok(0)
-        }
-        Command::List { doc } => {
-            list(std::slice::from_ref(&doc))?;
-            Ok(0)
-        }
-        Command::Metadata { docs } => {
-            let typst = metadata::binary()?;
-            for declaration in metadata::declarations(&typst, &docs)? {
-                println!(
-                    "{:<6} {:<28} {:<8} {}",
-                    declaration.lp,
-                    declaration.name,
-                    declaration.lang.as_deref().unwrap_or("-"),
-                    declaration.text.lines().next().unwrap_or("")
-                );
-            }
-            Ok(0)
-        }
-        Command::Unaccounted { docs, out, delete } => {
-            let plan = tangle::plan(&docs)?;
-            status::run(&out, &tangle::produced(&plan), delete)
-        }
-    }
-}
-
-fn list(docs: &[PathBuf]) -> Result<(), LpError> {
-    let plan = tangle::plan(docs)?;
-    let set = tangle::ChunkSet::new(&plan.blocks);
-    let referenced: BTreeSet<String> = plan.blocks.iter().flat_map(tangle::refs_of).collect();
-
-    for doc in docs {
-        println!("{}", doc.display());
-    }
-    for block in &plan.blocks {
-        let kind = if block.root { "file" } else { "frag" };
-        let used = if referenced.contains(&block.name) || block.root {
-            String::new()
-        } else {
-            "unreferenced".to_string()
-        };
-        println!(
-            "  {kind}  {:<28} {:<8} {}",
-            format!("⟪{}⟫", block.name),
-            block.lang.as_deref().unwrap_or("-"),
-            used
-        );
-    }
-
-    let roots = set.roots();
-    println!(
-        "\noutputs: {}",
-        if roots.is_empty() {
-            "(none)".to_string()
-        } else {
-            roots
-                .iter()
-                .map(|root| format!("<{root}>"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        }
-    );
-    Ok(())
-}
-````)
-
-#file("src/metadata.rs", ````rust
-//! What the document declares its chunks to be.
-//!
-//! Typst is Turing-complete: a chunk can come from a loop, a branch, a function
-//! or an `#include`d file, so the only authority is evaluation. The document
-//! declares its chunks through the `lp` package (`lit/lp.typ`), whose `chunk` and
-//! `file` functions take the code block as an argument and emit one metadata
-//! record each:
-//!
-//! ```typ
-//! #chunk("imports", ```rust
-//! use std::fmt;
-//! ```)
-//!
-//! #file("src/main.rs", ```rust
-//! <<imports>>
-//! ```)
-//! ```
-//!
-//! A declaration carries name, language and text, so nothing has to be recovered
-//! from the source afterwards — which is why the sources are not read at all.
-
-use std::path::{Path, PathBuf};
-use std::process::Command;
-
-use serde::Deserialize;
-
-use crate::diag::LpError;
-
-/// Every declaration, in the order the document produced them.
-const QUERY: &str = "query(<lp-decl>).map(declaration => declaration.value)";
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Decl {
-    /// `"chunk"` or `"file"`.
-    pub lp: String,
-    /// The fragment's name, or the path for a file declaration.
-    pub name: String,
-    #[serde(default)]
-    pub lang: Option<String>,
-    #[serde(default)]
-    pub text: String,
-}
-
-/// What the two declaration functions mean.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    /// `#chunk(name, …)`: a fragment that only exists where it is referenced.
-    Chunk,
-    /// `#file(path, …)`: a chunk whose name is the path it is written to.
-    File,
-}
-
-impl Decl {
-    /// A declaration that says something else is a mistake in the package or in
-    /// whatever emitted the metadata — not a fragment by default.
-    pub fn kind(&self) -> Result<Kind, LpError> {
-        match self.lp.as_str() {
-            "chunk" => Ok(Kind::Chunk),
-            "file" => Ok(Kind::File),
-            other => Err(LpError::plain(format!(
-                "{}: unknown declaration kind {other:?}",
-                self.name
-            ))
-            .with_help("the package emits `lp: \"chunk\"` or `lp: \"file\"`")),
-        }
-    }
-}
-
-/// Locate the `typst` binary: an explicit override, then `PATH`.
-pub fn binary() -> Result<PathBuf, LpError> {
-    if let Some(path) = std::env::var_os("LP_TYPST") {
-        return Ok(PathBuf::from(path));
-    }
-    let name = if cfg!(windows) { "typst.exe" } else { "typst" };
-    std::env::var_os("PATH")
-        .and_then(|paths| std::env::split_paths(&paths).map(|dir| dir.join(name)).find(|candidate| candidate.is_file()))
-        .ok_or_else(|| {
-            LpError::plain("no `typst` binary found").with_help(
-                "tangling asks the document for its declarations, so typst has to be available (set LP_TYPST or put it on PATH)",
-            )
-        })
-}
-
-/// Evaluate the documents and read their declarations.
-///
-/// Typst resolves `#include` against its project root, which is the directory of
-/// the file being evaluated. So the wrapper is written where every document lives
-/// and includes them relatively: a document outside the working directory works
-/// the same as one inside it. (Writing the wrapper into the working directory, as
-/// this did at first, silently refused any document that was not under it.)
-pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError> {
-    let cwd = std::env::current_dir()
-        .map_err(|err| LpError::plain(format!("cannot read the working directory: {err}")))?;
-    let docs: Vec<PathBuf> = docs
-        .iter()
-        .map(|doc| std::path::absolute(doc).unwrap_or_else(|_| cwd.join(doc)))
-        .collect();
-
-    // Typst refuses to read outside its project root, and a document may import a
-    // package from outside its own directory, so the root has to cover the working
-    // directory *and* every document. The wrapper lives next to the documents (it
-    // must be inside the root to be readable) and includes them relatively.
-    let root = common_ancestor(
-        &[cwd.clone()]
-            .into_iter()
-            .chain(docs.iter().cloned())
-            .collect::<Vec<_>>(),
-    );
-    let wrapper = Wrapper::write(&common_ancestor(&docs), &docs)?;
-    let output = Command::new(typst)
-        .arg("eval")
-        .arg(QUERY)
-        .arg("--in")
-        .arg(&wrapper.path)
-        .arg("--root")
-        .arg(&root)
-        .current_dir(&cwd)
-        .output();
-    drop(wrapper);
-
-    let output =
-        output.map_err(|err| LpError::plain(format!("cannot run {}: {err}", typst.display())))?;
-    if !output.status.success() {
-        let message = String::from_utf8_lossy(&output.stderr);
-        return Err(LpError::plain(format!(
-            "the document did not evaluate, so there are no chunks to tangle:\n{}",
-            message.trim_end()
-        )));
-    }
-
-    let declarations: Vec<Decl> = serde_json::from_slice(&output.stdout).map_err(|err| {
-        LpError::plain(format!("cannot read the document's declarations: {err}"))
-            .with_help(String::from_utf8_lossy(&output.stdout).to_string())
-    })?;
-    if declarations.is_empty() {
-        return Err(LpError::plain("the document declares no chunks").with_help(
-            "import the package and declare them: `#import \"lp.typ\": chunk, file`, then `#chunk(\"name\", ```…```)` or `#file(\"src/main.rs\", ```…```)`",
-        ));
-    }
-    for declaration in &declarations {
-        declaration.kind()?;
-    }
-    Ok(declarations)
-}
-
-/// A wrapper document, removed when it goes out of scope — including when the
-/// evaluation fails, and including on panic.
-struct Wrapper {
-    path: PathBuf,
-}
-
-impl Wrapper {
-    fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
-        let path = root.join(format!(".lp-decl-{}.typ", std::process::id()));
-        let mut text = String::new();
-        for doc in docs {
-            let relative = doc.strip_prefix(root).unwrap_or(doc);
-            // Quoted, because that is how Typst takes a path; a quote or backslash
-            // in a file name must not break the wrapper open.
-            let quoted = relative
-                .to_string_lossy()
-                .replace('\\', "/")
-                .replace('"', "\\\"");
-            text.push_str(&format!("#include \"{quoted}\"\n"));
-        }
-        std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
-        Ok(Self { path })
-    }
-}
-
-impl Drop for Wrapper {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
-    }
-}
-
-/// The deepest directory that contains every document.
-fn common_ancestor(docs: &[PathBuf]) -> PathBuf {
-    let mut root = docs
-        .first()
-        .and_then(|doc| doc.parent())
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("/"));
-
-    for doc in docs.iter().skip(1) {
-        while !doc.starts_with(&root) {
-            match root.parent() {
-                Some(parent) => root = parent.to_path_buf(),
-                None => return root,
-            }
-        }
-    }
-    root
-}
-
-#[cfg(test)]
-mod tests {
-    use super::common_ancestor;
-    use std::path::{Path, PathBuf};
-
-    #[test]
-    fn the_wrapper_goes_where_every_document_lives() {
-        assert_eq!(
-            common_ancestor(&[
-                PathBuf::from("/a/b/book.typ"),
-                PathBuf::from("/a/b/chapter.typ")
-            ]),
-            Path::new("/a/b")
-        );
-        assert_eq!(
-            common_ancestor(&[
-                PathBuf::from("/a/book.typ"),
-                PathBuf::from("/a/c/chapter.typ")
-            ]),
-            Path::new("/a")
-        );
-        assert_eq!(
-            common_ancestor(&[PathBuf::from("/a/book.typ")]),
-            Path::new("/a")
-        );
-    }
-}
-````)
-
-#file("src/watch.rs", ````rust
-//! `lp watch`: keep the generated files in step with the document while it is
-//! being edited, and fuse the check loop in.
-//!
-//! Three properties matter more than raw speed here:
-//!
-//! 1. **Only real changes are written.** A pass compares the tangled bytes with
-//!    what is on disk, so files that did not change keep their mtime — cargo and
-//!    rust-analyzer stay asleep instead of rebuilding the world on every keypress.
-//! 2. **Half-written documents are not tangled.** Mid-edit states are normal, so a
-//!    syntax error prints and skips the pass, leaving the last good output alone.
-//! 3. **Editor events are coalesced.** `notify`'s debouncer plus draining our own
-//!    writes means one pass per burst, not one per keystroke.
-//!
-//! ponytail: every pass re-reads and re-parses the whole document and re-expands
-//! every root (measured: ~1ms for 2k lines, see agent-notes). Reverse-reachability
-//! and `typst-syntax`'s reparser are only worth it if that ever shows up in a
-//! profile on a book-sized document.
-
-use std::path::{Path, PathBuf};
-use std::sync::mpsc;
-use std::time::{Duration, Instant};
-
-use notify_debouncer_full::notify::RecursiveMode;
-use notify_debouncer_full::{DebounceEventResult, new_debouncer};
-
-use crate::diag::LpError;
-use crate::tangle;
-
-pub struct Options {
-    pub docs: Vec<PathBuf>,
-    pub out: PathBuf,
-    pub debounce: Duration,
-    /// Run after a pass that changed something, e.g.
-    /// `cargo build --message-format=short`.
-    pub check_cmd: Option<String>,
-}
-
-pub fn run(options: Options) -> Result<(), LpError> {
-    let (tx, rx) = mpsc::channel();
-    let mut debouncer = new_debouncer(
-        options.debounce,
-        None,
-        move |result: DebounceEventResult| {
-            if result.is_ok() {
-                let _ = tx.send(());
-            }
-        },
-    )
-    .map_err(|err| LpError::plain(format!("cannot start the file watcher: {err}")))?;
-
-    // Watch the containing directories, not the files: editors save by renaming a
-    // temporary file over the target, which drops a file-level watch.
-    let mut watched: Vec<PathBuf> = Vec::new();
-    for doc in &options.docs {
-        let dir = doc
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or(Path::new("."))
-            .to_path_buf();
-        if watched.contains(&dir) {
-            continue;
-        }
-        debouncer
-            .watch(&dir, RecursiveMode::NonRecursive)
-            .map_err(|err| LpError::plain(format!("cannot watch {}: {err}", dir.display())))?;
-        watched.push(dir);
-    }
-
-    eprintln!(
-        "watching {} -> {}",
-        options
-            .docs
-            .iter()
-            .map(|doc| doc.display().to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
-        options.out.display()
-    );
-
-    pass(&options, true, &rx);
-    while rx.recv().is_ok() {
-        pass(&options, false, &rx);
-    }
-    Ok(())
-}
-
-/// One pass. `initial` only changes the wording when there is nothing to do.
-/// Returns whether the pass rewrote anything.
-fn pass(options: &Options, initial: bool, events: &mpsc::Receiver<()>) -> bool {
-    let started = Instant::now();
-
-    // Drop events queued while we were working (our own writes included) so a
-    // single edit cannot trigger a second, useless pass.
-    while events.try_recv().is_ok() {}
-
-    let outcome = match tangle::run(&options.docs, &options.out, false) {
-        Ok(outcome) => outcome,
-        Err(err) => {
-            report(err);
-            return false;
-        }
-    };
-
-    for warning in &outcome.warnings {
-        eprintln!("warning: {warning}");
-    }
-    let ms = started.elapsed().as_secs_f64() * 1000.0;
-    let dormant = outcome.changed.is_empty();
-
-    if dormant {
-        if initial {
-            eprintln!(
-                "sync   up to date ({} files, {ms:.1}ms)",
-                outcome.unchanged.len()
-            );
-        }
-        return false;
-    }
-
-    // Report even when nothing was written: deleting a root chunk leaves a file
-    // behind without changing any other output.
-    eprintln!(
-        "sync   {} rewritten, {} untouched ({ms:.1}ms): {}",
-        outcome.changed.len(),
-        outcome.unchanged.len(),
-        outcome
-            .changed
-            .iter()
-            .map(|output| output.root.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-    if !dormant {
-        check(options);
-    }
-    true
-}
-
-fn check(options: &Options) {
-    let Some(command) = &options.check_cmd else {
-        return;
-    };
-
-    let output = match std::process::Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => {
-            eprintln!("check  cannot run {command:?}: {err}");
-            return;
-        }
-    };
-
-    let text = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    // Same translation as `lp explain`, reading the maps we just wrote.
-    let _ = crate::explain::run(&options.out, "generic", &text);
-}
-
-fn report(err: LpError) {
-    eprintln!("{:?}", miette::Report::new(err));
 }
 ````)
 
