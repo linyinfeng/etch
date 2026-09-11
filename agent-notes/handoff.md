@@ -64,7 +64,6 @@
 ## 下一步候选
 
 - **`--out out/` 搬家**（用户已提出）：把根上除五样之外的产出都收进一个 gitignore 的目录。自包含与 skill/flake 的移除已经把它变简单了——没有东西必须留在根上了。代价：每个声明的路径加 `out/` 前缀、`cargo test` 变 `--manifest-path out/Cargo.toml`、种子变成 out 形状、文档与 dev.sh 的命令跟着改。
-- **`lp execute`**（用户已提出）：在输出目录里带着环境跑命令（`lp execute nix flake check`）。它也是"仓库不带环境"的正面解法：现在每次都得借 `nix shell`（见 `dev.sh`）。
 - **脚本的可执行位**：tangle 写出的文件是 0644，所以脚本要 `bash run.sh`。要改就得给 `#file` 加一个声明式标志（`executable: true`），**不能**按名字猜。
 - `lp explain --format cargo`（`cargo_metadata` 解 `--message-format=json`）；命令面一章里就写着它是"not yet"。
 - 把包发布到 `@preview`（包是文档产物，剩下的是流程问题）。
@@ -73,7 +72,7 @@
 ## 环境陷阱
 
 - **环境不在仓库里**（flake 已移除，D21）：`typst` 必须在 PATH（或 `LP_TYPST`；tangle 与 `cargo test` 都要它），Rust 侧要**含链接器**的完整工具链（只给 cargo 会失败在 `linker cc not found`）。
-- **自用脚本**：`agent-notes/dev.sh gates`（或 `test`/`fmt`/`clippy`/`check`/`demo`/`weave`，或 `dev.sh <任意命令>`）。它是临时的，等 `lp execute` 出现就该删。
+- **自用脚本**：`agent-notes/dev.sh gates`（或 `test`/`fmt`/`clippy`/`check`/`demo`/`weave`，或 `dev.sh <任意命令>`）。它是临时的，环境有别的着落时删掉即可。
 - **包是自包含的**：工具把内置包解压到 `<doc>/.lp/{local/lp/0.1.0}/` 并传给 `typst --package-path`；纯 `typst` 的步骤（weave、LSP）要自己设 `TYPST_PACKAGE_PATH=<doc>/.lp`。
 - **`--out` 就是仓库根**：`lp tangle lp.typ --out . --check` 是干跑、随时可跑；`lp unaccounted … --delete` 等于对全仓库动刀，看清单再动手。
 - **本机噪声**：pi-lens 偶尔报 `~/.config/pi-web/...` 的路径，那是 harness 的 cwd 假象；以仓库内路径为准。

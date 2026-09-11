@@ -27,7 +27,7 @@
   `nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc nixpkgs#rustfmt nixpkgs#clippy -c <cmd>`。
   Rust 侧需要**含链接器**的完整工具链（只给 cargo 会失败在 `linker cc not found`）；typst 是 tangle 与 `cargo test` 的硬依赖。
 - 不用非 Nix 的包管理器，不用 `make install`、`curl | sh`。
-- **flake 已从仓库移除**（D21）：它曾被这条规则困住（nix 只认 git 里 tracked 的 flake 文件），于是「环境由文档产出」走不通。将来 `lp execute` 负责在输出目录里带着环境跑命令；在那之前，工具链是使用者的前提。
+- **flake 已从仓库移除**（D21）：它曾被这条规则困住（nix 只认 git 里 tracked 的 flake 文件），于是「环境由文档产出」走不通。**没有 `lp execute`**（2026-09-11 用户：目的不明确，不做）：工具链就是使用者的前提，或者借 `nix shell`。
 
 ## 语言与注释
 

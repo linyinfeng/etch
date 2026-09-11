@@ -5151,9 +5151,8 @@ nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo test
 ```
 
 A repository that carried its own environment would need a tracked file the document could not
-produce (nix will not evaluate a flake whose files are not in git), which is why the environment
-lives outside this document — and why running a command *inside* the output directory, with an
-environment the tool knows how to assemble, is left to `lp execute` (D21).
+produce (nix will not evaluate a flake whose files are not in git), so the environment lives
+outside this document: it is what the person reading has, not something the document hands over.
 
 #file("Cargo.toml", ````toml
 <<env: what the package is>>
@@ -5287,10 +5286,10 @@ cargo test
 ```
 
 These commands assume `typst` and `cargo` are on the path. This repository does not carry an
-environment of its own — a flake in it would be a tracked file that the document could not
-produce, since nix will not evaluate a flake whose files are not in git — and running a command
-inside the output directory with the environment it needs is what `lp execute` is for, later
-(D21).
+environment of its own: a flake in it would be a tracked file that the document could not produce,
+since nix will not evaluate a flake whose files are not in git. Borrowing the tools for one command
+is a line long — `nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo test` — and
+that is the whole of the story; there is no command that assembles the environment for you.
 
 The third command is the interesting one: the older lp reads the declarations here and
 writes this generation over itself — crate, package, example, control files. The

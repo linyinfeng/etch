@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Temporary, for working on this repository: the repository carries no environment of its own
 # (the flake was removed, D21), so every command needs the toolchain borrowed from nixpkgs.
-# Delete this script when `lp execute` exists and can do it from the document instead.
+# Delete it whenever the environment has somewhere better to live.
 #
 #   agent-notes/dev.sh gates        # everything: tangle, tests, fmt, clippy, check, weave, demo
 #   agent-notes/dev.sh test|fmt|clippy|tangle|check|demo|weave
