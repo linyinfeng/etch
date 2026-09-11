@@ -5318,21 +5318,15 @@ matter — that text is whatever its language says it is.
 = Keeping the seed in step
 
 The seed only ever reads, and it is output: the same tree the tangle writes, committed at the root
-of its own branch instead of being kept in the working tree. Refreshing it belongs to a change, not
-to a ceremony — tangle the document, then commit the tree to the branch:
+of its own branch instead of being kept in the working tree. Keeping it in step is part of building
+this repository rather than part of using the tool: the document changes, the tree is written again,
+and the branch is handed the result. What this document can state is the property that has to hold —
+the branch carries a generation that can read the document, and a generation only ever reads.
 
-```sh
-./tangled/target/debug/lp tangle lp.typ      # the tree is this generation now
-git commit-tree … -p tangled                 # ... and the branch carries it
-```
-
-Committing the tree is four plumbing commands: a temporary index, a temporary work tree filled from
-`tangled/`'s own repository, `git commit-tree` with the previous seed as parent, and
-`git update-ref` on `refs/heads/tangled`. It never touches the working tree of `main`, and the branch
-is never checked out anywhere: a worktree of it would be stale the moment the next generation is
-committed, so it is read with `git show` or unpacked with `git archive` when someone wants to look
-at a whole tree. It also cannot simply add `tangled/`, because a directory holding a `.git` is a repository, and git will not add
-what is inside one.
+So it is output in the strict sense: never edited, never checked out, never worked in. A worktree of
+it would be stale the moment the next generation is committed. Looking at it costs no worktree
+either: `git show tangled:<path>` reads one file, `git archive tangled | tar -x -C <dir>` unpacks a
+whole tree.
 
 == What the branch carries, and what it does not
 
