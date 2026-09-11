@@ -19,19 +19,14 @@ jobs:
   tangle:
     runs-on: ubuntu-latest
     steps:
-      # Pinned to the commit behind v7.0.1: this workflow holds a write token, so a moving tag is
-      # not something to point it at. Credentials stay persisted on purpose — the last step pushes
-      # with them, which is also why `persist-credentials: false` is not the fix it looks like:
-      # zizmor's `artipacked` warning is about credentials leaking into uploaded artifacts, and this
-      # workflow uploads none.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Moving tags on purpose: `v7` and `stable` are readable and update themselves. What bounds the
+      # write token is `permissions:` above, not a frozen action. Our linter's config turns off the
+      # audit that would say otherwise, and only that one.
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # the seed lives on another branch
 
-      # Pinned for the same reason, and for one more: a fixed toolchain makes the generation
-      # reproducible instead of dependent on whatever stable shipped this week. Updating the
-      # toolchain is therefore a deliberate commit: `git ls-remote` the branch and repin.
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable, 2026-09-12
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
