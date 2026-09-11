@@ -15,12 +15,19 @@ fn document(body: &str) -> String {
 
 /// One file declaration, a shared fragment, a fragment written in two pieces,
 /// and a code sample that is not a chunk at all.
-const DOC: &str = "\
+///
+/// The two references are spliced in rather than written on lines of their own:
+/// a line that is exactly `<<name>>` would be expanded when this file is tangled
+/// (ADR D15, `agent-notes/decisions/2026-09-11-self-hosting-layout.md`).
+const DOC: &str = concat!(
+    "\
 = Demo
 
 #file(\"main.py\", ```py
-<<imports>>
-<<body>>
+",
+    "<<imports>>\n",
+    "<<body>>\n",
+    "\
 ```)
 
 #chunk(\"imports\", ```py
@@ -38,7 +45,8 @@ print('two')
 ```text
 not a chunk
 ```
-";
+",
+);
 
 fn lp(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_lp"))

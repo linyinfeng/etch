@@ -100,7 +100,12 @@ pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError
     // package from outside its own directory, so the root has to cover the working
     // directory *and* every document. The wrapper lives next to the documents (it
     // must be inside the root to be readable) and includes them relatively.
-    let root = common_ancestor(&[cwd.clone()].into_iter().chain(docs.iter().cloned()).collect::<Vec<_>>());
+    let root = common_ancestor(
+        &[cwd.clone()]
+            .into_iter()
+            .chain(docs.iter().cloned())
+            .collect::<Vec<_>>(),
+    );
     let wrapper = Wrapper::write(&common_ancestor(&docs), &docs)?;
     let output = Command::new(typst)
         .arg("eval")
