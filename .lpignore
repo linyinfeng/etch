@@ -1,0 +1,24 @@
+# What the working tree carries besides the document's output.
+#
+# Matching here means *protect*: every file under --out must be produced by a
+# #file declaration or listed in a .lpignore, and this file lists what lp does
+# not manage (ADR D10). The repository root is the output directory, so this is
+# the list of the repository's handwritten assets.
+
+/.git
+/.gitignore
+/.lpmap.json
+/.pi
+/AGENTS.md
+/Cargo.lock
+/README.md
+/agent-notes
+/bootstrap
+/examples
+/experiments
+/flake.lock
+/flake.nix
+/lit
+/result
+/self.typ
+/target
