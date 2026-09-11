@@ -63,7 +63,10 @@ seed)
 		exit 0
 	fi
 	inner=$(git -C tangled rev-parse "HEAD^{tree}")
-	[ "$inner" = "$tree" ] || { echo "seed   MISMATCH with tangled/ ($tree vs $inner)" >&2; exit 1; }
+	[ "$inner" = "$tree" ] || {
+		echo "seed   MISMATCH with tangled/ ($tree vs $inner)" >&2
+		exit 1
+	}
 	# nothing this document declares may be missing: a .gitignore rule that cuts inside a declared
 	# path would hand a fresh clone a generation that is not the one the document describes
 	declared=$(run ./tangled/target/debug/lp tangle lp.typ --check | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/^ok *//')
@@ -71,7 +74,10 @@ seed)
 		[ -z "$f" ] && continue
 		git cat-file -e "$tree:$f" 2>/dev/null || echo "$f"
 	done)
-	[ -z "$missing" ] || { echo "seed   declared but not in the tree: $missing" >&2; exit 1; }
+	[ -z "$missing" ] || {
+		echo "seed   declared but not in the tree: $missing" >&2
+		exit 1
+	}
 	parent=$(git rev-parse --verify --quiet refs/heads/seed || true)
 	if [ -n "$parent" ]; then
 		commit=$(git commit-tree "$tree" -p "$parent" -m "The generation this document writes")
