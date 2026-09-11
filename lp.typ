@@ -3905,6 +3905,12 @@ because nothing in the design depends on it, but it is *in* the document rather 
 beside it — the environment is a decision like any other, and it changes when a
 dependency changes.
 
+One thing here is both an output and tracked, and the reason is not taste: nix refuses to
+evaluate a flake whose files are not in git, so the environment cannot be produced by a
+tool that needs the environment to run. `flake.nix` and `flake.lock` are therefore
+declared here *and* kept in the index; `lp tangle --check` still guards the pair, so the
+tracked copies cannot drift from this text.
+
 #file("flake.nix", ````nix
 {
   description = "literate — Typst-based literate programming for arbitrary target languages";
@@ -3976,8 +3982,7 @@ and the two pointers.
 /src/
 /tests/
 /lit/
-/flake.nix
-/flake.lock
+/.agents/
 /examples/
 /.gitignore
 /.lpignore
@@ -4252,8 +4257,9 @@ These are not style preferences; each one was paid for. The decisions behind the
 - **Orthogonality.** No knowledge of any target language in the algorithms; language
   differences are data (the fence tag), never code.
 - **Generated files stay out of git**, and only this document is edited: the crate, the
-  package, the example, the devshell, the control files. The seed is the one thing that is
-  copied rather than produced, and it is only ever read.
+  package, the example, the control files. Two things are declared here and tracked anyway,
+  for bootstrap reasons: the seed (a frozen copy of an older generation) and `flake.nix`
+  with its lock (nix will not evaluate a flake that is not in git). `--check` guards both.
 - **An error points at a declaration**, never at a bare string: which chunk, and which
   line inside it.
 - **Unexplained files are errors, deletion is explicit.** Everything under the output
