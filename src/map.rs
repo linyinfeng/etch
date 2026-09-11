@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::diag::LpError;
 
 pub const MAP_FILE: &str = ".lpmap.json";
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LpMap {
@@ -34,8 +34,10 @@ pub struct FileMap {
     /// chunk defined in two of them, makes it more.
     pub sources: Vec<String>,
     pub lang: Option<String>,
-    /// `[output line, line in sources[i], i]`, 1-based, in output order.
-    pub lines: Vec<[usize; 3]>,
+    /// `[output line, line in sources[i], i]`, 1-based, in output order. The last
+    /// two are `null` when the document built that line instead of writing it, so
+    /// there is no line to point at.
+    pub lines: Vec<(usize, Option<usize>, Option<usize>)>,
     /// Chunks that contributed lines to this file, in document order.
     pub chunks: Vec<ChunkEntry>,
 }
@@ -43,8 +45,9 @@ pub struct FileMap {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChunkEntry {
     pub name: String,
-    pub typ_line: usize,
-    pub end_line: usize,
+    /// Where the chunk was written, when the source has a line for it.
+    pub typ_line: Option<usize>,
+    pub end_line: Option<usize>,
 }
 
 impl Default for LpMap {
@@ -128,17 +131,20 @@ impl LpMap {
 }
 
 impl FileMap {
-    /// Where did this output line come from? Falls back to the closest earlier
-    /// line so blank lines and generated separators still report something.
-    /// The source file a line entry points at.
-    pub fn source(&self, entry: [usize; 3]) -> Option<&str> {
-        self.sources.get(entry[2]).map(String::as_str)
+    /// The source file a line entry points at, when the line has one.
+    pub fn source(&self, entry: (usize, Option<usize>, Option<usize>)) -> Option<&str> {
+        entry
+            .2
+            .and_then(|index| self.sources.get(index))
+            .map(String::as_str)
     }
 
-    pub fn locate(&self, line: usize) -> Option<[usize; 3]> {
-        let exact = self.lines.iter().find(|entry| entry[0] == line);
+    /// Where did this output line come from? Falls back to the closest earlier
+    /// line so blank lines and generated separators still report something.
+    pub fn locate(&self, line: usize) -> Option<(usize, Option<usize>, Option<usize>)> {
+        let exact = self.lines.iter().find(|entry| entry.0 == line);
         exact
-            .or_else(|| self.lines.iter().rev().find(|entry| entry[0] < line))
+            .or_else(|| self.lines.iter().rev().find(|entry| entry.0 < line))
             .copied()
     }
 
@@ -146,7 +152,10 @@ impl FileMap {
         self.chunks
             .iter()
             .rev()
-            .find(|chunk| chunk.typ_line <= typ_line && typ_line <= chunk.end_line)
+            .find(|chunk| match (chunk.typ_line, chunk.end_line) {
+                (Some(first), Some(last)) => first <= typ_line && typ_line <= last,
+                _ => false,
+            })
     }
 }
 

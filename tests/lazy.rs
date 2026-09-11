@@ -142,8 +142,10 @@ fn a_half_written_document_is_not_tangled() {
         !output.status.success(),
         "a broken document must not be tangled"
     );
+    // The document must evaluate before it can say what its chunks are, and the
+    // error is Typst's own diagnostic — with the file and the line.
     assert!(
-        stderr(&output).contains("syntax error"),
+        stderr(&output).contains("did not evaluate") && stderr(&output).contains("unclosed"),
         "{}",
         stderr(&output)
     );

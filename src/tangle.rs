@@ -1,28 +1,65 @@
 //! Tangling: expand chunks into whole files, write them, and record where every
 //! output line came from.
+//!
+//! Which chunks exist is Typst's answer (`metadata.rs`); where each one was
+//! written is a search (`locate.rs`). What is left here is our own, much smaller
+//! part: `<<references>>`, indentation, writing files, and the line map.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::diag::LpError;
+use crate::locate::{self, Placed};
 use crate::map::{ChunkEntry, FileMap, LpMap, MAP_FILE, split};
-use crate::parse::{Block, Doc, FileText, check_output_path, is_root};
+use crate::metadata;
+use crate::source::{self, FileText, check_output_path, is_root};
+
+/// A chunk as the document produced it, plus the place we could find for it.
+pub struct Block {
+    pub name: String,
+    pub lang: Option<String>,
+    pub text: String,
+    pub place: Placed,
+}
+
+impl Block {
+    /// An error pointing at the `index`-th line of this chunk, when the source has
+    /// one. A chunk the document built has no line of its own, and saying so beats
+    /// pointing somewhere wrong.
+    fn error(&self, index: usize, message: impl Into<String>, label: impl Into<String>) -> LpError {
+        let message = message.into();
+        match self.place.line_for(index) {
+            Some((file, line)) => match file.line_range(line) {
+                Some(range) => LpError::at(&file.named, range, message, label),
+                None => LpError::plain(message),
+            },
+            None => LpError::plain(message).with_help(format!(
+                "chunk <<{}>> was built by the document rather than written literally",
+                self.name
+            )),
+        }
+    }
+
+    fn where_(&self) -> String {
+        match self.place.line_for(0) {
+            Some((file, line)) => format!("{}:{line}: ", file.path.display()),
+            None => String::new(),
+        }
+    }
+}
 
 pub struct ChunkSet<'a> {
     chunks: BTreeMap<&'a str, Vec<&'a Block>>,
 }
 
 impl<'a> ChunkSet<'a> {
-    /// One set over every document of the invocation: a root in one file may pull
-    /// in a fragment written in another, which is what a book split into chapters
-    /// looks like. Document order is the order the files were given.
-    pub fn new(docs: &'a [Doc]) -> Self {
+    /// One set over every chunk of the invocation, in the order the document
+    /// produced them.
+    pub fn new(blocks: &'a [Block]) -> Self {
         let mut chunks: BTreeMap<&str, Vec<&Block>> = BTreeMap::new();
-        for doc in docs {
-            for block in &doc.blocks {
-                chunks.entry(block.name.as_str()).or_default().push(block);
-            }
+        for block in blocks {
+            chunks.entry(block.name.as_str()).or_default().push(block);
         }
         Self { chunks }
     }
@@ -59,8 +96,9 @@ fn ref_target(line: &str) -> Option<(&str, &str)> {
 pub struct Tangled {
     /// File contents, always ending in a newline.
     pub text: String,
-    /// `[output line, line in its source file, index into the plan's sources]`.
-    pub lines: Vec<[usize; 3]>,
+    /// `[output line, line in that source, index into the plan's sources]`. The
+    /// last two are `None` when the document built the line rather than wrote it.
+    pub lines: Vec<(usize, Option<usize>, Option<usize>)>,
     pub chunks: Vec<ChunkEntry>,
 }
 
@@ -83,70 +121,77 @@ fn expand_chunk(
     out: &mut Tangled,
     sources: &[Arc<FileText>],
 ) -> Result<(), LpError> {
-    if let Some(start) = stack.iter().position(|n| n == name) {
+    if let Some(start) = stack.iter().position(|entry| entry == name) {
         let mut chain: Vec<String> = stack[start..].to_vec();
         chain.push(name.to_string());
         let message = format!("cycle in chunks: {}", chain.join(" -> "));
         let block = set.get(name).and_then(|blocks| blocks.first()).copied();
         return Err(match block {
-            Some(block) => LpError::at(
-                &block.file.named,
-                block.span.clone(),
-                message,
-                "this chunk is part of the cycle",
-            ),
+            Some(block) => block.error(0, message, "this chunk is part of the cycle"),
             None => LpError::plain(message),
         });
     }
     stack.push(name.to_string());
 
     for block in set.get(name).unwrap_or(&[]) {
-        if block.text.is_empty() {
+        if block.text.trim().is_empty() {
             stack.pop();
-            return Err(LpError::at(
-                &block.file.named,
-                block.span.clone(),
-                format!("chunk <<{name}>> is empty"),
-                "empty chunk",
-            )
-            .with_help("delete it, or give it a body"));
+            return Err(block
+                .error(0, format!("chunk <<{name}>> is empty"), "empty chunk")
+                .with_help("delete it, or give it a body"));
         }
 
+        let span = match &block.place {
+            Placed::Nowhere => None,
+            _ => block.place.line_for(0).map(|(_, line)| {
+                let last = line + block.text.lines().count().saturating_sub(1);
+                (
+                    line,
+                    if matches!(block.place, Placed::Generated { .. }) {
+                        line
+                    } else {
+                        last
+                    },
+                )
+            }),
+        };
         out.chunks.push(ChunkEntry {
             name: name.to_string(),
-            typ_line: block.fence_line,
-            end_line: block.fence_line + block.text.lines().count() + 1,
+            typ_line: span.map(|(first, _)| first),
+            end_line: span.map(|(_, last)| last),
         });
 
-        for (i, line) in block.text.lines().enumerate() {
-            let typ_line = block.fence_line + 1 + i;
-            let source = sources
-                .iter()
-                .position(|file| Arc::ptr_eq(file, &block.file))
-                .unwrap_or_default();
+        for (index, line) in block.text.lines().enumerate() {
+            let located = block.place.line_for(index).and_then(|(file, line)| {
+                sources
+                    .iter()
+                    .position(|candidate| candidate.path == file.path)
+                    .map(|position| (position, line))
+            });
+
             match ref_target(line) {
                 None => {
-                    out.lines.push([out.lines.len() + 1, typ_line, source]);
+                    out.lines.push((
+                        out.lines.len() + 1,
+                        located.map(|(_, line)| line),
+                        located.map(|(position, _)| position),
+                    ));
                     out.text.push_str(indent);
                     out.text.push_str(line);
                     out.text.push('\n');
                 }
                 Some((target, local_indent)) => {
                     if set.get(target).is_none() {
-                        let range = block
-                            .file
-                            .line_range(typ_line)
-                            .unwrap_or_else(|| block.span.clone());
-                        return Err(LpError::at(
-                            &block.file.named,
-                            range,
-                            format!("chunk <<{target}>> is not defined"),
-                            format!("referenced from <<{name}>>"),
-                        )
-                        .with_help(format!(
-                            "known chunks: {}",
-                            set.names().collect::<Vec<_>>().join(", ")
-                        )));
+                        return Err(block
+                            .error(
+                                index,
+                                format!("chunk <<{target}>> is not defined"),
+                                format!("referenced from <<{name}>>"),
+                            )
+                            .with_help(format!(
+                                "known chunks: {}",
+                                set.names().collect::<Vec<_>>().join(", ")
+                            )));
                     }
                     let nested = format!("{indent}{local_indent}");
                     expand_chunk(set, target, &nested, stack, out, sources)?;
@@ -159,8 +204,6 @@ fn expand_chunk(
     Ok(())
 }
 
-/// One output file produced by a pass. Printing is the caller's job: the watch
-/// loop wants the same facts without the per-file chatter.
 #[derive(Debug)]
 pub struct Output {
     pub root: String,
@@ -182,56 +225,38 @@ pub struct Outcome {
     pub warnings: Vec<String>,
 }
 
-/// Tangle every document into `out`; with `check`, write nothing and only report
-/// drift against what is already there.
 /// What the documents produce, without writing anything.
-///
-/// `lp tangle` and `lp unaccounted` both need this, and both must agree: what is
-/// accounted for is decided by the *current* document, not by the line maps a
-/// previous pass left behind (which still describe a chunk that has since been
-/// deleted).
 pub struct Plan {
     pub maps: BTreeMap<PathBuf, LpMap>,
     pub texts: BTreeMap<String, String>,
-    pub produced: BTreeSet<String>,
     pub warnings: Vec<String>,
-    /// Every file the documents were read from, in first-seen order. Line entries
-    /// in the maps index into this.
-    pub sources: Vec<Arc<FileText>>,
+    pub blocks: Vec<Block>,
 }
 
-pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
-    // A half-written document is the more specific problem, and it is also what
-    // makes a document look rootless: report it first.
-    for doc in docs {
-        if let Some(error) = doc.errors.first() {
-            let message = format!(
-                "{}: syntax error: {}",
-                doc.file.path.display(),
-                error.message
-            );
-            let err = match error.range.clone() {
-                Some(range) => LpError::at(
-                    &doc.file.named,
-                    range,
-                    message,
-                    "the document does not parse",
-                ),
-                None => LpError::plain(message),
-            };
-            return Err(err.with_help(
-                "tangling a half-written document can silently drop chunks; run `typst compile` for the full diagnostic",
-            ));
-        }
-    }
+pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
+    let typst = metadata::binary()?;
+    let cwd = std::env::current_dir().map_err(|err| LpError::plain(err.to_string()))?;
 
-    // A document that only holds fragments is legitimate when another document
-    // (or chapter) carries the roots, so "no roots" is a property of the whole
-    // invocation, not of each file.
-    if ChunkSet::new(docs).roots().is_empty() {
+    let sources = source::sources(docs)?;
+
+    let chunks = metadata::chunks(&typst, docs, &cwd)?;
+    let places = locate::chunks(&sources, &chunks);
+    let blocks: Vec<Block> = chunks
+        .into_iter()
+        .zip(places)
+        .map(|(chunk, place)| Block {
+            name: chunk.label,
+            lang: chunk.lang,
+            text: chunk.text,
+            place,
+        })
+        .collect();
+
+    let set = ChunkSet::new(&blocks);
+    if set.roots().is_empty() {
         let listed = docs
             .iter()
-            .map(|doc| doc.file.path.display().to_string())
+            .map(|doc| doc.display().to_string())
             .collect::<Vec<_>>()
             .join(", ");
         return Err(
@@ -241,55 +266,37 @@ pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
         );
     }
 
-    let mut plan = Plan {
-        maps: BTreeMap::new(),
-        texts: BTreeMap::new(),
-        produced: BTreeSet::new(),
-        warnings: Vec::new(),
-        sources: Vec::new(),
-    };
-
-    for doc in docs {
-        if !plan.sources.iter().any(|file| Arc::ptr_eq(file, &doc.file)) {
-            plan.sources.push(Arc::clone(&doc.file));
-        }
-    }
-
-    let set = ChunkSet::new(docs);
-    let referenced: BTreeSet<String> = docs
-        .iter()
-        .flat_map(|doc| doc.blocks.iter())
-        .flat_map(refs_of)
-        .collect();
+    let mut warnings = Vec::new();
+    let referenced: BTreeSet<String> = blocks.iter().flat_map(refs_of).collect();
     for name in set.names() {
         if !is_root(name) && !referenced.contains(name) {
             let block = set.get(name).and_then(|blocks| blocks.first());
-            let where_ = block.map_or_else(String::new, |block| {
-                format!("{}:{}: ", block.file.path.display(), block.fence_line)
-            });
-            plan.warnings
-                .push(format!("{where_}chunk <<{name}>> is never referenced"));
+            let where_ = block.map_or_else(String::new, |block| block.where_());
+            warnings.push(format!("{where_}chunk <<{name}>> is never referenced"));
         }
     }
 
+    let mut maps: BTreeMap<PathBuf, LpMap> = BTreeMap::new();
+    let mut texts: BTreeMap<String, String> = BTreeMap::new();
+    let mut produced: BTreeSet<String> = BTreeSet::new();
     for root in set.roots() {
         check_output_path(root)?;
         let lang = set
             .get(root)
             .and_then(|blocks| blocks.first())
             .and_then(|block| block.lang.clone());
-        let tangled = expand(&set, root, &plan.sources)?;
+        let tangled = expand(&set, root, &sources)?;
 
-        if !plan.produced.insert(root.to_string()) {
+        if !produced.insert(root.to_string()) {
             return Err(LpError::plain(format!("output {root} is produced twice")));
         }
 
-        // Each output names only the source files its own lines came from, and the
-        // line entries index into that shorter list.
-        let used: BTreeSet<usize> = tangled.lines.iter().map(|entry| entry[2]).collect();
-        let sources: Vec<String> = used
+        // An output names only the source files its own lines came from, and each
+        // line entry indexes into that shorter list.
+        let used: BTreeSet<usize> = tangled.lines.iter().filter_map(|entry| entry.2).collect();
+        let named: Vec<String> = used
             .iter()
-            .map(|index| plan.sources[*index].path.display().to_string())
+            .map(|index| sources[*index].path.display().to_string())
             .collect();
         let remapped: BTreeMap<usize, usize> = used
             .iter()
@@ -299,24 +306,29 @@ pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
         let lines = tangled
             .lines
             .iter()
-            .map(|entry| [entry[0], entry[1], remapped[&entry[2]]])
+            .map(|entry| (entry.0, entry.1, entry.2.map(|index| remapped[&index])))
             .collect();
 
         let entry = FileMap {
-            sources,
+            sources: named,
             lang,
             lines,
             chunks: tangled.chunks,
         };
         let (dir, name) = split(root);
-        plan.maps
-            .entry(PathBuf::from(dir))
+        maps.entry(PathBuf::from(dir))
             .or_default()
             .files
             .insert(name.to_string(), entry);
-        plan.texts.insert(root.to_string(), tangled.text);
+        texts.insert(root.to_string(), tangled.text);
     }
-    Ok(plan)
+
+    Ok(Plan {
+        maps,
+        texts,
+        warnings,
+        blocks,
+    })
 }
 
 /// What the documents produce, per directory: what `status.rs` counts against.
@@ -332,7 +344,7 @@ pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
         .collect()
 }
 
-pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
+pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError> {
     let plan = plan(docs)?;
     let mut outcome = Outcome {
         warnings: plan.warnings.clone(),
@@ -361,11 +373,9 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        return Err(
-            LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
-                "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
-            ),
-        );
+        return Err(LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
+            "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
+        ));
     }
 
     for (root, text) in &plan.texts {
@@ -448,15 +458,15 @@ fn first_difference(old: Option<&str>, new: &str) -> Option<usize> {
     let old_lines: Vec<&str> = old.lines().collect();
     let new_lines: Vec<&str> = new.lines().collect();
     (0..old_lines.len().max(new_lines.len()))
-        .find(|&i| old_lines.get(i) != new_lines.get(i))
-        .map(|i| i + 1)
+        .find(|&index| old_lines.get(index) != new_lines.get(index))
+        .map(|index| index + 1)
 }
 
 fn drift_report(
     typ: &str,
     root: &str,
     existing: Option<&str>,
-    lines: &[[usize; 3]],
+    lines: &[(usize, Option<usize>, Option<usize>)],
     text: &str,
 ) -> String {
     match first_difference(existing, text) {
@@ -464,11 +474,11 @@ fn drift_report(
             let origin = lines
                 .iter()
                 .rev()
-                .find(|entry| entry[0] <= line)
-                .map(|entry| entry[1]);
+                .find(|entry| entry.0 <= line)
+                .and_then(|entry| entry.1);
             match origin {
                 Some(typ_line) => format!("STALE  {root} (line {line} <- {typ}:{typ_line})"),
-                None => format!("STALE  {root} (line {line})"),
+                None => format!("STALE  {root} (line {line}, built by the document)"),
             }
         }
         None => format!("STALE  {root} (file missing)"),

@@ -117,15 +117,15 @@ lp unaccounted doc.typ --out out --delete   # 显式删掉它们（这就是那�
 
 ```json
 // examples/demo/build/.lpmap.json
-{ "version": 3, "docs": ["examples/demo/literate.typ"],
+{ "version": 4, "docs": ["examples/demo/literate.typ"],
   "files": { "Cargo.toml": { "sources": ["examples/demo/literate.typ"], "lang": "toml",
                              "lines": [[1, 25, 0], [7, 31, 0]],
                              "chunks": [{ "name": "Cargo.toml", "typ_line": 25, "end_line": 33 }] } } }
 ```
 
-`lines` 是 `[该目录内的生成文件行, 源文件行, sources 下标]`，指向**定义处**而不是引用处。`sources` 通常只有一个元素；当一本书拆成多章、某个输出文件的正文来自两个文件时才不止一个，诊断因此总能指到**真正含那一行的文件**。查询时按"最具体的目录优先"解析：`lp map --file src/main.rs` 用 `src/` 的映射；只给文件名（`--file main.rs`）而多个目录都有同名文件时，报歧义而不是猜。生成物不入库：CI 跑 `lp tangle --check`，漂移即失败。
+`lines` 是 `[该目录内的生成文件行, 源文件行|null, sources 下标|null]`，指向**定义处**而不是引用处。`sources` 通常只有一个元素；当一本书拆成多章、某个输出文件的正文来自两个文件时才不止一个，诊断因此总能指到**真正含那一行的文件**。查询时按"最具体的目录优先"解析：`lp map --file src/main.rs` 用 `src/` 的映射；只给文件名（`--file main.rs`）而多个目录都有同名文件时，报歧义而不是猜。生成物不入库：CI 跑 `lp tangle --check`，漂移即失败。
 
-## 为什么 chunk 由 Typst 求值决定（进行中的架构切换）
+## chunk 由 Typst 求值决定，位置由搜索决定
 
 Typst 是图灵完备的：代码块可以来自 `#for` 循环、`#if` 分支、函数，或者被 `#include` 进来的文件。实测一个只有三行的文档：
 
@@ -135,11 +135,20 @@ Typst 是图灵完备的：代码块可以来自 `#for` 循环、`#if` 分支、
 ]
 ```
 
-`lp metadata`（Typst 求值）看到 `built-0/1/2` 三个 chunk，文本是 `print(0/1/2)`——而这些文本**在源文件里一行都没有**。静态解析只会看到一行模板，甚至什么都看不到。
+求值看到 `built-0/1/2` 三个 chunk，文本是 `print(0/1/2)`——而这些文本**在源文件里一行都没有**。所以 chunk 集合、顺序、文本、语言**一律由 `typst eval` 求值决定**（`query(raw.where(block: true))`，通过一个只 `#include` 你文件的 wrapper——你的文件不被改动）。工具里**没有 Typst 解析器**。
 
-所以架构是两段式：**Typst 决定"是什么"**（集合、顺序、文本、语言），**纯文本搜索决定"在哪里"**（Typst 不暴露源位置）。定位分四层，可信度递减，最后一层如实说"没有字面位置"而不是编一个行号：字面块 → 模板文本 → label 的字面前缀（生成器那一行）→ 未知。
+源位置是 Typst 唯一不给的东西（它不暴露 span），于是由**纯文本搜索**回答（`locate.rs`），四层、可信度递减，最后一层如实说"没有字面位置"而不是编一个行号：
 
-`lp metadata` 现在就可以用；把 `lp tangle` 切到这条管线是紧接着的一步（之后 `typst` 会成为 tangle 的硬依赖，`typst-syntax` 从依赖里删掉）。细节见 `agent-notes/decisions/2026-09-11-typst-is-the-authority.md`。
+| 层 | 场景 | 指向 |
+|---|---|---|
+| Literal | label 在源里，且它上方的块文本逐字相等 | 精确（绝大多数） |
+| Template | label 是运行时拼的，但文本在源里出现过 | 那段模板 |
+| Generated | 内容由代码拼出、源里没有该文本，但 label 的字面前缀在 | 生成它的那一行 |
+| Nowhere | 都不匹配 | 无行号，`lp map` 直说"由文档代码生成" |
+
+代价：**`typst` 是 tangle 的硬依赖**（`LP_TYPST` 或 PATH；`nix develop` 里已备），且**文档必须能求值**才能 tangle（半写状态由 Typst 自己的诊断拦截，比以前的语法门更准）。一次完整 tangle（含一次 `typst eval`）在 demo 上是 **77ms**（debug 构建）。
+
+细节见 `agent-notes/decisions/2026-09-11-typst-is-the-authority.md`（含"为什么 show rule 埋点是脆的"这个教训）。
 
 ## 多章文档
 
@@ -149,7 +158,7 @@ lp tangle book.typ chapter-one.typ chapter-two.typ --out out
 
 根 chunk 只要出现在**任意一个**文档里即可（"没有 root"是整次调用的判定，不是每个文件）；`<<ref>>` 可以跨文件引用（按命令行给出的文件顺序拼接同名 chunk）。每个输出文件的映射会记下它真正用到的源文件，`lp map` / `lp explain` 因此指到正确的文件与行。
 
-还没做：**跟随 `#include`**（Typst 的 include 是内容级合并，chunk 与 heading 都会并入文档；我们目前只解析命令行里列出的文件），以及 Typst 侧的结构元数据（见 `agent-notes/research/2026-09-11-typst-structure-and-include.md`）。
+`#include` 不需要特别处理了：Typst 的 include 是内容级合并，`lp tangle book.typ` 就够了，被 include 的章节里的 chunk 一样会被 tangle，映射也会指到**真正含那一行的章节文件**（`tests/metadata.rs::a_chapter_is_tangled_without_being_listed`）。
 
 ## 状态
 

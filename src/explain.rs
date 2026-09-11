@@ -15,7 +15,17 @@ use regex::Regex;
 
 use crate::diag::LpError;
 use crate::map::{LpMap, join, resolve};
-use crate::parse::Doc;
+
+fn line_range(text: &str, line: usize) -> Option<std::ops::Range<usize>> {
+    let mut offset = 0;
+    for (index, piece) in text.split_inclusive('\n').enumerate() {
+        if index + 1 == line {
+            return Some(offset..offset + piece.trim_end_matches('\n').len());
+        }
+        offset += piece.len();
+    }
+    None
+}
 
 pub fn run(out: &Path, format: &str, input: &str) -> Result<usize, LpError> {
     if format == "cargo" {
@@ -29,7 +39,7 @@ pub fn run(out: &Path, format: &str, input: &str) -> Result<usize, LpError> {
         .map_err(|e| LpError::plain(format!("internal: bad diagnostic pattern: {e}")))?;
 
     let maps = LpMap::read_all(out);
-    let mut docs: BTreeMap<String, Doc> = BTreeMap::new();
+    let mut files: BTreeMap<String, String> = BTreeMap::new();
     let mut mapped = 0;
 
     for line in input.lines() {
@@ -42,17 +52,32 @@ pub fn run(out: &Path, format: &str, input: &str) -> Result<usize, LpError> {
         let Ok((dir, name, entry)) = resolve(&maps, file) else {
             continue;
         };
-        let Some([mapped_line, typ_line, source]) = entry.locate(out_line) else {
+        let Some((mapped_line, typ_line, source)) = entry.locate(out_line) else {
             continue;
         };
         let rel = join(dir, name);
-        let typ = entry.source([0, 0, source]).unwrap_or_default().to_string();
+        let message = caps.name("msg").map_or("", |capture| capture.as_str());
 
-        let doc = match docs.get(&typ) {
-            Some(doc) => doc,
-            None => docs
-                .entry(typ.clone())
-                .or_insert(Doc::load(Path::new(&typ))?),
+        // A line the document built has no source line; say so rather than point
+        // at something plausible.
+        let (Some(typ_line), Some(typ)) = (typ_line, entry.source((0, typ_line, source))) else {
+            eprintln!("  ↳ {rel}:{out_line} — built by the document (no source line)");
+            eprintln!(
+                "{:?}",
+                miette::Report::new(LpError::plain(format!("{rel}:{out_line}: {message}")))
+            );
+            mapped += 1;
+            continue;
+        };
+
+        let text = match files.get(typ) {
+            Some(text) => text.clone(),
+            None => {
+                let text = std::fs::read_to_string(typ)
+                    .map_err(|err| LpError::plain(format!("{typ}: {err}")))?;
+                files.insert(typ.to_string(), text.clone());
+                text
+            }
         };
 
         let chunk = entry.chunk_at(typ_line).map_or(String::new(), |chunk| {
@@ -60,20 +85,15 @@ pub fn run(out: &Path, format: &str, input: &str) -> Result<usize, LpError> {
         });
         eprintln!("  ↳ {typ}:{typ_line}{chunk}");
 
-        let message = caps.name("msg").map_or("", |capture| capture.as_str());
         let note = if mapped_line == out_line {
             format!("generated from {typ}:{typ_line}")
         } else {
             format!("generated from {typ}:{typ_line} (line {out_line} is blank or generated)")
         };
         let mut err = LpError::plain(format!("{rel}:{out_line}: {message}"));
-        if let Some(range) = doc.file.line_range(typ_line) {
-            err = LpError::at(
-                &doc.file.named,
-                range,
-                format!("{rel}:{out_line}: {message}"),
-                note,
-            );
+        if let Some(range) = line_range(&text, typ_line) {
+            let named = miette::NamedSource::new(typ.to_string(), text.clone());
+            err = LpError::at(&named, range, format!("{rel}:{out_line}: {message}"), note);
         }
         eprintln!("{:?}", miette::Report::new(err));
         mapped += 1;

@@ -52,6 +52,89 @@ print(#i)
 ";
 
 #[test]
+fn a_styling_show_rule_does_not_hide_a_chunk() {
+    // The tool's own lit.typ styles labelled blocks by *replacing* them, which is
+    // what an instrumented show rule cannot survive: it never sees the element.
+    // A query reads the element tree, which styling does not change.
+    if !typst_available() {
+        eprintln!("skipping: typst is not on PATH");
+        return;
+    }
+
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(
+        dir.path().join("styled.typ"),
+        "#show raw.where(block: true): it => block(fill: luma(240))[styled away]\n         ```py\nprint('styled')\n``` <styled>\n",
+    )
+    .expect("doc");
+    let path = dir.path().to_path_buf();
+
+    let output = lp(&path, &["metadata", "styled.typ"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = stdout(&output);
+    assert!(report.contains("styled"), "{report}");
+    assert!(report.contains("print('styled')"), "{report}");
+}
+
+#[test]
+fn a_chapter_is_tangled_without_being_listed() {
+    // Typst merges #include'd content, so the tool no longer needs to be told
+    // about every file — the document already says.
+    if !typst_available() {
+        eprintln!("skipping: typst is not on PATH");
+        return;
+    }
+
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(
+        dir.path().join("book.typ"),
+        "= Book\n#include \"chapter.typ\"\n",
+    )
+    .expect("book");
+    std::fs::write(
+        dir.path().join("chapter.typ"),
+        "= Chapter\n\n```py\nprint('from a chapter')\n``` #label(\"src/main.py\")\n",
+    )
+    .expect("chapter");
+    let path = dir.path().to_path_buf();
+
+    let output = lp(&path, &["tangle", "book.typ", "--out", "out"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        std::fs::read_to_string(path.join("out/src/main.py")).expect("output"),
+        "print('from a chapter')\n"
+    );
+
+    // And the line is traced to the chapter file, not to the book that includes it.
+    let mapped = lp(
+        &path,
+        &[
+            "map",
+            "--file",
+            "src/main.py",
+            "--line",
+            "1",
+            "--out",
+            "out",
+        ],
+    );
+    assert_eq!(
+        stdout(&mapped).lines().next(),
+        Some("chapter.typ:4"),
+        "{}",
+        stdout(&mapped)
+    );
+}
+
+#[test]
 fn the_document_reports_chunks_no_parser_could_find() {
     if !typst_available() {
         eprintln!("skipping: typst is not on PATH");

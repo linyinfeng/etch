@@ -22,51 +22,36 @@
 //! looks for `<label>` / `#label("label")` tokens. A parser would have to be
 //! updated in lockstep with Typst; this never does.
 
-// Wired into `tangle::plan()` in the next step (ADR D12); unit-tested here.
-#![allow(dead_code)]
+use std::sync::Arc;
 
-use std::path::{Path, PathBuf};
+use crate::metadata::Chunk;
+use crate::source::FileText;
 
-use crate::metadata::Event;
-
-/// A file the documents were read from.
-pub struct Source {
-    pub path: PathBuf,
-    pub text: String,
-}
-
-impl Source {
-    pub fn load(path: &Path) -> std::io::Result<Self> {
-        Ok(Self {
-            path: path.to_path_buf(),
-            text: std::fs::read_to_string(path)?,
-        })
-    }
-
-    fn lines(&self) -> Vec<&str> {
-        self.text.lines().collect()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Placed {
-    /// A literal block: this file, this line of its opening fence.
-    Exact { file: PathBuf, line: usize },
-    /// The text was found, but not attached to this label (it was built at run
-    /// time): all such chunks point at the same template.
-    Template { file: PathBuf, line: usize },
-    /// Only the label had a literal part; this is the generator that built it.
-    Generated { file: PathBuf, line: usize },
+    /// A literal block: this file, and the line its opening fence is on.
+    Exact { file: Arc<FileText>, line: usize },
+    /// The text was found, but not attached to this label (the label was built at
+    /// run time): every such chunk points at the template it came from.
+    Template { file: Arc<FileText>, line: usize },
+    /// Only the label had a literal part; this is the code that built it.
+    Generated { file: Arc<FileText>, line: usize },
     /// Nothing in the source corresponds to it.
     Nowhere,
 }
 
 impl Placed {
-    pub fn position(&self) -> Option<(&Path, usize)> {
+    /// The source line for the `index`-th line of this chunk (0-based), when the
+    /// source has one.
+    ///
+    /// A literal block starts one line below its fence; a template starts at the
+    /// first line of its text; a generated chunk points every line at the code
+    /// that built it, which is where a reader would go and change something.
+    pub fn line_for(&self, index: usize) -> Option<(&Arc<FileText>, usize)> {
         match self {
-            Placed::Exact { file, line }
-            | Placed::Template { file, line }
-            | Placed::Generated { file, line } => Some((file.as_path(), *line)),
+            Placed::Exact { file, line } => Some((file, line + 1 + index)),
+            Placed::Template { file, line } => Some((file, line + index)),
+            Placed::Generated { file, line } => Some((file, *line)),
             Placed::Nowhere => None,
         }
     }
@@ -76,17 +61,17 @@ impl Placed {
 ///
 /// Chunks are consumed in order, so a document that repeats a chunk text assigns
 /// the occurrences left to right — the same order the document reads in.
-pub fn chunks(sources: &[Source], chunks: &[Event]) -> Vec<Placed> {
-    let mut anchors: Vec<(String, PathBuf, usize)> = Vec::new();
+pub fn chunks(sources: &[Arc<FileText>], chunks: &[Chunk]) -> Vec<Placed> {
+    let mut anchors: Vec<(String, Arc<FileText>, usize)> = Vec::new();
     for source in sources {
         anchors.extend(label_anchors(source));
     }
 
     let mut used_anchors: Vec<bool> = vec![false; anchors.len()];
     let mut placed = Vec::with_capacity(chunks.len());
-    for event in chunks {
-        let label = event.label().unwrap_or_default();
-        let text = event.text();
+    for chunk in chunks {
+        let label = chunk.label.as_str();
+        let text = chunk.text.as_str();
 
         if let Some(position) = exact(sources, &anchors, &mut used_anchors, label, text) {
             placed.push(position);
@@ -106,11 +91,11 @@ pub fn chunks(sources: &[Source], chunks: &[Event]) -> Vec<Placed> {
 }
 
 /// Every `<label>` or `#label("label")` token in a file, with its line.
-fn label_anchors(source: &Source) -> Vec<(String, PathBuf, usize)> {
+fn label_anchors(source: &Arc<FileText>) -> Vec<(String, Arc<FileText>, usize)> {
     let mut anchors = Vec::new();
     for (index, line) in source.lines().iter().enumerate() {
         for name in tokens_in(line) {
-            anchors.push((name, source.path.clone(), index + 1));
+            anchors.push((name, Arc::clone(source), index + 1));
         }
     }
     anchors
@@ -151,8 +136,8 @@ fn tokens_in(line: &str) -> Vec<String> {
 
 /// Tier 1: an unused label anchor whose preceding block is this chunk.
 fn exact(
-    sources: &[Source],
-    anchors: &[(String, PathBuf, usize)],
+    sources: &[Arc<FileText>],
+    anchors: &[(String, Arc<FileText>, usize)],
     used: &mut [bool],
     label: &str,
     text: &str,
@@ -161,7 +146,7 @@ fn exact(
         if used[index] || name != label {
             continue;
         }
-        let source = sources.iter().find(|source| source.path == *file)?;
+        let source = sources.iter().find(|source| source.path == file.path)?;
         if let Some(block) = block_above(source, *line)
             && dedent(&block.text) == text
         {
@@ -176,7 +161,7 @@ fn exact(
 }
 
 /// Tier 2: the chunk's text, verbatim, somewhere in the sources.
-fn template(sources: &[Source], text: &str) -> Option<Placed> {
+fn template(sources: &[Arc<FileText>], text: &str) -> Option<Placed> {
     if text.is_empty() {
         return None;
     }
@@ -196,7 +181,7 @@ fn template(sources: &[Source], text: &str) -> Option<Placed> {
             ) == text
             {
                 return Some(Placed::Template {
-                    file: source.path.clone(),
+                    file: Arc::clone(source),
                     line: start + 1,
                 });
             }
@@ -209,8 +194,8 @@ fn template(sources: &[Source], text: &str) -> Option<Placed> {
 ///
 /// A label like `built-0` was assembled from something; the longest literal
 /// prefix that actually appears in the sources is what remains of the generator.
-fn generator(anchors: &[(String, PathBuf, usize)], label: &str) -> Option<Placed> {
-    let mut best: Option<&(String, PathBuf, usize)> = None;
+fn generator(anchors: &[(String, Arc<FileText>, usize)], label: &str) -> Option<Placed> {
+    let mut best: Option<&(String, Arc<FileText>, usize)> = None;
     for anchor in anchors {
         if label.starts_with(anchor.0.as_str())
             && !anchor.0.is_empty()
@@ -237,7 +222,7 @@ struct Block {
 /// The label sits either on the closing fence (` ``` <name> `) or on the line
 /// after it, so the closing fence is on the anchor line in the first case and
 /// above it in the second.
-fn block_above(source: &Source, anchor_line: usize) -> Option<Block> {
+fn block_above(source: &Arc<FileText>, anchor_line: usize) -> Option<Block> {
     let lines = source.lines();
     if anchor_line == 0 || anchor_line > lines.len() {
         return None;
@@ -284,31 +269,32 @@ fn dedent(lines: &[String]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Placed, Source, chunks};
-    use crate::metadata::Event;
-    use std::path::PathBuf;
+    use super::{Placed, chunks};
+    use crate::metadata::Chunk;
+    use crate::source::FileText;
+    use miette::NamedSource;
+    use std::sync::Arc;
 
-    fn event(label: &str, text: &str) -> Event {
-        Event {
-            kind: "chunk".into(),
-            label: Some(label.into()),
+    fn event(label: &str, text: &str) -> Chunk {
+        Chunk {
+            label: label.into(),
             lang: Some("py".into()),
-            text: Some(text.into()),
-            level: None,
+            text: text.into(),
         }
     }
 
-    fn source(text: &str) -> Source {
-        Source {
-            path: PathBuf::from("doc.typ"),
+    fn source(text: &str) -> Arc<FileText> {
+        Arc::new(FileText {
+            path: "doc.typ".into(),
+            named: NamedSource::new("doc.typ", text.to_string()),
             text: text.into(),
-        }
+        })
     }
 
     fn line_of(placed: &[Placed]) -> Vec<Option<usize>> {
         placed
             .iter()
-            .map(|p| p.position().map(|(_, line)| line))
+            .map(|p| p.line_for(0).map(|(_, line)| line))
             .collect()
     }
 
@@ -324,7 +310,8 @@ mod tests {
                 event("src/two.py", "print('two')"),
             ],
         );
-        assert_eq!(line_of(&placed), vec![Some(3), Some(7)], "{placed:?}");
+        // `line_for` is the first line of the chunk text, one below the fence.
+        assert_eq!(line_of(&placed), vec![Some(4), Some(8)], "{placed:?}");
         assert!(matches!(placed[0], Placed::Exact { line: 3, .. }));
     }
 
@@ -333,7 +320,7 @@ mod tests {
         // Typst hands us the dedented text; the source has it indented.
         let source = source("1. step\n\n   ```py\n   print('indented')\n   ``` <in-list>\n");
         let placed = chunks(&[source], &[event("in-list", "print('indented')")]);
-        assert_eq!(line_of(&placed), vec![Some(3)], "{placed:?}");
+        assert_eq!(line_of(&placed), vec![Some(4)], "{placed:?}");
     }
 
     #[test]
@@ -347,7 +334,7 @@ mod tests {
                 event("dup-b", "print('dup')"),
             ],
         );
-        assert_eq!(line_of(&placed), vec![Some(1), Some(5)], "{placed:?}");
+        assert_eq!(line_of(&placed), vec![Some(2), Some(6)], "{placed:?}");
     }
 
     #[test]
@@ -378,6 +365,6 @@ mod tests {
     fn nothing_is_invented_when_the_source_says_nothing() {
         let source = source("= Doc\n");
         let placed = chunks(&[source], &[event("mystery", "print(1)")]);
-        assert_eq!(placed, vec![Placed::Nowhere]);
+        assert!(matches!(placed.as_slice(), [Placed::Nowhere]));
     }
 }

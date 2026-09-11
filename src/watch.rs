@@ -24,7 +24,6 @@ use notify_debouncer_full::notify::RecursiveMode;
 use notify_debouncer_full::{DebounceEventResult, new_debouncer};
 
 use crate::diag::LpError;
-use crate::parse::Doc;
 use crate::tangle;
 
 pub struct Options {
@@ -94,20 +93,7 @@ fn pass(options: &Options, initial: bool, events: &mpsc::Receiver<()>) -> bool {
     // single edit cannot trigger a second, useless pass.
     while events.try_recv().is_ok() {}
 
-    let docs = match options
-        .docs
-        .iter()
-        .map(|path| Doc::load(path))
-        .collect::<Result<Vec<_>, _>>()
-    {
-        Ok(docs) => docs,
-        Err(err) => {
-            report(err);
-            return false;
-        }
-    };
-
-    let outcome = match tangle::run(&docs, &options.out, false) {
+    let outcome = match tangle::run(&options.docs, &options.out, false) {
         Ok(outcome) => outcome,
         Err(err) => {
             report(err);

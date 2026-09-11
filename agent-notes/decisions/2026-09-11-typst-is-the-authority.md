@@ -50,4 +50,19 @@ Typst **不暴露 span**（`query` 结果没有行列；`location()` 是排版�
   - `tangle::plan()` 改为：事件流给 chunk，`locate` 给位置，`<<ref>>` 展开与缩进语义照旧（作用在**求值后**的文本上）。
   - `Block.file`/`FileText` 保留（位置仍要指到具体文件），但 `Doc` 不再需要解析结果；`typst-syntax` 依赖可以从 Cargo.toml 里删掉。
   - 映射 schema 需要表达"无字面位置"（`lines` 的 typ/源下标用 `null`，schema v4）。
-- **已落地（本轮）**：`metadata.rs`（wrapper + eval + 事件）、`locate.rs`（四层定位器，含 6 个单元测试覆盖缩进块/重复文本/运行时 label/代码构造/无匹配）、`lp metadata` 调试命令、`tests/metadata.rs`（验证 include、循环、代码构造三种 chunk 都能看见；文档求值失败时透出 Typst 诊断）。
+- **已落地**：
+  - `metadata.rs`：wrapper（只 `#include`）+ `typst eval 'query(raw.where(block: true))…'`。
+  - `locate.rs`：四层定位器（Literal / Template / Generated / Nowhere），6 个单元测试覆盖缩进块、重复文本、运行时 label、代码构造、无匹配。
+  - `tangle::plan` 已切到这条管线：chunk 集合/顺序/文本/语言**全部**来自求值；位置来自定位器；`<<ref>>` 展开与缩进照旧作用在求值后的文本上。
+  - **`typst-syntax` 已从依赖里删除**——工具对 Typst 的全部"理解"就是 Typst 自己 + 一个搜索。
+  - 映射 schema v4：`lines` 为 `[输出行, 源文件行|null, sources 下标|null]`，`null` 表示"这一行由文档代码生成，没有字面位置"。
+  - `lp metadata <doc>...` 调试命令；`tests/metadata.rs` 覆盖 include、循环、代码构造、**被样式 show rule 吞掉的块**、以及文档求值失败。
+  - 实测代价：demo 文档一次完整 `tangle`（含一次 `typst eval`）**77ms**（debug 构建），watch 的 200ms 去抖窗口仍然宽裕。
+
+### 落地时踩到的坑：show rule 埋点是脆的
+
+第一版埋点用 `#show raw.where(block: true)` + counter 发 `#metadata` 事件。它在最小例子上工作，**但在自己的 demo 上全丢了带 label 的 chunk**：`lit.typ` 的风格化规则把带 label 的 raw block **替换**成一个渲染好的 `block(...)`，于是埋点再也看不到这个元素（未标注的块因为那条规则 `return it` 反而还在）。教训写在这里，因为它推翻了 T1 的乐观结论：
+
+- **T1 的结论只在那条 show rule 仍然返回 raw 元素时成立**（`block(...)[#it]`，元素仍在输出里）；一旦规则**消费**元素（我们的 `lit.typ` 就是），埋点即失效。
+- 因此改成**直接 query 元素树**（`query(raw.where(block: true))`）：show rule 只影响渲染，不改可查询的文档树。
+- 代价：失去"事件流里 chunk 与 heading 交错"的能力（那是 counter 埋点给的东西）。需要分节归属时，用 `location()` 按 `(page, y)` 排序重建顺序（已验证可行），或者分别 `query` 两个流后按位置合并。这是**将来**做分节功能时才需要的东西，不为它保留一个脆的机制。

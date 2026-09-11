@@ -3,19 +3,18 @@ mod explain;
 mod locate;
 mod map;
 mod metadata;
-mod parse;
+mod source;
 mod status;
 mod tangle;
 mod watch;
 
 use std::collections::BTreeSet;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
 use diag::LpError;
-use parse::Doc;
 
 #[derive(Parser)]
 #[command(name = "lp", version, about = "Typst-based literate programming")]
@@ -110,13 +109,20 @@ fn main() {
     }
 }
 
+/// The file a line entry points at, looked up in the map it belongs to.
+fn entry_source<'a>(
+    entry: &(usize, Option<usize>, Option<usize>),
+    map: &'a map::FileMap,
+) -> Option<&'a str> {
+    entry
+        .2
+        .and_then(|index| map.sources.get(index))
+        .map(String::as_str)
+}
+
 fn run() -> Result<i32, LpError> {
     match Cli::parse().command {
         Command::Tangle { docs, out, check } => {
-            let docs = docs
-                .iter()
-                .map(|path| Doc::load(path))
-                .collect::<Result<Vec<_>, _>>()?;
             let outcome = tangle::run(&docs, &out, check)?;
             for output in &outcome.changed {
                 println!(
@@ -174,14 +180,14 @@ fn run() -> Result<i32, LpError> {
             if let Some(doc) = typ {
                 let mut hits = 0;
                 for (dir, map) in &maps {
-                    for (name, entry) in &map.files {
-                        for [out_line, typ_line, source] in &entry.lines {
-                            let from = entry.source([0, 0, *source]).unwrap_or_default();
+                    for (name, file) in &map.files {
+                        for line_entry in &file.lines {
+                            let from = file.source(*line_entry).unwrap_or_default();
                             if from != doc && !from.ends_with(doc.as_str()) {
                                 continue;
                             }
-                            if *typ_line == line {
-                                println!("{}:{out_line}", map::join(dir, name));
+                            if line_entry.1 == Some(line) {
+                                println!("{}:{}", map::join(dir, name), line_entry.0);
                                 hits += 1;
                             }
                         }
@@ -200,19 +206,27 @@ fn run() -> Result<i32, LpError> {
             };
             let (dir, name, entry) = map::resolve(&maps, &file)?;
             let rel = map::join(dir, name);
-            let Some([mapped_line, typ_line, source]) = entry.locate(line) else {
+            let entry_file = entry;
+            let Some(entry) = entry.locate(line) else {
                 return Err(LpError::plain(format!("{rel}:{line}: not in the line map")));
             };
-            let typ = entry.source([0, 0, source]).unwrap_or_default().to_string();
+            let (mapped_line, typ_line) = (entry.0, entry.1);
 
-            println!("{typ}:{typ_line}");
-            if let Some(text) = std::fs::read_to_string(&typ).ok().and_then(|doc| {
-                doc.lines()
-                    .nth(typ_line - 1)
-                    .map(str::trim_end)
-                    .map(str::to_string)
-            }) {
-                println!("    {text}");
+            match (typ_line, entry_source(&entry, entry_file)) {
+                (Some(typ_line), Some(typ)) => {
+                    println!("{typ}:{typ_line}");
+                    if let Some(text) = std::fs::read_to_string(typ).ok().and_then(|text| {
+                        text.lines()
+                            .nth(typ_line - 1)
+                            .map(str::trim_end)
+                            .map(str::to_string)
+                    }) {
+                        println!("    {text}");
+                    }
+                }
+                _ => {
+                    println!("{rel}:{line}: built by the document (no source line)");
+                }
             }
             if mapped_line != line {
                 eprintln!(
@@ -233,81 +247,57 @@ fn run() -> Result<i32, LpError> {
             Ok(0)
         }
         Command::List { doc } => {
-            list(&doc)?;
+            list(std::slice::from_ref(&doc))?;
             Ok(0)
         }
         Command::Metadata { docs } => {
             let typst = metadata::binary()?;
             let cwd = std::env::current_dir().map_err(|err| LpError::plain(err.to_string()))?;
-            let events = metadata::events(&typst, &docs, &cwd)?;
-            for event in &events {
-                match event.kind.as_str() {
-                    "heading" => println!("heading  level {}", event.level.unwrap_or(0)),
-                    _ => println!(
-                        "chunk    {:<28} {:<8} {}",
-                        event.label().unwrap_or("(unlabelled)"),
-                        event.lang.as_deref().unwrap_or("-"),
-                        event.text().lines().next().unwrap_or("")
-                    ),
-                }
+            for chunk in metadata::chunks(&typst, &docs, &cwd)? {
+                println!(
+                    "{:<28} {:<8} {}",
+                    chunk.label,
+                    chunk.lang.as_deref().unwrap_or("-"),
+                    chunk.text.lines().next().unwrap_or("")
+                );
             }
             Ok(0)
         }
         Command::Unaccounted { docs, out, delete } => {
-            let docs = docs
-                .iter()
-                .map(|path| Doc::load(path))
-                .collect::<Result<Vec<_>, _>>()?;
             let plan = tangle::plan(&docs)?;
             status::run(&out, &tangle::produced(&plan), delete)
         }
     }
 }
 
-fn list(path: &Path) -> Result<(), LpError> {
-    let doc = Doc::load(path)?;
-    let set = tangle::ChunkSet::new(std::slice::from_ref(&doc));
-    let referenced: BTreeSet<String> = doc.blocks.iter().flat_map(tangle::refs_of).collect();
+fn list(docs: &[PathBuf]) -> Result<(), LpError> {
+    let plan = tangle::plan(docs)?;
+    let set = tangle::ChunkSet::new(&plan.blocks);
+    let referenced: BTreeSet<String> = plan.blocks.iter().flat_map(tangle::refs_of).collect();
 
-    for error in doc.errors.iter().take(3) {
-        match &error.range {
-            Some(range) => {
-                let line = doc.file.text[..range.start].matches('\n').count() + 1;
-                let err = LpError::at(
-                    &doc.file.named,
-                    range.clone(),
-                    error.message.clone(),
-                    "syntax error",
-                );
-                eprintln!(
-                    "{}:{line}: {:?}",
-                    doc.file.path.display(),
-                    miette::Report::new(err)
-                );
-            }
-            None => eprintln!("{}: {}", doc.file.path.display(), error.message),
-        }
+    for doc in docs {
+        println!("{}", doc.display());
     }
-
-    println!("{}: {} chunks", doc.file.path.display(), doc.blocks.len());
-    let mut blocks = doc.blocks.iter().collect::<Vec<_>>();
-    blocks.sort_by_key(|block| block.fence_line);
-    for block in blocks {
-        let kind = if parse::is_root(&block.name) {
+    for block in &plan.blocks {
+        let kind = if source::is_root(&block.name) {
             "root"
         } else {
             "frag"
         };
-        let used = if referenced.contains(&block.name) || parse::is_root(&block.name) {
+        let where_ = match block.place.line_for(0) {
+            Some((file, line)) => format!("{}:{line}", file.path.display()),
+            None => "built by the document".to_string(),
+        };
+        let used = if referenced.contains(&block.name) || source::is_root(&block.name) {
             String::new()
         } else {
             "unreferenced".to_string()
         };
         println!(
-            "  {kind}  {:<28} line {:>4}  {:<8} {}",
+            "  {kind}  {:<28} {:<8} {:<28} {}",
             format!("<{}>", block.name),
-            block.fence_line,
             block.lang.as_deref().unwrap_or("-"),
+            where_,
             used
         );
     }
@@ -320,7 +310,7 @@ fn list(path: &Path) -> Result<(), LpError> {
         } else {
             roots
                 .iter()
-                .map(|r| format!("<{r}>"))
+                .map(|root| format!("<{root}>"))
                 .collect::<Vec<_>>()
                 .join(", ")
         }
