@@ -33,7 +33,9 @@
 - `decisions/2026-09-11-no-positions.md` — **D14 行号映射不做了**（用户规矩："活不能优雅地做 → 不做"）：Typst 脚本层拿不到源位置，要行号只能搜索源码或重新解析 Typst；改成 **chunk 级出处**（chunk 区间），删掉 `locate.rs`/`source.rs` 与 span 报错。
 - `decisions/2026-09-11-self-hosting-layout.md` — **D15 自举布局（Stage 1 已落地）**：crate 留在仓库根、根就是 `--out`、`seed/` 是冻结种子；达成标准（`--check` 等于冻结前手写源码）与永久不变量（自己构的二进制 `--check` 绿，`tests/self.rs`）分开；`<<name>>` 独占一行的撞车改我们的夹具（`concat!`）而不加转义语法。
 - `decisions/2026-09-11-document-invariants.md` — ~~D16 结构不变量（硬错误）：先命名后展开 + lang 一致~~ → **已被 D18 推翻**（两条检查都从代码里撤了）；保留的价值是里面的边界划分（工具只能强制机制）与“为什么推错”。
-- `decisions/2026-09-11-order-is-free.md` — **D18 顺序自由**：声明顺序完全自由（骨架在前 / 碎片在前最后组装都正当），`lang` 只是数据不检查；工具只管引用可解析/无环/非空/`--check`/所有权，**重思路与语义自洽全部落在 skill（写作者）**。教训：别把不可判定的性质换成可判定的代理。
+- `decisions/2026-09-11-order-is-free.md` — **D18 顺序自由**：声明顺序完全自由（骨架在前 / 碎片在前最后组装都正当），`lang` 只是数据不检查；工具只管引用可解析/无环/非空/`--check`/所有权，**重思路与语义自洽全部落在 skill（写作者）**。教训：别把不可判定的性质换成可判定的代理。- `decisions/2026-09-11-order-is-free.md` — **D18 顺序自由**：声明顺序完全自由（骨架在前 / 碎片在前最后组装都正当），`lang` 只是数据不检查；工具只管引用可解析/无环/非空/`--check`/所有权，**重思路与语义自洽全部落在 skill（写作者）**。教训：别把不可判定的性质换成可判定的代理。
+- `decisions/2026-09-11-final-shape.md` — **D19 最终形态**：tracked 只有五样（两个一行指针 + `lp.typ` + `seed/` + `agent-notes/`），其余一切是产物；含五个决定的答案与执行中撞到的四个真问题。
+- `decisions/2026-09-11-ownership-check-order.md` — **D20 所有权检查移到写盘之后**：控制文件也是产物，fresh clone 里还没有它；代价是"树不合法也先刷新声明过的文件"。
 - `decisions/2026-09-11-reference-escape.md` — **D17 引用转义**：`@<<name>>` 输出字面量 `<<name>>`（tangle 去 `@`、weave 当文本、不计入引用图）。触发原因：skill 自己进了文档，而它必须原样展示 `<<name>>` 独占一行的样子。
 - `decisions/2026-09-11-declared-chunks.md` — **D13 声明式 chunk（取代 D8 的 label 命名与 D12 的四层搜索）**：文档 import `lit/lp.typ` 并用 `#chunk`/`#file` 声明；工具只读声明流，位置靠精确 token 查找。
 - `decisions/2026-09-11-typst-is-the-authority.md` — **D12 架构定案**：chunk 集合/顺序/文本由 **Typst 求值**给出（wrapper 埋点 + `typst eval`，不改用户文档），源位置由**四层纯搜索定位器**给出（Literal / Template / Generated / Nowhere）；静态分析被否决（图灵完备面前构造上就是错的）。含实测的两个决定性 case 与代价（typst 成为硬依赖、文档必须能求值）。
@@ -41,16 +43,13 @@
 - `../experiments/2026-09-11-chunk-spike/` — 可运行的最小验证：纯 `.typ` 同时 weave 成 PDF、tangle 成可运行的 `hello.py`，带 `--check` 漂移检测和行号映射。
 - `../experiments/2026-09-11-typst-syntax-probe/` — 验证 `typst-syntax` 能给出精确 span 且文本与 `typst eval` 逐字节一致（D6 的依据）。
 
-## 当前状态（截至 2026-09-11，`5efc543`）
+## 当前状态（截至 2026-09-11，`3ce95aa`）
 
-> **修正（D13/D14 之后重写）**：原版这一节还写着 "`typst-syntax` 就是 tangle 的解析器" 与 "报错映射回 `.typ` 行号是差异化"，两条都已被推翻。以 `handoff.md` 为准。
+仓库形态已经收敛（D19）：**tracked 只有五样**——`README.md`（一行指针）、`AGENTS.md`（一行指针）、`lp.typ`（工具本身，自解释、自包含）、`seed/`（本代产物的冻结副本 + 它那套 devshell）、`agent-notes/`（不适合进本体的经验）。其余一切（crate、包、skill、示例、flake、`.gitignore`/`.lpignore`）都是 `lp tangle lp.typ --out .` 的产物。
 
-- 调研 + spike + 决策 + **M1 原型 + M2（`lp watch`、输出目录所有权、chunk 级出处）+ 自举 Stage 1 + 引用转义（D17）** 均已完成并合入 main。`cargo test` 全绿 49 个（7 单元 + 19 flow + 5 lazy + 7 metadata + 10 owned + 1 self）；`lit/lp.typ` 是包（渲染 + 声明），`examples/demo/` 是可跑的多文件示例（骨架式排版，但顺序不是强制的）。
-- **自举 Stage 1（D15）**：`lp.typ` 逐字节复现整个 crate，`Cargo.toml`/`src/`/`tests/` 是生成物（gitignore），`seed/` 是冻结种子；fresh clone 先跑种子再 `tangle lp.typ --out .`。Stage 2（抽公共 chunk、加散文）未做，见 `plan.md`。
-- 核心假设（D13/D14 定稿）：**chunk 由文档声明**（`#chunk`/`#file`），工具只跑 `typst eval 'query(<lp-decl>)'` 读回声明流，**从不解析 Typst**；weave 就是 `typst compile`；出处是 **chunk 级**（哪个声明、在它里面第几行），**不记 `.typ` 行号**。
-- 已跑通的一次性链路：`nix develop -c examples/demo/run.sh`（tangle 多文件 crate → 构建运行 → weave PDF → `--check` → `lp map` → 用 `lp explain` 把 rustc 报错回译到 chunk → 复原）。
-- 已跑通的实时链路：`lp watch <doc> --check-cmd 'cargo build --message-format=short'` —— 只重写真正变了的文件，检查只在真改写后跑，诊断自动指回 chunk。契约见 ADR D9，实测见 `research/2026-09-11-lazy-tangle.md`。
-- 下一步候选与代价见 `handoff.md` §6（cargo JSON 后端 + `ci.sh` 是小尾巴；自举 M3 是大头）。**删除语义已在 D10 定下**（`.lpignore` 目录声明 / `--check` 干跑）。
+- 测试 49 个（7 单元 + 19 flow + 5 lazy + 7 metadata + 10 owned + 1 self）；fmt/clippy 干净；`examples/demo/run.sh` 端到端绿。
+- fresh clone 的三步在 `lp.typ` 的 "Starting from nothing" 一节（第一遍用 `seed/flake.nix`，因为 devshell 本身也是产物）。
+- 工具强制的只有**机制**（引用可解析/无环/非空/`--check`/所有权）；顺序自由、`lang` 不检查（D18）。**语义自洽归写作者**，skill 是那半边的成文（`.agents/skills/literate-programming/`，同样是产物）。
+- 两条链路不变：`examples/demo/run.sh`（一次性端到端）与 `lp watch … --check-cmd`（实时）。
 - 差异化：**chunk 级出处 + 生成物漂移检测与归属**——报错给到"哪个声明、在它里面第几行"，chunk 名一步 `rg` 到声明；littst / typst-unlit 都不解决这两点。
-- 长期目标（D3）：原型冻结为 bootstrap，工具自身源码改写成 literate `.typ` 并自举；固定点测试保证 bootstrap 与自举产物逐字节一致。
-- **agent skill**：`.agents/skills/literate-programming/` —— `SKILL.md`（第一句：**文档的主语是思想、代码是证据**；接着八条写给写作者的纪律 + lp 机制 + 错误对照表）+ `references/example.md`（深嵌套形态的两文件例子，真跑过）+ `references/thinking.md`（立场、反方批评、证据强度）。**它由 `lp.typ` 生成**（与 crate 一样是生成物）：要改 skill 就改文档。
+- 下一步候选见 `handoff.md` §6。
