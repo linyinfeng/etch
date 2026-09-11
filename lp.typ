@@ -1577,6 +1577,10 @@ lp weave lp.typ lp.pdf                          # the book, as Typst renders it
 lp weave report.typ report.pdf --input who=me   # ... with Typst's own flags
 ```
 
+Typst's experimental exports arrive the same way, as flags: `lp weave lp.typ lp.html --features html`
+writes an HTML rendering, and Typst warns while doing it that the format is still under development. That
+the tool has no list of which flags are allowed is the point of the trailing arguments.
+
 The package is the copy embedded in this binary, unpacked fresh, so weaving needs no tangle before it:
 the document is the source of both. And the document stays a normal Typst file — an editor rendering it
 without the tool sets `TYPST_PACKAGE_PATH` itself, to the same path this command passes. That is the one
