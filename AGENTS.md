@@ -1,5 +1,28 @@
 # 项目约定
 
+## 代码结构（M1 原型）
+
+```
+src/main.rs       CLI（clap）+ 命令派发 + lp list
+src/parse.rs      typst-syntax CST 遍历 → chunk（两种 label 写法）
+src/tangle.rs     展开、缩进、严格报错、写文件、--check
+src/map.rs        .lpmap.json 的 schema + 查找
+src/explain.rs    诊断行 → .typ 行（纯查表 + 通用正则）
+src/diag.rs       LpError（miette，指向 .typ 源 span）
+lit/lit.typ       Typst 渲染库（`#show: lit`）
+examples/demo/    可跑的多文件示例；run.sh 是端到端回归入口
+tests/flow.rs     跑真二进制的端到端测试
+```
+
+常用命令：`nix develop -c cargo test`、`nix develop -c examples/demo/run.sh`、`nix develop -c cargo clippy`。
+
+## 硬规则
+
+- **正交性**：算法里不得出现目标语言知识。语言差异只能是**数据表**（扩展名 → typst lang tag、将来可选的行指令模板）。
+- **生成物不入库**：`examples/demo/build/` 之类一律 gitignore；CI 用 `lp tangle --check` 守漂移。`.typ` 是唯一真相。
+- **报错必须指回 `.typ`**：新错误一律用 `LpError::at`（带 span），不要拼裸字符串。
+- **解析只用 `typst-syntax`**（ADR D6）；`typst eval` 只当测试 oracle。
+
 - **语言**：与用户交流用中文；代码、标识符、注释用英文。注释只解释"为什么"（全局规则见 `~/.pi/agent/AGENTS.md`）。
 - **调研优先**：本项目当前处于调研/设计阶段。任何"某方案可行/不可行"的结论要么附可复现命令，要么标 **未验证**。
 - **agent-notes**：`agent-notes/README.md` 是索引，`research/YYYY-MM-DD-<topic>.md` 一个主题一份，结论放最前面。做了决定就新建 `agent-notes/decisions/`，追加不改写。事实过期就地改并注明修正。

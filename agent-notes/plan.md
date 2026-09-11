@@ -10,22 +10,19 @@
 - `flake.nix` + `flake.lock`：`typst` + `rustc/cargo/rustfmt/clippy` + `python3`。实测 `cargo 1.97.0 / rustc 1.97.1 / typst 0.15.1`。
 - 目录：`src/`（原型）、`lit/`（Typst 渲染库）、`experiments/`、`agent-notes/`。
 
-### M1 — 原型 tangle + check + map（核心语义）
-用 `typst-syntax` 直读 `.typ`（无子进程），把 Python spike 的语义做扎实并补上它故意没做的部分：
+### M1 — 原型 tangle + check + map（已完成，2026-09-11）
 
-- `lp tangle <doc.typ>... [--out DIR] [--check]`
-- 解析：递归遍历 CST，任一 `block: true` 且**后续 sibling 是 Label** 的 `Raw` 即 chunk；`raw.lines()` 取正文；`Source::lines().byte_to_line()` 得行号。
-- 严格报错（`miette` 渲染，指向 `.typ` 源 span）：悬空引用、引用环、根 chunk 重名、根与非根重名、空 chunk。
-- 同名 label 多块按文档顺序拼接（noweb 语义），并在 `cargo test` 里放 fixture 守住"Typst 容忍重复 label"这个未文档化行为。
-- `lp map --file out/foo.rs --line 42` → `doc.typ:16`（消费 `.lpmap.json`）。
-- `--check`：生成物与文档不一致 → 非零退出（CI 用）。
-- **oracle 一致性测试**：同一批 fixture 上，`typst-syntax` 抽出的 `{label, lang, text}` 必须与 `typst eval`（CLI）输出完全一致。这条测试同时守住 trim 语义和将来的版本升级。
-- 质量门：所有报错形如 `doc.typ:16:5: dangling chunk <<body>> referenced from <<main.c>>`，并带 `.typ` 源码片段。
+实现：`src/{main,parse,tangle,map,explain,diag}.rs`（~600 行）+ `lit/lit.typ` + `tests/flow.rs`（11 个端到端用例 + 5 个单元用例）。
 
-**M1 起点（避免重新推导）**
-- 布局：仓库根建 package `lp`（`src/main.rs` + `src/{syntax,chunks,tangle,map,cli}.rs`）；`experiments/` 不进 workspace（根 Cargo.toml 里 `[workspace] exclude = ["experiments/*"]`，probe 自带 Cargo.lock 与自己的 `cargo run` 用法）。
-- 先写这三个测试再写实现：① `parse` fixture 化（复用 probe.typ 的 5 种形态：列表内嵌/同行 label/独行 label/重复 label/无 label）；② `typst eval` oracle 一致性；③ 同名 label 拼接顺序。
-- `.lpmap.json` schema 在 M1 定死并写进仓库 README（形如 `{ "<输出文件>": { typ, lang, lines: [[outLine, typLine]], chunks: [{name, typLine}] } }`），`lp map` 只读它，不改它。
+- ✅ `lp tangle <doc.typ>... [--out DIR] [--check]`
+- ✅ 解析：`typst-syntax` 递归遍历 CST；接受两种 label 写法（`<name>` 与 `#label("path")`，见 ADR D8）；`raw.lines()` 取正文；`Source::lines().byte_to_line()` 得行号
+- ✅ 严格报错（`miette` 渲染，指向 `.typ` 源 span）：悬空引用、引用环、空 chunk、不安全输出路径
+- ✅ 同名 label 多块按文档顺序拼接；缩进按引用点传递（`tests/flow.rs` 覆盖）
+- ✅ `lp map` + `.lpmap.json`（`[生成行, .typ 行]`，指向定义处）+ `lp list`
+- ✅ `lp explain` 的**通用后端**（`file:line:col:` → `.typ` 源片段）；未引用 chunk 告警
+- ⏳ 留到下一轮：`lp watch`（`notify`）、`lp explain --format cargo`（`cargo_metadata`）、诊断列位置精确到 span（现在高亮整行）、“同一 chunk 被多个根复用”与多文档合并的边界测试
+
+**下一步起点**：`src/` 是普通 Rust 工程（`cargo test` 全绿）；演示与回归入口是 `examples/demo/run.sh`（tangle → 构建运行 → weave → `--check` → map → explain 回译 → 复原）。
 
 ### M2 — 多文件工程 + watch + explain
 - 多根 chunk → 目录结构（`src/`、`tests/`）；`--out` 与文档内相对路径的语义定死（相对 `.typ` 所在目录）。

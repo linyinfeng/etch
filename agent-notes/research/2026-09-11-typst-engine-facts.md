@@ -100,7 +100,20 @@ let root = LinkedNode::new(src.root());
 
 实测代码：`experiments/2026-09-11-typst-syntax-probe/`。`typst-syntax` 版本需与目标 Typst 版本对齐（0.15.x），升级时用 `typst eval` 当 oracle 跑一致性测试。
 
-## 8. spike 里已经被验证的完整链路
+## 8. label 的字符集：`/` 不允许（M1 原型时实测，很关键）
+
+Typst 的 dedicated label 语法 `<...>` 只允许 `[A-Za-z0-9_.:-]`（官方文档：*"can contain letters, numbers, `_`, `-`, `:`, and `.`"*）。逐个实测的结果（`typst eval 'query(raw).map(e => str(e.at("label")))'`）：
+
+| 写法 | 结果 |
+| --- | --- |
+| `<a-b.l>` `<a_b.l>` `<a.b>` `<a:b>` | ✅ 可用 |
+| `<a/b.l>` `<a,b>` `<a+b>` `<a[b]>` `<a(b)>` `<a#b>` `<a%b>` `<a=b>` `<a*b>` `<a@b>` `<a$b>` `<a!b>` … | ❌ `error: unclosed label` |
+
+推断：**不能用 label 直接表达目录路径**（D1 的多文件工程需要 `src/`）。可行解见 ADR D8：需要目录时用 constructor 写法 `#label("src/main.rs")`。实测该写法同样会附着到前一个 code block（`query(raw).map(e => e.at("label"))` 返回 `["src/lib.rs"]`），但 CST 里它是 `Hash` + `FuncCall` 节点而不是 `Label` 节点，所以解析器要同时识别两种 sibling。
+
+附带事实：`#label("...")` 的 constructor 接受任意非空字符串（官方文档明确），所以空格、斜杠都可以——但也意味着我们不该自行解释字符串内容，直接当路径用。
+
+## 9. spike 里已经被验证的完整链路
 
 见 `experiments/2026-09-11-chunk-spike/`：
 

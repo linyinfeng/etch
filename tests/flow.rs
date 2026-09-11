@@ -1,0 +1,261 @@
+//! End-to-end tests: they run the real binary against throwaway documents.
+
+use std::path::Path;
+use std::process::{Command, Output};
+
+use tempfile::TempDir;
+
+/// A document with one root, a shared chunk, a concatenated chunk and indentation.
+const DOC: &str = "\
+= Demo
+
+```py
+<<imports>>
+<<body>>
+``` <main.py>
+
+```py
+import sys
+``` <imports>
+
+```py
+print('one')
+``` <body>
+
+```py
+print('two')
+``` <body>
+";
+
+fn lp(dir: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_lp"))
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("run lp")
+}
+
+fn write(dir: &Path, name: &str, contents: &str) {
+    std::fs::write(dir.join(name), contents).expect("write fixture");
+}
+
+fn stdout(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stdout).to_string()
+}
+
+fn stderr(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stderr).to_string()
+}
+
+fn line_of(text: &str, needle: &str) -> usize {
+    text.lines()
+        .position(|line| line.contains(needle))
+        .expect("needle")
+        + 1
+}
+
+fn project(doc: &str) -> (TempDir, std::path::PathBuf) {
+    let dir = TempDir::new().expect("temp dir");
+    write(dir.path(), "demo.typ", doc);
+    let path = dir.path().to_path_buf();
+    (dir, path)
+}
+
+#[test]
+fn tangle_writes_files_with_concat_and_indentation() {
+    let (_guard, dir) = project(DOC);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    let main = std::fs::read_to_string(dir.join("out/main.py")).expect("main.py");
+    assert_eq!(main, "import sys\nprint('one')\nprint('two')\n");
+}
+
+#[test]
+fn tangle_records_where_every_line_came_from() {
+    let (_guard, dir) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let map: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("out/.lpmap.json")).expect("map"))
+            .expect("json");
+    let lines = map["files"]["main.py"]["lines"].as_array().expect("lines");
+
+    // Output line 3 comes from the *second* <body> block, not from the reference.
+    let expected = line_of(DOC, "print('two')");
+    assert_eq!(lines[2], serde_json::json!([3, expected]));
+}
+
+#[test]
+fn indentation_follows_the_reference_site() {
+    let doc = "```py\nif True:\n    <<body>>\n``` <main.py>\n\n```py\nprint(1)\n``` <body>\n";
+    let (_guard, dir) = project(doc);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+    let main = std::fs::read_to_string(dir.join("out/main.py")).expect("main.py");
+    assert_eq!(main, "if True:\n    print(1)\n");
+}
+
+#[test]
+fn check_reports_drift_with_the_typ_line() {
+    let (_guard, dir) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let check = lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"]);
+    assert!(
+        check.status.success(),
+        "clean run must succeed: {}",
+        stderr(&check)
+    );
+
+    write(&dir.join("out"), "main.py", "hand edited\n");
+    let drift = lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"]);
+    assert!(!drift.status.success(), "drift must fail");
+    let message = stderr(&drift);
+    assert!(message.contains("STALE  main.py"), "{message}");
+    // the first difference is line 1, which came from the <imports> chunk
+    assert!(
+        message.contains(&format!("demo.typ:{}", line_of(DOC, "import sys"))),
+        "{message}"
+    );
+
+    // and tangling again fixes it
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"])
+            .status
+            .success()
+    );
+}
+
+#[test]
+fn dangling_reference_points_at_the_reference_line() {
+    let doc = "```py\n<<missing>>\n``` <main.py>\n";
+    let (_guard, dir) = project(doc);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    let message = stderr(&output);
+    assert!(
+        message.contains("chunk <<missing>> is not defined"),
+        "{message}"
+    );
+    assert!(message.contains("demo.typ:2"), "{message}");
+}
+
+#[test]
+fn cycle_is_reported() {
+    let doc = "```py\n<<b>>\n``` <main.py>\n\n```py\n<<a>>\n``` <a>\n\n```py\n<<b>>\n``` <b>\n";
+    let (_guard, dir) = project(doc);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("cycle in chunks"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn label_constructor_form_writes_nested_paths() {
+    let doc = "```rust\nfn main() {}\n``` #label(\"src/main.rs\")\n";
+    let (_guard, dir) = project(doc);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(dir.join("out/src/main.rs")).expect("nested"),
+        "fn main() {}\n"
+    );
+}
+
+#[test]
+fn unsafe_paths_are_rejected() {
+    let doc = "```text\nx\n``` #label(\"../escape.txt\")\n";
+    let (_guard, dir) = project(doc);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("unsafe chunk name"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn map_translates_a_generated_line_back_to_the_document() {
+    let (_guard, dir) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let output = lp(
+        &dir,
+        &["map", "--file", "main.py", "--line", "3", "--out", "out"],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output).lines().next(),
+        Some(format!("demo.typ:{}", line_of(DOC, "print('two')")).as_str())
+    );
+}
+
+#[test]
+fn explain_rewrites_diagnostics_to_the_document() {
+    let (_guard, dir) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lp"))
+        .args(["explain", "--out", "out"])
+        .current_dir(&dir)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn");
+
+    use std::io::Write;
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin")
+        .write_all(b"out/main.py:3:1: boom\n")
+        .expect("write");
+    let output = child.wait_with_output().expect("wait");
+
+    assert!(stdout(&output).contains("out/main.py:3:1: boom"));
+    let message = stderr(&output);
+    assert!(
+        message.contains(&format!("demo.typ:{}", line_of(DOC, "print('two')"))),
+        "{message}"
+    );
+}
+
+#[test]
+fn list_reports_roots() {
+    let (_guard, dir) = project(DOC);
+    let output = lp(&dir, &["list", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let listed = stdout(&output);
+    assert!(listed.contains("root  <main.py>"), "{listed}");
+    assert!(listed.contains("outputs: <main.py>"), "{listed}");
+}
