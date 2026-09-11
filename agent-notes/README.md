@@ -23,6 +23,7 @@
 - `research/2026-09-11-prior-art.md` — 现有 literate programming 工具盘点（noweb/littst/Entangled/Ravel/typst-unlit/Calepin/org-babel/…），Typst 生态现状，以及 AI 时代的四篇相关工作。含"我们的差异化在哪"。
 - `research/2026-09-11-typst-engine-facts.md` — **只用 typst 自己当解析器**这套架构的全部实测事实：`typst eval` / `query`、label 当 chunk 名（含 §8 的字符集限制）、raw info string 的坑、plugin 不能写文件、show rule 里的 label/link 语义。所有结论都附可复现命令。
 - `research/2026-09-11-design-space.md` — 三种候选架构对比、推荐方案、正交性的边界（哪些目标语言会破坏"语言无关"）、自举带来的新约束、backlog。
+- `research/2026-09-11-source-positions.md` — **Typst 能不能给出源码行号**：脚本层/插件层**不能**（元素无 span、`location` 只有排版坐标、插件协议只传字节），只有编译器层能（`typst-syntax` 的 span，对外只经诊断）；并实测出"字符串搜索声明 token"在 demo 上会命中**散文**（第 61 行 vs 声明的第 64 行）。含四条路（不做行号 / parser 当 span 查询器 / 作者写行号 / 继续搜索）的代价表与推荐。
 - `research/2026-09-11-typst-structure-and-include.md` — 实测 Typst 文档自身的结构（heading 一等元素 + 字段）与 include 语义（内容级合并、label 全局），以及 `lp` 的两个缺口（不跟随 include、跨文档引用不成立）与补齐顺序。
 - `decisions/2026-09-11-declared-chunks.md` — **D13 声明式 chunk（取代 D8 的 label 命名与 D12 的四层搜索）**：文档 import `lit/lp.typ` 并用 `#chunk`/`#file` 声明；工具只读声明流，位置靠精确 token 查找。
 - `decisions/2026-09-11-typst-is-the-authority.md` — **D12 架构定案**：chunk 集合/顺序/文本由 **Typst 求值**给出（wrapper 埋点 + `typst eval`，不改用户文档），源位置由**四层纯搜索定位器**给出（Literal / Template / Generated / Nowhere）；静态分析被否决（图灵完备面前构造上就是错的）。含实测的两个决定性 case 与代价（typst 成为硬依赖、文档必须能求值）。
