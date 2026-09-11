@@ -118,12 +118,8 @@ fn pass(options: &Options, initial: bool, events: &mpsc::Receiver<()>) -> bool {
     for warning in &outcome.warnings {
         eprintln!("warning: {warning}");
     }
-    for rel in &outcome.pruned {
-        eprintln!("pruned {rel}");
-    }
-
     let ms = started.elapsed().as_secs_f64() * 1000.0;
-    let dormant = outcome.changed.is_empty() && outcome.pruned.is_empty();
+    let dormant = outcome.changed.is_empty();
 
     if dormant {
         if initial {

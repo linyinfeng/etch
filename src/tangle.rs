@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use crate::diag::LpError;
 use crate::map::{ChunkEntry, FileMap, LpMap, MAP_FILE, split};
 use crate::parse::{Block, Doc, check_output_path, is_root};
-use crate::sweep;
 
 pub struct ChunkSet<'a> {
     chunks: BTreeMap<&'a str, Vec<&'a Block>>,
@@ -166,28 +165,34 @@ pub struct Outcome {
     pub unchanged: Vec<Output>,
     /// Drift reports, filled only when `check` is set.
     pub stale: Vec<String>,
-    /// Stale files a sweep removed because a declared directory produced them no
-    /// more.
-    pub pruned: Vec<String>,
-    /// Directories that declared ownership with a `.lpignore`.
-    pub managed: Vec<String>,
-    /// Files in produced directories that neither a chunk nor a declaration
-    /// accounts for.
+    /// Files under the output directory that neither a chunk nor a declaration
+    /// accounts for. Non-empty means the pass failed.
     pub unaccounted: Vec<crate::status::Unaccounted>,
     pub warnings: Vec<String>,
 }
 
 /// Tangle every document into `out`; with `check`, write nothing and only report
 /// drift against what is already there.
-pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
-    // The map is a line map: what this pass produced, nothing more. Ownership of
-    // files that no chunk produces any more is a directory question, answered by
-    // `.lpignore` (see `sweep.rs`), not by remembering the past here.
-    // One map per output directory, filled as roots are expanded; `produced`
-    // stays the flat list of paths for the sweep.
-    let mut maps: BTreeMap<PathBuf, LpMap> = BTreeMap::new();
-    let mut produced: BTreeSet<String> = BTreeSet::new();
-    let mut outcome = Outcome::default();
+/// What the documents produce, without writing anything.
+///
+/// `lp tangle` and `lp unaccounted` both need this, and both must agree: what is
+/// accounted for is decided by the *current* document, not by the line maps a
+/// previous pass left behind (which still describe a chunk that has since been
+/// deleted).
+pub struct Plan {
+    pub maps: BTreeMap<PathBuf, LpMap>,
+    pub texts: BTreeMap<String, String>,
+    pub produced: BTreeSet<String>,
+    pub warnings: Vec<String>,
+}
+
+pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
+    let mut plan = Plan {
+        maps: BTreeMap::new(),
+        texts: BTreeMap::new(),
+        produced: BTreeSet::new(),
+        warnings: Vec::new(),
+    };
 
     for doc in docs {
         // Never tangle a half-written document: an unclosed label turns a chunk
@@ -218,9 +223,9 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
             if !is_root(name) && !referenced.contains(name) {
                 let line = set
                     .get(name)
-                    .and_then(|b| b.first())
-                    .map_or(0, |b| b.fence_line);
-                outcome.warnings.push(format!(
+                    .and_then(|blocks| blocks.first())
+                    .map_or(0, |block| block.fence_line);
+                plan.warnings.push(format!(
                     "{}:{line}: chunk <<{name}>> is never referenced",
                     doc.path.display()
                 ));
@@ -232,77 +237,107 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
             let lang = doc
                 .blocks
                 .iter()
-                .find(|b| b.name == root)
-                .and_then(|b| b.lang.clone());
+                .find(|block| block.name == root)
+                .and_then(|block| block.lang.clone());
             let tangled = expand(doc, &set, root)?;
-            let dest = out.join(root);
-            let existing = std::fs::read_to_string(&dest).ok();
 
-            let output = Output {
-                root: root.to_string(),
-                lines: tangled.lines.len(),
-                lang: lang.clone(),
-            };
-
-            if existing.as_deref() == Some(tangled.text.as_str()) {
-                outcome.unchanged.push(output);
-            } else if check {
-                outcome
-                    .stale
-                    .push(drift_report(doc, root, existing.as_deref(), &tangled));
-            } else {
-                if let Some(parent) = dest.parent() {
-                    std::fs::create_dir_all(parent).map_err(|e| LpError::io(parent, e))?;
-                }
-                std::fs::write(&dest, &tangled.text).map_err(|e| LpError::io(&dest, e))?;
-                outcome.changed.push(output);
+            if !plan.produced.insert(root.to_string()) {
+                return Err(LpError::plain(format!("output {root} is produced twice")));
             }
-
             let entry = FileMap {
                 typ: doc.path.display().to_string(),
                 lang,
                 lines: tangled.lines,
                 chunks: tangled.chunks,
             };
-            if !produced.insert(root.to_string()) {
-                return Err(LpError::plain(format!("output {root} is produced twice")));
-            }
             let (dir, name) = split(root);
-            maps.entry(PathBuf::from(dir))
+            plan.maps
+                .entry(PathBuf::from(dir))
                 .or_default()
                 .files
                 .insert(name.to_string(), entry);
+            plan.texts.insert(root.to_string(), tangled.text);
         }
     }
+    Ok(plan)
+}
 
-    // Deleting a root chunk leaves a file behind. Removing it is the job of a
-    // directory that declared itself ours, so a sweep runs wherever a `.lpignore`
-    // says so — and nowhere else.
-    let sweep = sweep::run(out, &produced, !check)?;
-    outcome.managed = sweep.roots.clone();
-    outcome.unaccounted = if check {
-        Vec::new()
-    } else {
-        crate::status::unaccounted(
-            out,
-            &maps
-                .iter()
-                .map(|(dir, map)| {
-                    (
-                        dir.to_string_lossy().replace('\\', "/"),
-                        map.files.keys().cloned().collect(),
-                    )
-                })
-                .collect(),
-        )?
+/// What the documents produce, per directory: what `status.rs` counts against.
+pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
+    plan.maps
+        .iter()
+        .map(|(dir, map)| {
+            (
+                dir.to_string_lossy().replace('\\', "/"),
+                map.files.keys().cloned().collect(),
+            )
+        })
+        .collect()
+}
+
+pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
+    let plan = plan(docs)?;
+    let mut outcome = Outcome {
+        warnings: plan.warnings.clone(),
+        ..Outcome::default()
     };
-    for rel in sweep.removed {
-        if check {
-            outcome
-                .stale
-                .push(format!("ORPHAN {rel} (would be removed)"));
+
+    // Everything under the output directory must be accounted for: produced by a
+    // chunk, or declared in a `.lpignore`. Anything else is an error rather than
+    // something to quietly remove — deleting a root chunk strands a file, and the
+    // user decides whether to declare it or delete it.
+    outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
+    if !outcome.unaccounted.is_empty() {
+        let listed = outcome
+            .unaccounted
+            .iter()
+            .flat_map(|group| {
+                let label = if group.dir.is_empty() {
+                    ".".to_string()
+                } else {
+                    group.dir.clone()
+                };
+                group
+                    .entries
+                    .iter()
+                    .map(move |entry| format!("  {label}/{entry}"))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(
+            LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
+                "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
+            ),
+        );
+    }
+
+    for (root, text) in &plan.texts {
+        let (dir, name) = split(root);
+        let entry = &plan.maps[Path::new(dir)].files[name];
+        let dest = out.join(root);
+        let existing = std::fs::read_to_string(&dest).ok();
+        let output = Output {
+            root: root.clone(),
+            lines: entry.lines.len(),
+            lang: entry.lang.clone(),
+        };
+
+        if existing.as_deref() == Some(text.as_str()) {
+            outcome.unchanged.push(output);
+        } else if check {
+            outcome.stale.push(drift_report(
+                &entry.typ,
+                root,
+                existing.as_deref(),
+                &entry.lines,
+                text,
+            ));
         } else {
-            outcome.pruned.push(rel);
+            if let Some(parent) = dest.parent() {
+                std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
+            }
+            std::fs::write(&dest, text).map_err(|err| LpError::io(&dest, err))?;
+            outcome.changed.push(output);
         }
     }
 
@@ -312,50 +347,32 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
     // producing anything are removed with the directories themselves: the map
     // travels with the files it explains.
     if !check {
-        for (dir, map) in maps.iter_mut() {
+        let mut live: BTreeSet<String> = BTreeSet::new();
+        for (dir, mut map) in plan.maps {
             if map.is_empty() {
                 continue;
             }
+            let dir = dir.to_string_lossy().replace('\\', "/");
             map.set_docs(
                 map.files
                     .values()
                     .map(|file| file.typ.clone())
                     .collect::<Vec<_>>(),
             );
-            map.write_if_changed(&out.join(dir))?;
+            map.write_if_changed(&out.join(&dir))?;
+            live.insert(dir);
         }
         for (dir, _) in LpMap::read_all(out) {
-            if maps.get(Path::new(&dir)).is_some_and(|map| !map.is_empty()) {
+            if live.contains(&dir) {
                 continue;
             }
             let stale = out.join(&dir).join(MAP_FILE);
             if std::fs::remove_file(&stale).is_ok() {
-                sweep::prune_empty_dirs(stale.parent().unwrap_or(out), out);
+                crate::status::prune_empty_dirs(stale.parent().unwrap_or(out), out);
             }
         }
     }
     Ok(outcome)
-}
-
-fn drift_report(doc: &Doc, root: &str, existing: Option<&str>, tangled: &Tangled) -> String {
-    match first_difference(existing, &tangled.text) {
-        Some(line) => {
-            let origin = tangled
-                .lines
-                .iter()
-                .rev()
-                .find(|e| e[0] <= line)
-                .map(|e| e[1]);
-            match origin {
-                Some(typ_line) => format!(
-                    "STALE  {root} (line {line} <- {}:{typ_line})",
-                    doc.path.display()
-                ),
-                None => format!("STALE  {root} (line {line})"),
-            }
-        }
-        None => format!("STALE  {root} (file missing)"),
-    }
 }
 
 /// Every name referenced by a block, in document order.
@@ -376,6 +393,29 @@ fn first_difference(old: Option<&str>, new: &str) -> Option<usize> {
     (0..old_lines.len().max(new_lines.len()))
         .find(|&i| old_lines.get(i) != new_lines.get(i))
         .map(|i| i + 1)
+}
+
+fn drift_report(
+    typ: &str,
+    root: &str,
+    existing: Option<&str>,
+    lines: &[[usize; 2]],
+    text: &str,
+) -> String {
+    match first_difference(existing, text) {
+        Some(line) => {
+            let origin = lines
+                .iter()
+                .rev()
+                .find(|entry| entry[0] <= line)
+                .map(|entry| entry[1]);
+            match origin {
+                Some(typ_line) => format!("STALE  {root} (line {line} <- {typ}:{typ_line})"),
+                None => format!("STALE  {root} (line {line})"),
+            }
+        }
+        None => format!("STALE  {root} (file missing)"),
+    }
 }
 
 #[cfg(test)]

@@ -3,7 +3,6 @@ mod explain;
 mod map;
 mod parse;
 mod status;
-mod sweep;
 mod tangle;
 mod watch;
 
@@ -75,10 +74,16 @@ enum Command {
     },
     /// List the chunks in a document, with their .typ lines
     List { doc: PathBuf },
-    /// List files in a produced directory that nothing accounts for
+    /// List (or delete) files under the output directory that nothing accounts for
     Unaccounted {
+        /// Documents that decide what counts as produced
+        #[arg(required = true)]
+        docs: Vec<PathBuf>,
         #[arg(long, default_value = "out")]
         out: PathBuf,
+        /// Delete them: the explicit alternative to declaring them
+        #[arg(long)]
+        delete: bool,
     },
 }
 
@@ -115,14 +120,6 @@ fn run() -> Result<i32, LpError> {
             }
             for output in &outcome.unchanged {
                 println!("ok     {}", output.root);
-            }
-            for rel in &outcome.pruned {
-                println!("pruned {rel}");
-            }
-            if !outcome.pruned.is_empty() {
-                for root in &outcome.managed {
-                    eprintln!("managed {root} (by .lpignore)");
-                }
             }
             for line in &outcome.stale {
                 eprintln!("{line}");
@@ -229,7 +226,14 @@ fn run() -> Result<i32, LpError> {
             list(&doc)?;
             Ok(0)
         }
-        Command::Unaccounted { out } => status::run(&out),
+        Command::Unaccounted { docs, out, delete } => {
+            let docs = docs
+                .iter()
+                .map(|path| Doc::load(path))
+                .collect::<Result<Vec<_>, _>>()?;
+            let plan = tangle::plan(&docs)?;
+            status::run(&out, &tangle::produced(&plan), delete)
+        }
     }
 }
 

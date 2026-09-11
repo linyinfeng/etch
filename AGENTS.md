@@ -24,7 +24,7 @@ tests/flow.rs     跑真二进制的端到端测试
 - **生成物不入库**：`examples/demo/build/` 之类一律 gitignore；CI 用 `lp tangle --check` 守漂移。`.typ` 是唯一真相。
 - **报错必须指回 `.typ`**：新错误一律用 `LpError::at`（带 span），不要拼裸字符串。
 - **解析只用 `typst-syntax`**（ADR D6）；`typst eval` 只当测试 oracle。
-- **删除只在所有权范围内**（ADR D10）：只有 `.lpignore` 声明的目录会被扫描删除（规则即 gitignore，匹配=保护），没有 `.lpignore` 就什么都不删，只有 `.lpignore` 与 `.lpmap.json` 两个控制文件豁免，无 git 特例，`--check` 是干跑；开新的删除路径前先看 `tests/owned.rs`。
+- **未处置即错误，删除必须显式**（ADR D10）：`--out` 整个目录里的每个文件都要被 chunk 产出或被 `.lpignore` 声明，否则 `lp tangle` 失败并列出（两条出路：声明 / `lp unaccounted --delete`）。`lp` 从不自行删除。豁免只有 `.lpignore` 与 `.lpmap.json` 两个控制文件，无 git 特例。改这块前先看 `tests/owned.rs`。
 - **写盘只写变化的字节**（ADR D9）：不要无脑重写生成物或 `.lpmap.json`；有语法错误时不得 tangle。改这两条行为前先看 `tests/lazy.rs`。
 
 - **语言**：与用户交流用中文；代码、标识符、注释用英文。注释只解释"为什么"（全局规则见 `~/.pi/agent/AGENTS.md`）。

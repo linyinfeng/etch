@@ -45,7 +45,7 @@ lp map    --file src/main.rs --line 42         # 生成文件的第 42 行来自
 lp map    --typ doc.typ --line 92              # 反向：这一行 .typ 产生了哪些生成位置
 lp explain [--out DIR]                         # 把 file:line:col 诊断翻译回 .typ（读 stdin）
 lp list   <doc.typ>                            # 列出 chunk：根/片段、语言、源行号、是否被引用
-lp unaccounted [--out DIR]                      # 列出既没有 chunk 产出、也没有被声明的文件
+lp unaccounted <doc>... [--out DIR] [--delete]  # 列出（或显式删除）既没有 chunk 产出、也没被声明的文件
 ```
 
 退出码：0 成功，1 语义错误（悬空引用 / 引用环 / 空 chunk / 漂移），2 用法错误。
@@ -98,14 +98,15 @@ src/main.rs:6:38: error[E0425]: cannot find function `ad` in module `math`
 | **declared**：`.lpignore` 里写了 | ignore 文件本身 | 你——`lp` 不碰它 |
 | **unaccounted**：都不是 | **哪里都看不见** | 没人 |
 
-所以 `lp unaccounted` 只报第三类：
+`--out` 指向哪个目录，**整个目录就是 `lp` 的**：下面每个文件都必须被解释。解释不了就是**错误**——`lp tangle` 会失败（`--check` 同样）并逐条列出，给你两条出路：
 
-```
-out/ — 1 nothing accounts for:
-  stray.txt
+```sh
+lp unaccounted doc.typ --out out            # 看清有哪些（退出码 1）
+lp unaccounted doc.typ --out out --delete   # 显式删掉它们（这就是那个 force）
+# 或者在所在目录的 .lpignore 里声明它们
 ```
 
-每一行是三选一，只有你知道选哪个：**让某个 chunk 产出它** / **在 `.lpignore` 里声明** / **它是过期产物，删掉**。`lp tangle` 也会打一行 note 指过去，不沉默。（在有 `.lpignore` 声明的目录里，未被声明的文件属于扫描范围，会被删掉并报 `pruned`——"声明"就是授权。）
+**`lp` 从不自行删除任何东西**：没有自动扫描删除这回事，删除只发生在你显式要求时。报告基于**当前文档**（重新展开来判断什么算产出），所以"刚删掉一个 chunk"的残留文件一定会被列出来。展示上逐文件列名（可 grep、可粘进 `.lpignore`）；只有子树的未处置文件超过 8 个才压缩成一行目录名。
 
 清单上如果有"程序真正需要、只是没被解释"的东西（`flake.lock`、锁文件、清单），正确做法不是继续声明"我不管理"，而是写进文档——作为一个**附录 chunk**，让散文解释它为什么长这样。
 

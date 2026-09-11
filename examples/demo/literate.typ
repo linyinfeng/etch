@@ -113,9 +113,11 @@ chunk produces gets removed, and the ones listed in the file are left alone —
 cargo's `target/` and `Cargo.lock`, the woven PDF, the PNGs. Delete a root chunk
 here and its file follows, instead of lingering for `cargo` to compile.
 
-`lp tangle --check` is the dry run: it names what a sweep would remove and
-deletes nothing. Without a `.lpignore` in the tree `lp` removes nothing at all —
-it keeps no record of what it wrote, so the directory has to say what is its.
+The rule is simple: point `--out` at a directory and that whole directory is
+`lp`'s. Every file in it must be either produced by a chunk or declared in an
+`.lpignore`. Anything else is an error — `lp tangle` fails and names it — and the
+two ways out are to declare it, or to delete it on purpose with
+`lp unaccounted --delete`. `lp` never removes anything by itself.
 
 == When it breaks
 
