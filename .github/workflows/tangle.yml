@@ -1,4 +1,4 @@
-name: seed
+name: tangle
 
 # main generates the tree and hands it to the seed branch. The branch is checked where it is
 # published, not here: this pipeline only writes it after everything has passed.
@@ -9,21 +9,29 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: seed
+  group: tangle
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  seed:
+  tangle:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      # Pinned to the commit behind v7.0.1: this workflow holds a write token, so a moving tag is
+      # not something to point it at. Credentials stay persisted on purpose — the last step pushes
+      # with them, which is also why `persist-credentials: false` is not the fix it looks like:
+      # zizmor's `artipacked` warning is about credentials leaking into uploaded artifacts, and this
+      # workflow uploads none.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # the seed lives on another branch
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Pinned for the same reason, and for one more: a fixed toolchain makes the generation
+      # reproducible instead of dependent on whatever stable shipped this week. Updating the
+      # toolchain is therefore a deliberate commit: `git ls-remote` the branch and repin.
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable, 2026-09-12
         with:
           components: rustfmt, clippy
 
