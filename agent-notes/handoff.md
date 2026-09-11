@@ -63,8 +63,11 @@
 
 ## 下一步候选
 
-- `lp explain --format cargo`（`cargo_metadata` 解 `--message-format=json`）；现在命令面一章里就写着它是"not yet"。
-- 把 `lit/lp.typ` 发布到 `@preview`（包现在由文档产出，剩下的是流程问题）。
+- **`--out out/` 搬家**（用户已提出）：把根上除五样之外的产出都收进一个 gitignore 的目录。自包含与 skill/flake 的移除已经把它变简单了——没有东西必须留在根上了。代价：每个声明的路径加 `out/` 前缀、`cargo test` 变 `--manifest-path out/Cargo.toml`、种子变成 out 形状、文档与 dev.sh 的命令跟着改。
+- **`lp execute`**（用户已提出）：在输出目录里带着环境跑命令（`lp execute nix flake check`）。它也是"仓库不带环境"的正面解法：现在每次都得借 `nix shell`（见 `dev.sh`）。
+- **脚本的可执行位**：tangle 写出的文件是 0644，所以脚本要 `bash run.sh`。要改就得给 `#file` 加一个声明式标志（`executable: true`），**不能**按名字猜。
+- `lp explain --format cargo`（`cargo_metadata` 解 `--message-format=json`）；命令面一章里就写着它是"not yet"。
+- 把包发布到 `@preview`（包是文档产物，剩下的是流程问题）。
 - 文档再长时的退路：按章节拆成多个文档（工具已支持多文档、`#include` 也在求值层合并）。
 
 ## 环境陷阱
