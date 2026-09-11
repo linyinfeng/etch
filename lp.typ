@@ -6044,8 +6044,7 @@ strongest — that the payoff falls as a language gets more expressive, that too
 literate programming niche, that reading code got cheap — and an evidence table that keeps
 measurements apart from testimony and from the claims nobody has measured.
 
-It is here rather than left out because a stance that cannot state its opposition is not an
-argument, and because most of the objections are reasonable: the honest answer is not that they
+It is here rather than left out because most of the objections are reasonable: the honest answer is not that they
 are wrong, but that this project is betting on the two things they do not cover — that the *why*
 was never in the code, and that drift is a check failure now instead of a matter of discipline.
 
