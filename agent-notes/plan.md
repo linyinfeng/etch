@@ -30,6 +30,7 @@
 - ✅ `lp explain` 的通用后端（`regex` 表处理 `file:line:col:`），纯查表 + 通用解析，**不含目标语言算法**。
 - ✅ `lp map` 双向（`--file` / `--typ`）。
 - ⏳ 剩下：`lp explain --format cargo`（`cargo_metadata` 解析 `--message-format=json`，自举时天天用）、诊断列位置精确到 span（现在高亮整行）、`ci.sh`（typst compile + cargo test + `tangle --check`）。
+- ✅ 删除语义（超出原计划）：删根 chunk 不再留孤儿。账本（`.lpmap.json`）+ 目录声明（`.lpignore`）+ `--prune` + `--check` 干跑，见 ADR D10，回归在 `tests/owned.rs`。
 
 ### M3 — 自举（bootstrap → self-host）
 - 原型冻结为 `bootstrap/`（仍可编译可跑），工具自身源码改写为 `self.typ`（literate 文档）。

@@ -36,8 +36,10 @@ def greet(name):
 ## 命令
 
 ```
-lp tangle <doc.typ>... [--out DIR] [--check]   # 展开；--check 不写文件，发现漂移则退出码 1
-lp watch  <doc.typ>... [--out DIR] [--debounce MS] [--check-cmd CMD]
+lp tangle <doc.typ>... [--out DIR] [--check] [--prune]
+                                               # 展开；--check 不写文件、发现漂移（含孤儿）则退出码 1
+                                               # --prune 删掉账本里记过但已无 chunk 产出的文件
+lp watch  <doc.typ>... [--out DIR] [--debounce MS] [--check-cmd CMD] [--prune]
                                                # 编辑时自动同步，只重写真正变了的文件；
                                                # 有变化时跑 CMD 并把诊断回译到 .typ
 lp map    --file src/main.rs --line 42         # 生成文件的第 42 行来自哪一行 .typ
@@ -78,9 +80,17 @@ src/main.rs:6:38: error[E0425]: cannot find function `ad` in module `math`
     ·                       ╰── generated from examples/demo/literate.typ:92
 ```
 
+## 删除与目录所有权
+
+删掉（或改名）一个根 chunk 后，它产出的文件会变成孤儿：`lp tangle` 会报告 `orphan <file>`，`--prune` 删除它，`--check` 把它当漂移（退出码 1）。
+
+要让一个目录完全归 `lp` 管，在里面放一份 `.lpignore`（语法同 `.gitignore`）：该目录下（递归）任何**没有 chunk 产出且未被忽略**的文件会被删除，被列出的文件永不动。点文件（`.lpmap.json`、`.gitignore`…）无论规则如何都不删。demo 里 `examples/demo/build/.lpignore` 就是例子（cargo 的 `target/`、`Cargo.lock`、weave 出来的 PDF 都列在里面）。
+
+干跑用 `lp tangle --check`：它列出会被删的东西，一个文件也不动。没有任何 `.lpignore` 时，`lp` 只考虑自己写过的文件（账本），且必须显式 `--prune`；`--check` 与 `--prune` 互斥。
+
 ## 行号映射
 
-`lp tangle` 在每个 `--out` 目录里写一份 `.lpmap.json`：
+`lp tangle` 在每个 `--out` 目录里写一份 `.lpmap.json`。它是**账本**而不是当前状态的快照：一条记录会一直保留到它对应的文件被删除为止，所以 `--prune` 在任何一次 tangle 之后都还能认出孤儿。
 
 ```json
 {

@@ -35,6 +35,9 @@ pub struct Options {
     /// Run after a pass that changed something, e.g.
     /// `cargo build --message-format=short`.
     pub check_cmd: Option<String>,
+    /// Remove leftovers from a previous pass even where no `.lpignore` owns the
+    /// directory.
+    pub prune: bool,
 }
 
 pub fn run(options: Options) -> Result<(), LpError> {
@@ -108,7 +111,7 @@ fn pass(options: &Options, initial: bool, events: &mpsc::Receiver<()>) -> bool {
         }
     };
 
-    let outcome = match tangle::run(&docs, &options.out, false) {
+    let outcome = match tangle::run(&docs, &options.out, false, options.prune) {
         Ok(outcome) => outcome,
         Err(err) => {
             report(err);
@@ -119,9 +122,14 @@ fn pass(options: &Options, initial: bool, events: &mpsc::Receiver<()>) -> bool {
     for warning in &outcome.warnings {
         eprintln!("warning: {warning}");
     }
+    for rel in &outcome.pruned {
+        eprintln!("pruned {rel}");
+    }
 
     let ms = started.elapsed().as_secs_f64() * 1000.0;
-    if outcome.changed.is_empty() {
+    let dormant = outcome.changed.is_empty() && outcome.pruned.is_empty();
+
+    if dormant && outcome.orphans.is_empty() {
         if initial {
             eprintln!(
                 "sync   up to date ({} files, {ms:.1}ms)",
@@ -131,10 +139,17 @@ fn pass(options: &Options, initial: bool, events: &mpsc::Receiver<()>) -> bool {
         return false;
     }
 
+    // Report even when nothing was written: deleting a root chunk leaves a file
+    // behind without changing any other output.
     eprintln!(
-        "sync   {} rewritten, {} untouched ({ms:.1}ms): {}",
+        "sync   {} rewritten, {} untouched ({ms:.1}ms){}: {}",
         outcome.changed.len(),
         outcome.unchanged.len(),
+        if outcome.orphans.is_empty() {
+            String::new()
+        } else {
+            format!(", {} orphaned", outcome.orphans.len())
+        },
         outcome
             .changed
             .iter()
@@ -142,8 +157,13 @@ fn pass(options: &Options, initial: bool, events: &mpsc::Receiver<()>) -> bool {
             .collect::<Vec<_>>()
             .join(", ")
     );
+    for rel in &outcome.orphans {
+        eprintln!("orphan {rel} (no chunk produces it any more; pass --prune to delete it)");
+    }
 
-    check(options);
+    if !dormant {
+        check(options);
+    }
     true
 }
 

@@ -1,0 +1,7 @@
+# This directory belongs to lp: a file here that no chunk produces is removed.
+# These are the ones other tools own, plus the weave output.
+Cargo.lock
+target/
+*.pdf
+*.png
+run.txt

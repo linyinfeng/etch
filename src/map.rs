@@ -18,7 +18,7 @@ pub struct LpMap {
     pub files: BTreeMap<String, FileMap>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMap {
     /// The `.typ` document this file was tangled from.
     pub typ: String,
@@ -29,7 +29,7 @@ pub struct FileMap {
     pub chunks: Vec<ChunkEntry>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChunkEntry {
     pub name: String,
     pub typ_line: usize,
