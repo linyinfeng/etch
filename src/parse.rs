@@ -16,7 +16,7 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use miette::NamedSource;
-use typst_syntax::{LinkedNode, Source, SyntaxKind, ast};
+use typst_syntax::{DiagSpanKind, LinkedNode, Source, SyntaxKind, ast};
 
 use crate::diag::LpError;
 
@@ -34,6 +34,14 @@ pub struct Doc {
     pub text: String,
     pub src: NamedSource<String>,
     pub blocks: Vec<Block>,
+    /// Syntax errors, straight from Typst's parser. Tangling refuses to run with
+    /// these: a half-typed construct can silently change the chunk structure.
+    pub errors: Vec<Diagnostic>,
+}
+
+pub struct Diagnostic {
+    pub message: String,
+    pub range: Option<Range<usize>>,
 }
 
 impl Doc {
@@ -42,20 +50,37 @@ impl Doc {
         let src = NamedSource::new(path.display().to_string(), text.clone());
         let source = Source::detached(text.clone());
 
+        // `errors_and_warnings` is the parser's own diagnostic list: it catches
+        // things that produce no `Error` node (an unterminated string, say). When
+        // it is non-empty the chunk structure is not trustworthy, so we do not
+        // even walk the tree.
+        let (errors, _warnings) = source.root().errors_and_warnings();
+        let errors: Vec<Diagnostic> = errors
+            .into_iter()
+            .filter(|diagnostic| diagnostic.is_error)
+            .map(|diagnostic| Diagnostic {
+                message: diagnostic.message.to_string(),
+                range: diagnostic_range(&source, diagnostic.span.get()),
+            })
+            .collect();
+
         let mut blocks = Vec::new();
-        walk(
-            &LinkedNode::new(source.root()),
-            &source,
-            &text,
-            &src,
-            &mut blocks,
-        )?;
+        if errors.is_empty() {
+            walk(
+                &LinkedNode::new(source.root()),
+                &source,
+                &text,
+                &src,
+                &mut blocks,
+            )?;
+        }
 
         Ok(Self {
             path: path.to_path_buf(),
             text,
             src,
             blocks,
+            errors,
         })
     }
 
@@ -70,6 +95,14 @@ impl Doc {
             offset += text.len();
         }
         None
+    }
+}
+
+fn diagnostic_range(source: &Source, kind: DiagSpanKind) -> Option<Range<usize>> {
+    match kind {
+        DiagSpanKind::Range { range, .. } => Some(range),
+        DiagSpanKind::Number { num, sub_range, .. } => source.range(num, sub_range),
+        DiagSpanKind::Detached => None,
     }
 }
 

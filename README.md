@@ -37,12 +37,32 @@ def greet(name):
 
 ```
 lp tangle <doc.typ>... [--out DIR] [--check]   # 展开；--check 不写文件，发现漂移则退出码 1
+lp watch  <doc.typ>... [--out DIR] [--debounce MS] [--check-cmd CMD]
+                                               # 编辑时自动同步，只重写真正变了的文件；
+                                               # 有变化时跑 CMD 并把诊断回译到 .typ
 lp map    --file src/main.rs --line 42         # 生成文件的第 42 行来自哪一行 .typ
+lp map    --typ doc.typ --line 92              # 反向：这一行 .typ 产生了哪些生成位置
 lp explain [--out DIR]                         # 把 file:line:col 诊断翻译回 .typ（读 stdin）
 lp list   <doc.typ>                            # 列出 chunk：根/片段、语言、源行号、是否被引用
 ```
 
 退出码：0 成功，1 语义错误（悬空引用 / 引用环 / 空 chunk / 漂移），2 用法错误。
+
+## 实时（`lp watch`）
+
+```sh
+lp watch examples/demo/literate.typ --out examples/demo/build \
+  --check-cmd "cargo build --manifest-path examples/demo/build/Cargo.toml --message-format=short"
+```
+
+语义（都有测试，见 `tests/lazy.rs`）：
+
+- **只写变化**：一轮同步比较展开结果与磁盘内容，未变的文件连 mtime 都不变，cargo / rust-analyzer 不会被无谓重建。
+- **半写文档不 tangle**：有语法错误就打印诊断并跳过本轮，保留上一份好产物（编辑器里的一一瞬态不会把代码弄坏）。
+- **事件合并**：`notify` 的 debouncer（默认 200 ms）加“抽干自己的写盘事件”，一次编辑一轮。
+- **check 融合**：`--check-cmd` 只在真的改写了文件后才跑，输出走与 `lp explain` 相同的回译路径。
+
+代价与天花板：每轮全量解析 + 全量展开，实测 2201 行 / 200 个根的文档全量 7 ms、无变化 3 ms（release），所以没有做增量解析或反向可达；规模再大两个数量级再说。详见 [`agent-notes/research/2026-09-11-lazy-tangle.md`](agent-notes/research/2026-09-11-lazy-tangle.md)。
 
 ## 流程（可运行）
 

@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::diag::LpError;
-use crate::map::{ChunkEntry, FileMap, LpMap};
+use crate::map::{ChunkEntry, FileMap, LpMap, MAP_FILE};
 use crate::parse::{Block, Doc, check_output_path, is_root};
 
 pub struct ChunkSet<'a> {
@@ -148,8 +148,23 @@ fn expand_chunk(
     Ok(())
 }
 
+/// One output file produced by a pass. Printing is the caller's job: the watch
+/// loop wants the same facts without the per-file chatter.
+#[derive(Debug)]
+pub struct Output {
+    pub root: String,
+    pub lines: usize,
+    pub lang: Option<String>,
+}
+
+#[derive(Debug, Default)]
 pub struct Outcome {
-    pub stale: bool,
+    /// Outputs whose bytes differ from what is on disk (written unless checking).
+    pub changed: Vec<Output>,
+    /// Outputs that were already up to date.
+    pub unchanged: Vec<Output>,
+    /// Drift reports, filled only when `check` is set.
+    pub stale: Vec<String>,
     pub warnings: Vec<String>,
 }
 
@@ -161,10 +176,22 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
         .map(|d| d.path.display().to_string())
         .collect::<Vec<_>>();
     let mut map = LpMap::new(&names);
-    let mut warnings = Vec::new();
-    let mut stale = false;
+    let mut outcome = Outcome::default();
 
     for doc in docs {
+        // Never tangle a half-written document: an unclosed label turns a chunk
+        // into plain text, so the generated file would silently lose code.
+        if let Some(error) = doc.errors.first() {
+            let message = format!("{}: syntax error: {}", doc.path.display(), error.message);
+            let err = match error.range.clone() {
+                Some(range) => LpError::at(&doc.src, range, message, "the document does not parse"),
+                None => LpError::plain(message),
+            };
+            return Err(err.with_help(
+                "tangling a half-written document can silently drop chunks; run `typst compile` for the full diagnostic",
+            ));
+        }
+
         let set = ChunkSet::new(doc);
         let roots = set.roots();
         if roots.is_empty() {
@@ -182,7 +209,7 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
                     .get(name)
                     .and_then(|b| b.first())
                     .map_or(0, |b| b.fence_line);
-                warnings.push(format!(
+                outcome.warnings.push(format!(
                     "{}:{line}: chunk <<{name}>> is never referenced",
                     doc.path.display()
                 ));
@@ -199,44 +226,25 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
             let tangled = expand(doc, &set, root)?;
             let dest = out.join(root);
             let existing = std::fs::read_to_string(&dest).ok();
-            let changed = existing.as_deref() != Some(tangled.text.as_str());
 
-            if check {
-                if changed {
-                    stale = true;
-                    match first_difference(existing.as_deref(), &tangled.text) {
-                        Some(line) => {
-                            let origin = tangled
-                                .lines
-                                .iter()
-                                .rev()
-                                .find(|e| e[0] <= line)
-                                .map(|e| e[1]);
-                            match origin {
-                                Some(typ_line) => eprintln!(
-                                    "STALE  {root} (line {line} <- {}:{typ_line})",
-                                    doc.path.display()
-                                ),
-                                None => eprintln!("STALE  {root} (line {line})"),
-                            }
-                        }
-                        None => eprintln!("STALE  {root} (file missing)"),
-                    }
-                } else {
-                    println!("ok     {root}");
-                }
-            } else if changed {
+            let output = Output {
+                root: root.to_string(),
+                lines: tangled.lines.len(),
+                lang: lang.clone(),
+            };
+
+            if existing.as_deref() == Some(tangled.text.as_str()) {
+                outcome.unchanged.push(output);
+            } else if check {
+                outcome
+                    .stale
+                    .push(drift_report(doc, root, existing.as_deref(), &tangled));
+            } else {
                 if let Some(parent) = dest.parent() {
                     std::fs::create_dir_all(parent).map_err(|e| LpError::io(parent, e))?;
                 }
                 std::fs::write(&dest, &tangled.text).map_err(|e| LpError::io(&dest, e))?;
-                println!(
-                    "wrote  {root}  ({} lines, {})",
-                    tangled.lines.len(),
-                    lang.as_deref().unwrap_or("-")
-                );
-            } else {
-                println!("ok     {root}");
+                outcome.changed.push(output);
             }
 
             let entry = FileMap {
@@ -251,10 +259,33 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
         }
     }
 
-    if !check {
+    // Leave the map alone when nothing moved, so a watching file system sees no
+    // spurious writes (which would send cargo/rust-analyzer back to work).
+    if !check && (!outcome.changed.is_empty() || !out.join(MAP_FILE).exists()) {
         map.write(out)?;
     }
-    Ok(Outcome { stale, warnings })
+    Ok(outcome)
+}
+
+fn drift_report(doc: &Doc, root: &str, existing: Option<&str>, tangled: &Tangled) -> String {
+    match first_difference(existing, &tangled.text) {
+        Some(line) => {
+            let origin = tangled
+                .lines
+                .iter()
+                .rev()
+                .find(|e| e[0] <= line)
+                .map(|e| e[1]);
+            match origin {
+                Some(typ_line) => format!(
+                    "STALE  {root} (line {line} <- {}:{typ_line})",
+                    doc.path.display()
+                ),
+                None => format!("STALE  {root} (line {line})"),
+            }
+        }
+        None => format!("STALE  {root} (file missing)"),
+    }
 }
 
 /// Every name referenced by a block, in document order.
