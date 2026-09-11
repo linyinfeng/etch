@@ -2943,99 +2943,103 @@ println!(
     }
 );
 ````)
-= Not yet arranged
+= How the tests are written
 
-The declarations below are the rest of this repository, still waiting for their chapters.
-They are the same kind of thing as everything above — names, prose, and code quoted in as
-evidence — and they are moved up, one file per step, as the argument reaches them.
+The chapters above make claims about behaviour; this is where the claims are pinned. The suite
+runs the real binary against throwaway documents in temporary directories, because every
+failure worth catching is at a seam — a document that does not evaluate, a file nothing
+accounts for, a diagnostic that has to find its way back — and a unit test with a mock in the
+middle would test the mock.
 
-#file("Cargo.toml", ````toml
-[package]
-name = "lp"
-version = "0.1.0"
-edition = "2024"
-publish = false
-description = "Typst-based literate programming: tangle source files out of a .typ document"
+The shape is the same in every file: copy the package next to the fixture, write a document,
+run `lp` with `current_dir` set to the temporary project, and assert on what came out. There is
+no test framework beyond `#[test]`, and the assertions read as sentences because the names of
+the cases do.
 
-# The seed and the old probes are their own little worlds: nothing here depends on
-# them, and saying so keeps the resolver out of their manifests.
-[workspace]
-exclude = ["seed", "agent-notes/experiments/*"]
+== The five files
 
-[dependencies]
-clap = { version = "4", features = ["derive"] }
-ignore = "0.4.33"
-miette = { version = "7", features = ["fancy"] }
-notify = "8.2.0"
-notify-debouncer-full = "0.7.0"
-regex = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "2"
+Each file is a skeleton of its cases: the fixtures and helpers first, then one fragment per
+case. That makes the file's shape the suite's table of contents, and it means a reader who is
+looking for "where is that pinned?" can read the list of names instead of the whole file.
 
-[dev-dependencies]
-tempfile = "3"
-````)
+=== tests/flow.rs — what tangling does
 
-#file("src/diag.rs", ````rust
-use std::fmt;
-
-/// A user-facing error: what went wrong, and what to do about it.
-///
-/// No source spans. Typst gives no source positions, so a span could only come
-/// from searching the source or parsing Typst again, and that is not worth doing
-/// for the sake of an underline (ADR D14). Errors name the chunk and quote the
-/// line instead.
-#[derive(Debug)]
-pub struct LpError {
-    message: String,
-    help: Option<String>,
-}
-
-impl LpError {
-    pub fn plain(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            help: None,
-        }
-    }
-
-    /// Add advice. Repeated calls append, so a caller can add its own context
-    /// without dropping what the error already said.
-    pub fn with_help(mut self, help: impl Into<String>) -> Self {
-        let help = help.into();
-        self.help = Some(match self.help {
-            Some(existing) => format!("{existing}\n{help}"),
-            None => help,
-        });
-        self
-    }
-
-    pub fn io(path: &std::path::Path, err: std::io::Error) -> Self {
-        Self::plain(format!("{}: {err}", path.display()))
-    }
-}
-
-impl fmt::Display for LpError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for LpError {}
-
-impl miette::Diagnostic for LpError {
-    fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
-        self.help
-            .as_ref()
-            .map(|help| Box::new(help.clone()) as Box<dyn fmt::Display + '_>)
-    }
-}
-````)
+The largest file, and the one that pins the mechanism: a fragment shared by two files, a name
+declared twice, indentation at the reference site, the map, the three failures, and the two
+commands that read the result back. Most of the cases share one fixture, because the point is
+what the *same* document produces in different situations.
 
 #file("tests/flow.rs", ````rust
-//! End-to-end tests: they run the real binary against throwaway documents.
+<<flow: the file's purpose>>
 
+<<flow: the fixtures and helpers>>
+
+<<flow: tangle_writes_files_with_concat_and_indentation>>
+
+<<flow: tangle_records_which_chunk_every_line_came_from>>
+
+<<flow: indentation_follows_the_reference_site>>
+
+<<flow: a_chunk_written_indented_in_the_document_is_still_dedented>>
+
+<<flow: a_chapter_can_hold_the_fragment_another_file_references>>
+
+<<flow: maps_live_next_to_the_files_they_explain>>
+
+<<flow: an_ambiguous_file_name_is_an_error_not_a_guess>>
+
+<<flow: check_names_the_chunk_of_the_first_difference>>
+
+<<flow: the_map_follows_the_document_even_when_no_output_byte_changes>>
+
+<<flow: dangling_reference_quotes_the_line>>
+
+<<flow: cycle_is_reported>>
+
+<<flow: an_empty_chunk_is_an_error>>
+
+<<flow: a_file_declaration_can_name_a_nested_path>>
+
+<<flow: unsafe_paths_are_rejected>>
+
+<<flow: map_names_the_chunk_a_generated_line_came_from>>
+
+<<flow: explain_rewrites_diagnostics_to_the_chunk>>
+
+<<flow: list_reports_declarations>>
+
+<<flow: a_chunk_built_by_code_is_attributed_to_itself>>
+
+<<flow: the_declaration_is_where_the_line_lives>>
+````)
+
+The cases, in the order they appear:
+
+- `tangle_writes_files_with_concat_and_indentation` — a shared fragment and a name declared twice land in one file, with the reference's indentation
+- `tangle_records_which_chunk_every_line_came_from` — the map names a chunk and a run for every output line, and records no source positions
+- `indentation_follows_the_reference_site` — the same chunk indents differently at two reference sites
+- `a_chunk_written_indented_in_the_document_is_still_dedented` — a declaration written inside a list item contributes flush-left text
+- `a_chapter_can_hold_the_fragment_another_file_references` — a fragment declared in a second document is visible to the first
+- `maps_live_next_to_the_files_they_explain` — one map per directory, not one at the top
+- `an_ambiguous_file_name_is_an_error_not_a_guess` — a bare name that two maps could explain is refused, with the candidates listed
+- `check_names_the_chunk_of_the_first_difference` — drift is reported as the first differing line and the chunk responsible for it
+- `the_map_follows_the_document_even_when_no_output_byte_changes` — moving prose rewrites the map even when no output byte moves
+- `dangling_reference_quotes_the_line` — an undefined name is an error that quotes the line and names the chunk it was in
+- `cycle_is_reported` — the error is the chain, not a bare `cycle detected`
+- `an_empty_chunk_is_an_error` — a declaration with no body is refused rather than tangled away
+- `a_file_declaration_can_name_a_nested_path` — `src/main.rs` is created under the output directory, directories and all
+- `unsafe_paths_are_rejected` — `../escape.txt` and its relatives cannot leave the output directory
+- `map_names_the_chunk_a_generated_line_came_from` — `lp map --file --line` answers with the chunk and how far into it the line is
+- `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
+- `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
+- `a_chunk_built_by_code_is_attributed_to_itself` — roots declared by a loop are attributed to the declarations the loop produced
+- `the_declaration_is_where_the_line_lives` — the answer includes the `rg` command that finds the declaration
+
+#chunk("flow: the file's purpose", ````
+//! End-to-end tests: they run the real binary against throwaway documents.
+````)
+
+#chunk("flow: the fixtures and helpers", ````
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -3120,7 +3124,9 @@ fn line_of(text: &str, needle: &str) -> usize {
         .expect("needle")
         + 1
 }
+````)
 
+#chunk("flow: tangle_writes_files_with_concat_and_indentation", ````
 #[test]
 fn tangle_writes_files_with_concat_and_indentation() {
     let (_guard, dir, _) = project(DOC);
@@ -3131,7 +3137,9 @@ fn tangle_writes_files_with_concat_and_indentation() {
         "import sys\nprint('one')\nprint('two')\n"
     );
 }
+````)
 
+#chunk("flow: tangle_records_which_chunk_every_line_came_from", ````
 #[test]
 fn tangle_records_which_chunk_every_line_came_from() {
     let (_guard, dir, _) = project(DOC);
@@ -3156,7 +3164,9 @@ fn tangle_records_which_chunk_every_line_came_from() {
     assert!(entry.get("lines").is_none(), "no line numbers are recorded");
     assert!(entry.get("sources").is_none(), "nor source files");
 }
+````)
 
+#chunk("flow: indentation_follows_the_reference_site", ````
 #[test]
 fn indentation_follows_the_reference_site() {
     let body = "#file(\"main.py\", ```py\nif True:\n    <<body>>\n```)\n\n#chunk(\"body\", ```py\nprint(1)\n```)\n";
@@ -3171,7 +3181,9 @@ fn indentation_follows_the_reference_site() {
         "if True:\n    print(1)\n"
     );
 }
+````)
 
+#chunk("flow: a_chunk_written_indented_in_the_document_is_still_dedented", ````
 #[test]
 fn a_chunk_written_indented_in_the_document_is_still_dedented() {
     let body = "#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n\n- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n";
@@ -3183,7 +3195,9 @@ fn a_chunk_written_indented_in_the_document_is_still_dedented() {
         "if x:\n    print(1)\n    print(2)\n"
     );
 }
+````)
 
+#chunk("flow: a_chapter_can_hold_the_fragment_another_file_references", ````
 #[test]
 fn a_chapter_can_hold_the_fragment_another_file_references() {
     // Documents are chapters of one program: prose in one, the fragment in another,
@@ -3239,7 +3253,9 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
         stderr(&no_files)
     );
 }
+````)
 
+#chunk("flow: maps_live_next_to_the_files_they_explain", ````
 #[test]
 fn maps_live_next_to_the_files_they_explain() {
     let body =
@@ -3279,7 +3295,9 @@ fn maps_live_next_to_the_files_they_explain() {
         );
     }
 }
+````)
 
+#chunk("flow: an_ambiguous_file_name_is_an_error_not_a_guess", ````
 #[test]
 fn an_ambiguous_file_name_is_an_error_not_a_guess() {
     let body = "#file(\"one/b.py\", ```py\nprint('a')\n```)\n\n#file(\"two/b.py\", ```py\nprint('b')\n```)\n";
@@ -3307,7 +3325,9 @@ fn an_ambiguous_file_name_is_an_error_not_a_guess() {
     );
     assert!(explicit.status.success(), "{}", stderr(&explicit));
 }
+````)
 
+#chunk("flow: check_names_the_chunk_of_the_first_difference", ````
 #[test]
 fn check_names_the_chunk_of_the_first_difference() {
     let (_guard, dir, _) = project(DOC);
@@ -3342,7 +3362,9 @@ fn check_names_the_chunk_of_the_first_difference() {
             .success()
     );
 }
+````)
 
+#chunk("flow: the_map_follows_the_document_even_when_no_output_byte_changes", ````
 #[test]
 fn the_map_follows_the_document_even_when_no_output_byte_changes() {
     let (_guard, dir, _) = project(DOC);
@@ -3378,7 +3400,9 @@ fn the_map_follows_the_document_even_when_no_output_byte_changes() {
         stdout(&forward)
     );
 }
+````)
 
+#chunk("flow: dangling_reference_quotes_the_line", ````
 #[test]
 fn dangling_reference_quotes_the_line() {
     let body = "#file(\"main.py\", ```py\n<<missing>>\n```)\n";
@@ -3399,7 +3423,9 @@ fn dangling_reference_quotes_the_line() {
         "{message}"
     );
 }
+````)
 
+#chunk("flow: cycle_is_reported", ````
 #[test]
 fn cycle_is_reported() {
     let body = "#file(\"main.py\", ```py\n<<a>>\n```)\n\n#chunk(\"a\", ```py\n<<b>>\n```)\n\n#chunk(\"b\", ```py\n<<a>>\n```)\n";
@@ -3412,7 +3438,9 @@ fn cycle_is_reported() {
         stderr(&output)
     );
 }
+````)
 
+#chunk("flow: an_empty_chunk_is_an_error", ````
 #[test]
 fn an_empty_chunk_is_an_error() {
     let body = "#file(\"main.py\", ```py\n```)\n";
@@ -3421,7 +3449,9 @@ fn an_empty_chunk_is_an_error() {
     assert!(!output.status.success());
     assert!(stderr(&output).contains("is empty"), "{}", stderr(&output));
 }
+````)
 
+#chunk("flow: a_file_declaration_can_name_a_nested_path", ````
 #[test]
 fn a_file_declaration_can_name_a_nested_path() {
     let body = "#file(\"src/main.rs\", ```rust\nfn main() {}\n```)\n";
@@ -3433,7 +3463,9 @@ fn a_file_declaration_can_name_a_nested_path() {
         "fn main() {}\n"
     );
 }
+````)
 
+#chunk("flow: unsafe_paths_are_rejected", ````
 #[test]
 fn unsafe_paths_are_rejected() {
     let body = "#file(\"../escape.txt\", ```text\nx\n```)\n";
@@ -3446,7 +3478,9 @@ fn unsafe_paths_are_rejected() {
         stderr(&output)
     );
 }
+````)
 
+#chunk("flow: map_names_the_chunk_a_generated_line_came_from", ````
 #[test]
 fn map_names_the_chunk_a_generated_line_came_from() {
     let (_guard, dir, _) = project(DOC);
@@ -3480,7 +3514,9 @@ fn map_names_the_chunk_a_generated_line_came_from() {
         stdout(&reverse)
     );
 }
+````)
 
+#chunk("flow: explain_rewrites_diagnostics_to_the_chunk", ````
 #[test]
 fn explain_rewrites_diagnostics_to_the_chunk() {
     let (_guard, dir, _) = project(DOC);
@@ -3512,7 +3548,9 @@ fn explain_rewrites_diagnostics_to_the_chunk() {
     let message = stderr(&output);
     assert!(message.contains("chunk ⟪body⟫, line 2 of it"), "{message}");
 }
+````)
 
+#chunk("flow: list_reports_declarations", ````
 #[test]
 fn list_reports_declarations() {
     let (_guard, dir, _) = project(DOC);
@@ -3527,7 +3565,9 @@ fn list_reports_declarations() {
         "an undeclared block is not a chunk: {listed}"
     );
 }
+````)
 
+#chunk("flow: a_chunk_built_by_code_is_attributed_to_itself", ````
 #[test]
 fn a_chunk_built_by_code_is_attributed_to_itself() {
     // The declaration is written once, inside a loop. There is no line to point at
@@ -3549,7 +3589,9 @@ fn a_chunk_built_by_code_is_attributed_to_itself() {
         stdout(&mapped)
     );
 }
+````)
 
+#chunk("flow: the_declaration_is_where_the_line_lives", ````
 #[test]
 fn the_declaration_is_where_the_line_lives() {
     // A sanity check that the document text itself is what the chunk quotes back,
@@ -3560,11 +3602,43 @@ fn the_declaration_is_where_the_line_lives() {
 }
 ````)
 
+=== tests/lazy.rs — what a pass touches
+
+The contract of `lp watch`, tested without a watcher: a pass is a function, and what matters is
+which bytes it writes and which it leaves alone. The mtime assertions are the reason the file
+exists — cargo wakes on an mtime, not on a diff.
+
 #file("tests/lazy.rs", ````rust
+<<lazy: the file's purpose>>
+
+<<lazy: the fixtures and helpers>>
+
+<<lazy: a_pass_does_not_touch_files_that_did_not_change>>
+
+<<lazy: only_the_affected_output_is_rewritten>>
+
+<<lazy: a_half_written_document_is_not_tangled>>
+
+<<lazy: map_works_in_both_directions>>
+
+<<lazy: unused_fragment_warns_without_failing>>
+````)
+
+The cases, in the order they appear:
+
+- `a_pass_does_not_touch_files_that_did_not_change` — the first pass writes, the second rewrites nothing at all
+- `only_the_affected_output_is_rewritten` — editing one document rewrites only the files that changed
+- `a_half_written_document_is_not_tangled` — a document that does not evaluate leaves the previous output in place
+- `map_works_in_both_directions` — `lp map` answers forwards and backwards
+- `unused_fragment_warns_without_failing` — a fragment nobody references is a warning, not a failure
+
+#chunk("lazy: the file's purpose", ````
 //! The lazy contract: a pass touches only what actually changed, refuses to
 //! tangle a document that does not evaluate, and keeps the line map usable in
 //! both directions.
+````)
 
+#chunk("lazy: the fixtures and helpers", ````
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -3639,7 +3713,9 @@ fn modified(path: &Path) -> std::time::SystemTime {
         .modified()
         .expect("mtime")
 }
+````)
 
+#chunk("lazy: a_pass_does_not_touch_files_that_did_not_change", ````
 #[test]
 fn a_pass_does_not_touch_files_that_did_not_change() {
     let (_guard, dir) = project();
@@ -3670,7 +3746,9 @@ fn a_pass_does_not_touch_files_that_did_not_change() {
     );
     assert_eq!(before, after, "a no-op pass must not touch mtimes");
 }
+````)
 
+#chunk("lazy: only_the_affected_output_is_rewritten", ````
 #[test]
 fn only_the_affected_output_is_rewritten() {
     let (_guard, dir) = project();
@@ -3700,7 +3778,9 @@ fn only_the_affected_output_is_rewritten() {
             .contains("print('three')")
     );
 }
+````)
 
+#chunk("lazy: a_half_written_document_is_not_tangled", ````
 #[test]
 fn a_half_written_document_is_not_tangled() {
     let (_guard, dir) = project();
@@ -3731,7 +3811,9 @@ fn a_half_written_document_is_not_tangled() {
         good
     );
 }
+````)
 
+#chunk("lazy: map_works_in_both_directions", ````
 #[test]
 fn map_works_in_both_directions() {
     let (_guard, dir) = project();
@@ -3762,7 +3844,9 @@ fn map_works_in_both_directions() {
         stdout(&reverse)
     );
 }
+````)
 
+#chunk("lazy: unused_fragment_warns_without_failing", ````
 #[test]
 fn unused_fragment_warns_without_failing() {
     let (_guard, dir) = project();
@@ -3782,12 +3866,51 @@ fn unused_fragment_warns_without_failing() {
 }
 ````)
 
+=== tests/metadata.rs — what the document declares
+
+The tests for the one thing the tool cannot work out for itself. Most of them pin the
+consequences of asking Typst rather than parsing the source: a chunk can come from a loop, from
+an `#include`d chapter, or from a document whose show rule styles raw blocks away — and all of
+those still declare themselves.
+
 #file("tests/metadata.rs", ````rust
+<<metadata: the file's purpose>>
+
+<<metadata: the fixtures and helpers>>
+
+<<metadata: a_styling_show_rule_does_not_hide_a_chunk>>
+
+<<metadata: a_chapter_is_tangled_without_being_listed>>
+
+<<metadata: the_document_reports_chunks_no_parser_could_find>>
+
+<<metadata: a_document_that_does_not_evaluate_says_so>>
+
+<<metadata: a_document_outside_the_working_directory_can_be_tangled>>
+
+<<metadata: a_declaration_of_an_unknown_kind_is_an_error>>
+
+<<metadata: a_document_without_declarations_says_what_to_do>>
+````)
+
+The cases, in the order they appear:
+
+- `a_styling_show_rule_does_not_hide_a_chunk` — a document whose show rule styles raw blocks away still declares its chunks
+- `a_chapter_is_tangled_without_being_listed` — an `#include`d chapter's roots are tangled, and its fragment is visible to its parent
+- `the_document_reports_chunks_no_parser_could_find` — chunks built by a loop are reported and tangled — the case no parser could find
+- `a_document_that_does_not_evaluate_says_so` — a Typst error is reported as `did not evaluate`, with Typst's own message
+- `a_document_outside_the_working_directory_can_be_tangled` — a document outside the working directory works, and no wrapper file is left behind
+- `a_declaration_of_an_unknown_kind_is_an_error` — a metadata record with an unknown kind is refused instead of defaulting
+- `a_document_without_declarations_says_what_to_do` — a document with no declarations is told to import the package
+
+#chunk("metadata: the file's purpose", ````
 //! The declaration side: what the document says its chunks are.
 //!
 //! These tests need the `typst` binary (the tool asks the document, it does not
 //! read it), so they skip cleanly when it is not on PATH.
+````)
 
+#chunk("metadata: the fixtures and helpers", ````
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -3827,7 +3950,9 @@ fn write(dir: &Path, name: &str, body: &str) {
     )
     .expect("doc");
 }
+````)
 
+#chunk("metadata: a_styling_show_rule_does_not_hide_a_chunk", ````
 #[test]
 fn a_styling_show_rule_does_not_hide_a_chunk() {
     // The declaration is what the tool reads, and it is emitted before the block
@@ -3853,7 +3978,9 @@ fn a_styling_show_rule_does_not_hide_a_chunk() {
     assert!(report.contains("styled"), "{report}");
     assert!(report.contains("print('styled')"), "{report}");
 }
+````)
 
+#chunk("metadata: a_chapter_is_tangled_without_being_listed", ````
 #[test]
 fn a_chapter_is_tangled_without_being_listed() {
     // Typst merges #include'd content, so the tool does not need to be told about
@@ -3899,7 +4026,9 @@ fn a_chapter_is_tangled_without_being_listed() {
         stdout(&mapped)
     );
 }
+````)
 
+#chunk("metadata: the_document_reports_chunks_no_parser_could_find", ````
 #[test]
 fn the_document_reports_chunks_no_parser_could_find() {
     if !typst_available() {
@@ -3932,7 +4061,9 @@ fn the_document_reports_chunks_no_parser_could_find() {
         "print(#i)\n"
     );
 }
+````)
 
+#chunk("metadata: a_document_that_does_not_evaluate_says_so", ````
 #[test]
 fn a_document_that_does_not_evaluate_says_so() {
     if !typst_available() {
@@ -3957,7 +4088,9 @@ fn a_document_that_does_not_evaluate_says_so() {
         "typst's own diagnostic: {message}"
     );
 }
+````)
 
+#chunk("metadata: a_document_outside_the_working_directory_can_be_tangled", ````
 #[test]
 fn a_document_outside_the_working_directory_can_be_tangled() {
     // The wrapper document has to live where Typst's root can reach the file it
@@ -4004,7 +4137,9 @@ fn a_document_outside_the_working_directory_can_be_tangled() {
         "wrapper files left behind: {leftovers:?}"
     );
 }
+````)
 
+#chunk("metadata: a_declaration_of_an_unknown_kind_is_an_error", ````
 #[test]
 fn a_declaration_of_an_unknown_kind_is_an_error() {
     // Only `chunk` and `file` exist; anything else means the package and the tool
@@ -4030,7 +4165,9 @@ fn a_declaration_of_an_unknown_kind_is_an_error() {
         stderr(&output)
     );
 }
+````)
 
+#chunk("metadata: a_document_without_declarations_says_what_to_do", ````
 #[test]
 fn a_document_without_declarations_says_what_to_do() {
     if !typst_available() {
@@ -4057,14 +4194,61 @@ fn a_document_without_declarations_says_what_to_do() {
 }
 ````)
 
+=== tests/owned.rs — who owns the output directory
+
+Ownership is the part of the tool that can destroy a user's work if it is wrong, so it has the
+most cases per line of code: what is accounted for, what is not, which ignore rules count, and
+what `--check` and `--delete` each do.
+
 #file("tests/owned.rs", ````rust
+<<owned: the file's purpose>>
+
+<<owned: the fixtures and helpers>>
+
+<<owned: a_dropped_declaration_is_an_error_until_it_is_resolved>>
+
+<<owned: declared_files_are_accounted_for>>
+
+<<owned: the_pattern_language_is_gitignores>>
+
+<<owned: a_deeper_ignore_file_can_take_a_file_back>>
+
+<<owned: control_files_survive_and_other_dotfiles_are_ordinary_files>>
+
+<<owned: a_git_directory_is_ordinary_content>>
+
+<<owned: check_reports_a_stray_without_removing_it>>
+
+<<owned: deleting_a_foreign_subtree_takes_one_line_and_one_command>>
+
+<<owned: without_a_declaration_a_stray_is_still_an_error>>
+
+<<owned: a_missing_output_directory_is_not_an_io_error>>
+````)
+
+The cases, in the order they appear:
+
+- `a_dropped_declaration_is_an_error_until_it_is_resolved` — deleting a root strands its file as an unaccounted error, with `--delete` as the way out
+- `declared_files_are_accounted_for` — files and directories listed in `.lpignore` are left alone
+- `the_pattern_language_is_gitignores` — `build/` and `**/*.log` behave exactly as they do in git
+- `a_deeper_ignore_file_can_take_a_file_back` — a nested ignore file decides for its own directory, deepest winning
+- `control_files_survive_and_other_dotfiles_are_ordinary_files` — the map and the ignore file are never content, and every other dotfile is
+- `a_git_directory_is_ordinary_content` — `.git/` is not special-cased, so it has to be declared like anything else
+- `check_reports_a_stray_without_removing_it` — `--check` lists a stray and changes nothing
+- `deleting_a_foreign_subtree_takes_one_line_and_one_command` — one compressed entry, one `--delete`, and a subtree is gone
+- `without_a_declaration_a_stray_is_still_an_error` — with no `.lpignore` at all, strays are still errors
+- `a_missing_output_directory_is_not_an_io_error` — a missing output file is drift, not an I/O failure
+
+#chunk("owned: the file's purpose", ````
 //! Nothing under the output directory may go unaccounted for.
 //!
 //! A file is either produced by a declaration, declared in a `.lpignore`, or an
 //! error the user resolves — by declaring it, or by deleting it on purpose. `lp`
 //! never removes anything on its own, and it never lets a stray file pass
 //! silently.
+````)
 
+#chunk("owned: the fixtures and helpers", ````
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -4138,7 +4322,9 @@ fn tangled(declaration: &str, extra: &[(&str, &str)]) -> (TempDir, std::path::Pa
 fn without_b() -> String {
     DOC.replace("\n#file(\"src/b.py\", ```py\nprint('b')\n```)\n", "")
 }
+````)
 
+#chunk("owned: a_dropped_declaration_is_an_error_until_it_is_resolved", ````
 #[test]
 fn a_dropped_declaration_is_an_error_until_it_is_resolved() {
     let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
@@ -4203,7 +4389,9 @@ fn a_dropped_declaration_is_an_error_until_it_is_resolved() {
             .success()
     );
 }
+````)
 
+#chunk("owned: declared_files_are_accounted_for", ````
 #[test]
 fn declared_files_are_accounted_for() {
     let (_guard, dir) = tangled(
@@ -4230,7 +4418,9 @@ fn declared_files_are_accounted_for() {
         assert!(dir.join(kept).exists(), "{kept} must survive");
     }
 }
+````)
 
+#chunk("owned: the_pattern_language_is_gitignores", ````
 #[test]
 fn the_pattern_language_is_gitignores() {
     let (_guard, dir) = tangled(
@@ -4245,7 +4435,9 @@ fn the_pattern_language_is_gitignores() {
     assert!(dir.join("out/build/art.txt").exists(), "directory pattern");
     assert!(dir.join("out/deep/nested/app.log").exists(), "** pattern");
 }
+````)
 
+#chunk("owned: a_deeper_ignore_file_can_take_a_file_back", ````
 #[test]
 fn a_deeper_ignore_file_can_take_a_file_back() {
     let (_guard, dir) = tangled(
@@ -4266,7 +4458,9 @@ fn a_deeper_ignore_file_can_take_a_file_back() {
     );
     assert!(dir.join("out/src/other.py").exists(), "still protected");
 }
+````)
 
+#chunk("owned: control_files_survive_and_other_dotfiles_are_ordinary_files", ````
 #[test]
 fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
     let (_guard, dir) = tangled("kept.dot\n", &[("kept.dot", "x")]);
@@ -4289,7 +4483,9 @@ fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
     assert!(dir.join("out/.lpignore").exists(), "nor are the rules");
     assert!(dir.join("out/kept.dot").exists(), "listed, so kept");
 }
+````)
 
+#chunk("owned: a_git_directory_is_ordinary_content", ````
 #[test]
 fn a_git_directory_is_ordinary_content() {
     // Nothing is special-cased, not even a repository: built here rather than by
@@ -4313,7 +4509,9 @@ fn a_git_directory_is_ordinary_content() {
     let (_guard, declared) = tangled(".git/\n", &[(".git/config", "[core]\n")]);
     assert!(declared.join("out/.git/config").exists());
 }
+````)
 
+#chunk("owned: check_reports_a_stray_without_removing_it", ````
 #[test]
 fn check_reports_a_stray_without_removing_it() {
     let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
@@ -4331,7 +4529,9 @@ fn check_reports_a_stray_without_removing_it() {
         "--check changes nothing"
     );
 }
+````)
 
+#chunk("owned: deleting_a_foreign_subtree_takes_one_line_and_one_command", ````
 #[test]
 fn deleting_a_foreign_subtree_takes_one_line_and_one_command() {
     let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
@@ -4355,7 +4555,9 @@ fn deleting_a_foreign_subtree_takes_one_line_and_one_command() {
     assert!(!dir.join("out/vendor").exists());
     assert!(dir.join("out/handwritten.txt").exists());
 }
+````)
 
+#chunk("owned: without_a_declaration_a_stray_is_still_an_error", ````
 #[test]
 fn without_a_declaration_a_stray_is_still_an_error() {
     let (_guard, dir) = tangled("", &[]);
@@ -4366,7 +4568,9 @@ fn without_a_declaration_a_stray_is_still_an_error() {
     assert!(stderr(&output).contains("stray.txt"), "{}", stderr(&output));
     assert!(dir.join("out/stray.txt").exists(), "and nothing removes it");
 }
+````)
 
+#chunk("owned: a_missing_output_directory_is_not_an_io_error", ````
 #[test]
 fn a_missing_output_directory_is_not_an_io_error() {
     let dir = TempDir::new().expect("temp dir");
@@ -4384,12 +4588,35 @@ fn a_missing_output_directory_is_not_an_io_error() {
 }
 ````)
 
-#file("tests/self.rs", ````rust
-//! Self-reproduction: the document has to regenerate the crate it ships.
+=== tests/self.rs — the invariant that makes self-hosting real
 
+One case, and it is the one that keeps the rest honest: the binary re-tangles this document
+into the working tree and insists on finding no difference. Every case above is about some
+other document; this one is about this one, and it is what makes editing `src/` by hand
+impossible.
+
+#file("tests/self.rs", ````rust
+<<self: the file's purpose>>
+
+<<self: the fixtures and helpers>>
+
+<<self: the_document_regenerates_the_sources_we_are_running>>
+````)
+
+The cases, in the order they appear:
+
+- `the_document_regenerates_the_sources_we_are_running` — the binary reproduces the sources it was built from, byte for byte
+
+#chunk("self: the file's purpose", ````
+//! Self-reproduction: the document has to regenerate the crate it ships.
+````)
+
+#chunk("self: the fixtures and helpers", ````
 use std::path::Path;
 use std::process::Command;
+````)
 
+#chunk("self: the_document_regenerates_the_sources_we_are_running", ````
 /// The document is the source of the files that are compiled, so `--check` in the
 /// crate root has to be clean. This is the permanent half of the fixed point:
 /// Stage 1 also required the output to equal the frozen seed in `seed/`,
@@ -4412,7 +4639,56 @@ fn the_document_regenerates_the_sources_we_are_running() {
 }
 ````)
 
-#file(".agents/skills/literate-programming/SKILL.md", `````markdown
+= The writer's half, in the document as well
+
+Everything the tool can check is checked by the tool. What is left is the part no check can
+reach — whether the prose is true, whether the argument holds, whether a section says a
+thought — and that part is the skill: a package an agent loads by itself, whose subject is how
+to write in this document.
+
+It lives here, as a produced file, for the same reason the package does. A rule that is written
+outside the thing it governs drifts away from it; a rule that is generated by it cannot. The
+skill is also the most honest place for the lessons this refactor paid for — chunk names are
+global, a blank line inside an indented fragment turns into whitespace, a fragment must not
+carry the brace that closes its frame — because those are things a writer needs to know before
+they cost an afternoon.
+
+== The skill itself
+
+The file an agent is handed: the stance (the document is about the thinking, and the code is
+the evidence for it), eight rules about writing an argument, what the tool does and does not
+check, the mechanics of chunks, the working loop, how to find your way around a document, the
+errors and what they mean, and the anti-patterns.
+
+The frontmatter is what makes the rest load — an agent decides whether to read a skill from its
+`description` — so the description leads with the same idea the file does.
+
+#file(".agents/skills/literate-programming/SKILL.md", ````markdown
+<<skill: what the file is>>
+
+<<skill: the discipline>>
+
+<<skill: what the tool checks>>
+
+<<skill: the shape>>
+
+<<skill: mechanics>>
+
+<<skill: the working loop>>
+
+<<skill: finding your way>>
+
+<<skill: errors and what they mean>>
+
+<<skill: anti-patterns>>
+
+<<skill: in this repository>>
+
+<<skill: references>>
+````)
+
+
+#chunk("skill: what the file is", ````markdown
 ---
 name: literate-programming
 description: Write a program as an exposition - one Typst document whose subject is the thinking (the problem, the alternatives, the choice and why), with the code quoted in as the evidence that makes it checkable and tangled out of it into real source files and a woven PDF. Use when writing or editing any program lp carries (including this repository's own lp.typ), adding or reorganising chunks, or asked to write a literate document. Reading front to back has to go from idea to detail; the tool checks only the mechanism, so the thinking is the writer's job.
@@ -4425,7 +4701,9 @@ Literate means the document is **about the thinking**. A literate program is an 
 One source, two products: **tangle** (the machine's copy: real source files) and **weave** (the reader's copy: a typeset document). Neither is the original; the exposition is.
 
 So the question is never "what code goes here" but "what am I saying here, and what does it need to show". Read front to back, the document has to be **progressive disclosure**: each section states its thought, and the ones that follow take it further. A reader who has to jump around, or who meets a detail before the idea that made it necessary, is reading a document that was not finished.
+````)
 
+#chunk("skill: the discipline", ````markdown
 ## The discipline: the thinking is the subject
 
 `lp` can check the mechanism (table below). It cannot read. The part that matters is on you:
@@ -4440,7 +4718,9 @@ So the question is never "what code goes here" but "what am I saying here, and w
 8. **Revise the thinking first, and read for it before saying done.** When the design changes the opening is what goes stale; and the last pass is reading the exposition front to back — can someone rebuild the design from the reasoning? — not reviewing the diff. Then run the checks.
 
 The failure mode to avoid is prose that *sounds* explained. A confident paragraph that does not match its chunk is worse than no paragraph: it stops the next reader — human or agent — from looking at the code.
+````)
 
+#chunk("skill: what the tool checks", ````markdown
 ## What the tool enforces (it will refuse these)
 
 | Invariant | Message |
@@ -4450,7 +4730,9 @@ The failure mode to avoid is prose that *sounds* explained. A confident paragrap
 | The generated files still equal the document | `--check` prints `STALE` |
 
 That is the whole list, and it is deliberately about *mechanism*: the tool can tell that a reference points at something and that the output still matches the text. It cannot tell whether a section states a thought, whether the order suits a reader, or whether the prose is true — mechanism is all it knows (see below).
+````)
 
+#chunk("skill: the shape", `````markdown
 ## The shape: a file is the list of thoughts the reader already has
 
 When the ideas come first, the file's shape falls out of them. A root chunk (`#file`) is a skeleton — a few lines that name the parts; fragments (`#chunk`) are those parts, each explained in the section that belongs to it. Depth is whatever the explanation needs: a step can itself be a skeleton of steps.
@@ -4491,7 +4773,9 @@ Two things this buys: a reader can stop at any level and still have a true accou
 - *Pieces first, assembly last*: explain the important idea and build its fragments as the text goes, then assemble them into files in a short final section. The reader meets each idea where it is worth explaining, and sees the whole only when they can appreciate it.
 
 Neither is more literate than the other. What is *not* a matter of taste is that the prose must say which one it is doing: if files appear at the end, the opening has to promise that.
+`````)
 
+#chunk("skill: mechanics", ````markdown
 ## Mechanics
 
 - `#file(path, code)` — a root chunk. Its name is the path it tangles to; every produced file needs one, and nothing else produces files.
@@ -4506,7 +4790,9 @@ Neither is more literate than the other. What is *not* a matter of taste is that
 - **To quote the syntax itself, escape it**: a line `@<<name>>` tangles out as `<<name>>` — the `@` is dropped and the line is never expanded, never counted as a reference. That is how a document can show what a reference looks like (this file is carried by `lp.typ` and does exactly that).
 - Block content is verbatim: keep it flush left, and **use four backticks as the fence** whenever the code contains three (Typst fixtures, Markdown fences, heredocs).
 - Keep the document evaluable at every save; a document Typst cannot evaluate tangles nothing, and `lp watch` keeps the last good output instead of half of a new one.
+````)
 
+#chunk("skill: the working loop", ````markdown
 ## Working loop
 
 1. **Outline the argument first**: sections in reading order, each one a step from idea to detail.
@@ -4516,7 +4802,9 @@ Neither is more literate than the other. What is *not* a matter of taste is that
 5. `lp watch <doc.typ> --out <dir> --check-cmd '<build>'` — only changed bytes are rewritten, and diagnostics come back as chunk names.
 6. `lp explain` (pipe `cargo build --message-format=short` into it) or `lp map --file <generated> --line N` to find the chunk a diagnostic came from. `--out` has to be repeated on `map`, `explain` and `unaccounted`; they default to `out`.
 7. **Resolve strays** after deleting or renaming a root: `lp unaccounted <doc> --out <dir>`. Declare what is not the document's in that directory's `.lpignore` (matching means *protect*, and it includes anything the program writes next to its own output, like a byte-compiler cache); `lp unaccounted … --delete` is the explicit alternative. `lp` never deletes by itself.
+````)
 
+#chunk("skill: finding your way", ````markdown
 ## Find your way around
 
 | Question | Command |
@@ -4528,7 +4816,9 @@ Neither is more literate than the other. What is *not* a matter of taste is that
 | The declaration itself | `rg '#chunk\("X"'` |
 
 Provenance is chunk-level on purpose — which declaration, and which line inside it — never a `.typ` line number (Typst does not expose source positions). To edit, go to the declaration the diagnostic names.
+````)
 
+#chunk("skill: errors and what they mean", ````markdown
 ## Errors you will hit
 
 | Message | Cause | Fix |
@@ -4539,7 +4829,9 @@ Provenance is chunk-level on purpose — which declaration, and which line insid
 | `nothing accounts for these files` | files under `--out` that no chunk produces and no `.lpignore` declares | declare them, or `--delete` |
 | "the document did not evaluate" | a Typst error — unclosed fence, bad expression | fix the document; nothing was tangled |
 | a literal `<<name>>` line came out as something else | that line was read as a reference | write `@<<name>>` where the text itself is wanted |
+````)
 
+#chunk("skill: anti-patterns", ````markdown
 ## Anti-patterns
 
 - Prose that restates the code ("this function adds two numbers"). It looks literate and is not.
@@ -4547,7 +4839,9 @@ Provenance is chunk-level on purpose — which declaration, and which line insid
 - A chunk per statement; five-line chunks with no narrative; a document that is a tangle script with headings.
 - Hand-editing tangled files, or creating an output file by hand instead of declaring it.
 - A first section that describes the design you had an hour ago.
+````)
 
+#chunk("skill: in this repository", ````markdown
 ## In this repository (`lp` is self-hosted)
 
 `lp.typ` is the source of the tool: it declares `Cargo.toml`, `src/*.rs`, `tests/*.rs` and this skill, all of which are generated (gitignored). Change the tool by changing `lp.typ`:
@@ -4559,15 +4853,39 @@ nix develop -c cargo test                                          # 49 tests, i
 ```
 
 A fresh clone has no `src/`: build the frozen seed in `seed/`, then tangle (see `README.md` §自举). `tests/self.rs` fails if the files on disk stop matching the document, so hand-editing `src/` cannot survive. Adding a top-level directory means adding one line to the root `.lpignore`.
+````)
 
+#chunk("skill: references", ````markdown
 ## References
 
 - [`references/example.md`](references/example.md) — a complete two-file program in the skeleton shape, with a real transcript.
 - [`references/thinking.md`](references/thinking.md) — where this stance comes from (Knuth's argument, noweb's simplifications), and the strongest objections to it, honestly stated.
 - Repository: `README.md` (full contract), `AGENTS.md` (project rules), `examples/demo/` (runnable example), `agent-notes/decisions/2026-09-11-document-invariants.md` (the enforced invariants).
-`````)
+````)
 
-#file(".agents/skills/literate-programming/references/example.md", `````markdown
+== A worked example, and a transcript
+
+Two files, no framework, written in the shape the skill asks for — and run, with the transcript
+kept. An example that is not executed is a plausible lie; this one was tangled, compiled and
+run, and the output in the file is what came out.
+
+It is also the case that proves the escape's reason for existing: a chapter that shows what a
+reference looks like has to write a line that looks exactly like one.
+
+#file(".agents/skills/literate-programming/references/example.md", ````markdown
+<<example: what the file is>>
+
+<<example: what the document decides>>
+
+<<example: the document>>
+
+<<example: the transcript>>
+
+<<example: what the transcript teaches>>
+````)
+
+
+#chunk("example: what the file is", ````markdown
 # Worked example: an RPN calculator
 
 Two files, no framework, and an exposition you can check. The first paragraph is the design
@@ -4577,7 +4895,9 @@ to run. The roots are skeletons that name their parts, and each part is explaine
 section (skeleton-first is one of the two legitimate shapes; pieces-first, assembly-last would do
 just as well). The document below is the actual source; it was tangled and run on 2026-09-11 with
 `lp` 0.1.0 and typst 0.15.1. The transcript at the end is real output.
+````)
 
+#chunk("example: what the document decides", ````markdown
 ## What the document decides
 
 | Decision | Where to look |
@@ -4588,7 +4908,9 @@ just as well). The document below is the actual source; it was tangled and run o
 | Each name is explained where it is used | the loop is explained as stack policy; the one token step is explained with the indentation rule |
 | Prose keeps the promise | the table-versus-`if`-chain paragraph is the reason the table exists; nothing else claims to be |
 | A file can be declared twice | not used here — `examples/demo/literate.typ` in the repository shows it |
+````)
 
+#chunk("example: the document", `````markdown
 ## The document (`calc.typ`)
 
 ````
@@ -4760,7 +5082,9 @@ In a real project the tests would be roots too, one `#file` per test module, eac
 next to the behaviour it pins down. `examples/demo/literate.typ` in this repository does
 that, and also shows a fragment shared by two different files (`<<crate-preamble>>`).
 ````
+`````)
 
+#chunk("example: the transcript", ````markdown
 ## Transcript
 
 ```sh
@@ -4805,7 +5129,9 @@ def evaluate(tokens):
             left = stack.pop()
             stack.append(OPERATIONS[token](left, right))
 ```
+````)
 
+#chunk("example: what the transcript teaches", ````markdown
 ## Three things the transcript teaches
 
 1. **Anything written next to the generated code becomes unaccounted.** Running the program
@@ -4833,15 +5159,42 @@ def evaluate(tokens):
    `File "…", line N` and are not parsed yet; for those, `lp map --file … --line N` is the
    language-agnostic path. Adding a Python extractor is a row in a data table, not new algorithm
    (see `src/explain.rs`).
-`````)
+````)
+
+== Where the stance comes from, and the case against it
+
+The last reference file is the arguments: Knuth's position as he stated it, the criticism at its
+strongest — that the payoff falls as a language gets more expressive, that tooling friction kept
+literate programming niche, that reading code got cheap — and an evidence table that keeps
+measurements apart from testimony and from the claims nobody has measured.
+
+It is here rather than left out because a stance that cannot state its opposition is not an
+argument, and because most of the objections are reasonable: the honest answer is not that they
+are wrong, but that this project is betting on the two things they do not cover — that the *why*
+was never in the code, and that drift is a check failure now instead of a matter of discipline.
 
 #file(".agents/skills/literate-programming/references/thinking.md", ````markdown
+<<thinking: what the file is>>
+
+<<thinking: the stance>>
+
+<<thinking: the case against>>
+
+<<thinking: the evidence>>
+
+<<thinking: the sources>>
+````)
+
+
+#chunk("thinking: what the file is", ````markdown
 # Where this stance comes from, and the case against it
 
 Companion to [`../SKILL.md`](../SKILL.md). The long version, with the full map of positions and
 sources, is `agent-notes/research/2026-09-11-literate-programming-thinking.md` in the `lp`
 repository.
+````)
 
+#chunk("thinking: the stance", ````markdown
 ## The stance
 
 - **The subject is the thinking, not the code.** A literate document is an exposition: the problem,
@@ -4867,7 +5220,9 @@ repository.
   (nothing is implemented that the text does not explain), and the checks are what stop the two
   from drifting. Writing prose is no longer the expensive part of literate programming — knowing
   what is true, and saying it clearly, is.
+````)
 
+#chunk("thinking: the case against", ````markdown
 ## The case against, in its strongest form
 
 Keep these; they are the reasons this stance has to be argued rather than assumed.
@@ -4898,7 +5253,9 @@ Keep these; they are the reasons this stance has to be argued rather than assume
    rustdoc) and notebooks; strict tangling stayed a niche. That is an argument about adoption, not
    about correctness — and the reason the position here is "the document is the source" rather
    than "everyone should do this".
+````)
 
+#chunk("thinking: the evidence", ````markdown
 ## Evidence
 
 | Kind | Examples |
@@ -4906,7 +5263,9 @@ Keep these; they are the reasons this stance has to be argued rather than assume
 | Measured, reproducible | adoption history (WEB/CWEB niche, noweb in dozens of languages for decades, notebooks dominating data science); `typst-unlit` clobbering line numbers; `lp`'s own numbers (full tangle 3–7 ms, whole-repo ownership walk 0.82 s, 49 tests) |
 | Reasoned testimony | Knuth, Ramsey, Nørmark, Silver, apiad, Anticodians — decades of practice, no control groups |
 | **Not found** | any reproducible study showing literate programming reduces defects or maintenance cost. Knuth claims it, second-hand posts repeat it. Treat it as **unverified**, not as fact. |
+````)
 
+#chunk("thinking: the sources", ````markdown
 ## Sources
 
 - Knuth, *Literate Programming* (CSLI, 1992) and his definition page: <https://www-cs-faculty.stanford.edu/~knuth/lp.html>
@@ -4917,6 +5276,96 @@ Keep these; they are the reasons this stance has to be argued rather than assume
 - Anticodians, "The End of Literate Programming": <https://anticodians.org/2024/12/04/the-end-of-literate-programming/>
 - apiad, "The Best Way to Vibe Code is Literate Programming": <https://blog.apiad.net/p/the-best-way-to-vibe-code-is-literate>
 - "A Literate Programming Environment for Human and Machine Agents" (arXiv 2608.24644): <https://arxiv.org/pdf/2608.24644>
+````)
+
+= Not yet arranged
+
+The declarations below are the rest of this repository, still waiting for their chapters.
+They are the same kind of thing as everything above — names, prose, and code quoted in as
+evidence — and they are moved up, one file per step, as the argument reaches them.
+
+#file("Cargo.toml", ````toml
+[package]
+name = "lp"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Typst-based literate programming: tangle source files out of a .typ document"
+
+# The seed and the old probes are their own little worlds: nothing here depends on
+# them, and saying so keeps the resolver out of their manifests.
+[workspace]
+exclude = ["seed", "agent-notes/experiments/*"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+ignore = "0.4.33"
+miette = { version = "7", features = ["fancy"] }
+notify = "8.2.0"
+notify-debouncer-full = "0.7.0"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
+````)
+
+#file("src/diag.rs", ````rust
+use std::fmt;
+
+/// A user-facing error: what went wrong, and what to do about it.
+///
+/// No source spans. Typst gives no source positions, so a span could only come
+/// from searching the source or parsing Typst again, and that is not worth doing
+/// for the sake of an underline (ADR D14). Errors name the chunk and quote the
+/// line instead.
+#[derive(Debug)]
+pub struct LpError {
+    message: String,
+    help: Option<String>,
+}
+
+impl LpError {
+    pub fn plain(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            help: None,
+        }
+    }
+
+    /// Add advice. Repeated calls append, so a caller can add its own context
+    /// without dropping what the error already said.
+    pub fn with_help(mut self, help: impl Into<String>) -> Self {
+        let help = help.into();
+        self.help = Some(match self.help {
+            Some(existing) => format!("{existing}\n{help}"),
+            None => help,
+        });
+        self
+    }
+
+    pub fn io(path: &std::path::Path, err: std::io::Error) -> Self {
+        Self::plain(format!("{}: {err}", path.display()))
+    }
+}
+
+impl fmt::Display for LpError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for LpError {}
+
+impl miette::Diagnostic for LpError {
+    fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
+        self.help
+            .as_ref()
+            .map(|help| Box::new(help.clone()) as Box<dyn fmt::Display + '_>)
+    }
+}
 ````)
 
 
