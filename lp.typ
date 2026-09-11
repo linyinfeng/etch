@@ -4314,8 +4314,9 @@ fn unused_fragment_warns_without_failing() {
 
 === tests/metadata.rs — what the document declares
 
-The tests for the one thing the tool cannot work out for itself. Most of them pin the
-consequences of asking Typst rather than parsing the source: a chunk can come from a loop, from
+The tests for the one thing the tool cannot work out for itself — and for what the tool has to
+bring with it while asking. Most of them pin the consequences of asking Typst rather than parsing
+the source: a chunk can come from a loop, from
 an `#include`d chapter, or from a document whose show rule styles raw blocks away — and all of
 those still declare themselves.
 
@@ -4337,6 +4338,7 @@ those still declare themselves.
 <<metadata: a_declaration_of_an_unknown_kind_is_an_error>>
 
 <<metadata: a_document_without_declarations_says_what_to_do>>
+<<metadata: a_document_needs_nothing_but_itself>>
 ````)
 
 The cases, in the order they appear:
@@ -4348,6 +4350,7 @@ The cases, in the order they appear:
 - `a_document_outside_the_working_directory_can_be_tangled` — a document outside the working directory works, and no wrapper file is left behind
 - `a_declaration_of_an_unknown_kind_is_an_error` — a metadata record with an unknown kind is refused instead of defaulting
 - `a_document_without_declarations_says_what_to_do` — a document with no declarations is told to import the package
+- `a_document_needs_nothing_but_itself` — a document that imports the package by name tangles in a directory holding nothing else (D21)
 
 #chunk("metadata: the file's purpose", ````rust
 //! The declaration side: what the document says its chunks are.
@@ -4609,6 +4612,33 @@ fn a_declaration_of_an_unknown_kind_is_an_error() {
         stderr(&output).contains("unknown declaration kind"),
         "{}",
         stderr(&output)
+    );
+}
+````)
+
+#chunk("metadata: a_document_needs_nothing_but_itself", ````rust
+#[test]
+fn a_document_needs_nothing_but_itself() {
+    // No copy of the package next to it, no environment variable, no git: the tool carries the
+    // package and unpacks it for Typst (D21).
+    if !typst_available() {
+        eprintln!("skipping: typst is not on PATH");
+        return;
+    }
+
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(
+        dir.path().join("alone.typ"),
+        "#import \"@local/lp:0.1.0\": chunk, file, rule\n#show: rule\n\n#file(\"main.py\", ```py\n<<body>>\n```)\n\n#chunk(\"body\", ```py\nprint('alone')\n```)\n",
+    )
+    .expect("doc");
+    let path = dir.path().to_path_buf();
+
+    let output = lp(&path, &["tangle", "alone.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(path.join("out/main.py")).expect("output"),
+        "print('alone')\n"
     );
 }
 ````)
