@@ -1,52 +1,33 @@
 use std::fmt;
-use std::ops::Range;
 
-use miette::{Diagnostic, LabeledSpan, NamedSource, SourceCode, SourceSpan};
-
-/// A user-facing error. Optionally points at a byte range in a `.typ` document,
-/// which is what makes every message land on the line the reader must edit.
+/// A user-facing error: what went wrong, and what to do about it.
+///
+/// No source spans. Typst gives no source positions, so a span could only come
+/// from searching the source or parsing Typst again, and that is not worth doing
+/// for the sake of an underline (ADR D14). Errors name the chunk and quote the
+/// line instead.
 #[derive(Debug)]
 pub struct LpError {
     message: String,
-    snippet: Option<Box<Snippet>>,
     help: Option<String>,
-}
-
-#[derive(Debug)]
-struct Snippet {
-    src: NamedSource<String>,
-    span: SourceSpan,
-    label: String,
 }
 
 impl LpError {
     pub fn plain(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
-            snippet: None,
             help: None,
         }
     }
 
-    pub fn at(
-        src: &NamedSource<String>,
-        range: Range<usize>,
-        message: impl Into<String>,
-        label: impl Into<String>,
-    ) -> Self {
-        Self {
-            message: message.into(),
-            snippet: Some(Box::new(Snippet {
-                src: src.clone(),
-                span: SourceSpan::from((range.start, range.len())),
-                label: label.into(),
-            })),
-            help: None,
-        }
-    }
-
+    /// Add advice. Repeated calls append, so a caller can add its own context
+    /// without dropping what the error already said.
     pub fn with_help(mut self, help: impl Into<String>) -> Self {
-        self.help = Some(help.into());
+        let help = help.into();
+        self.help = Some(match self.help {
+            Some(existing) => format!("{existing}\n{help}"),
+            None => help,
+        });
         self
     }
 
@@ -63,18 +44,7 @@ impl fmt::Display for LpError {
 
 impl std::error::Error for LpError {}
 
-impl Diagnostic for LpError {
-    fn source_code(&self) -> Option<&dyn SourceCode> {
-        self.snippet.as_ref().map(|s| &s.src as &dyn SourceCode)
-    }
-
-    fn labels(&self) -> Option<Box<dyn Iterator<Item = LabeledSpan> + '_>> {
-        self.snippet.as_ref().map(|s| {
-            let span = LabeledSpan::new(Some(s.label.clone()), s.span.offset(), s.span.len());
-            Box::new(std::iter::once(span)) as Box<dyn Iterator<Item = LabeledSpan>>
-        })
-    }
-
+impl miette::Diagnostic for LpError {
     fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
         self.help
             .as_ref()

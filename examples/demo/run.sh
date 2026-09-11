@@ -32,7 +32,7 @@ echo "reference indent survives: $indent"
 echo "== drift check =="
 "${LP[@]}" tangle "$DOC" --out "$OUT" --check
 
-echo "== which document line produced src/main.rs:6 =="
+echo "== which chunk produced src/main.rs:6 =="
 "${LP[@]}" map --file src/main.rs --line 6 --out "$OUT"
 
 echo "== translate a real rustc error =="

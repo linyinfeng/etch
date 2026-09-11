@@ -1,9 +1,7 @@
 mod diag;
 mod explain;
-mod locate;
 mod map;
 mod metadata;
-mod source;
 mod status;
 mod tangle;
 mod watch;
@@ -42,11 +40,12 @@ enum Command {
         /// Generated file, relative to --out (a unique basename also works)
         #[arg(long, conflicts_with = "typ")]
         file: Option<String>,
-        /// Reverse mode: list the generated lines that came from this document
+        /// Reverse mode: list the generated lines that came from this chunk
         #[arg(long, conflicts_with = "file")]
         typ: Option<String>,
+        /// Line of the generated file (required with --file)
         #[arg(long)]
-        line: usize,
+        line: Option<usize>,
         #[arg(long, default_value = "out")]
         out: PathBuf,
     },
@@ -109,17 +108,6 @@ fn main() {
     }
 }
 
-/// The file a line entry points at, looked up in the map it belongs to.
-fn entry_source<'a>(
-    entry: &(usize, Option<usize>, Option<usize>),
-    map: &'a map::FileMap,
-) -> Option<&'a str> {
-    entry
-        .2
-        .and_then(|index| map.sources.get(index))
-        .map(String::as_str)
-}
-
 fn run() -> Result<i32, LpError> {
     match Cli::parse().command {
         Command::Tangle { docs, out, check } => {
@@ -177,62 +165,42 @@ fn run() -> Result<i32, LpError> {
         } => {
             let maps = map::LpMap::read_all(&out);
 
-            if let Some(doc) = typ {
+            if let Some(chunk) = typ {
+                // Reverse: which generated lines came from this chunk?
                 let mut hits = 0;
                 for (dir, map) in &maps {
                     for (name, file) in &map.files {
-                        for line_entry in &file.lines {
-                            let from = file.source(*line_entry).unwrap_or_default();
-                            if from != doc && !from.ends_with(doc.as_str()) {
-                                continue;
-                            }
-                            if line_entry.1 == Some(line) {
-                                println!("{}:{}", map::join(dir, name), line_entry.0);
-                                hits += 1;
+                        for run in &file.runs {
+                            if run.chunk == chunk {
+                                for line in run.first..=run.last {
+                                    println!("{}:{}", map::join(dir, name), line);
+                                    hits += 1;
+                                }
                             }
                         }
                     }
                 }
                 if hits == 0 {
-                    eprintln!("note: nothing in the generated files came from {doc}:{line}");
+                    eprintln!("note: nothing in the generated files came from chunk ⟪{chunk}⟫");
                 }
                 return Ok(0);
             }
 
-            let Some(file) = file else {
-                return Err(LpError::plain(
-                    "lp map needs --file (generated line) or --typ (reverse)",
+            let (Some(file), Some(line)) = (file, line) else {
+                return Err(LpError::plain("lp map --file needs a --line").with_help(
+                    "use `lp map --file src/main.rs --line 42` for a generated line, or `lp map --typ <chunk>` the other way",
                 ));
             };
-            let (dir, name, entry) = map::resolve(&maps, &file)?;
+            let (dir, name, entry) = map::resolve_all(&maps, &file)?;
             let rel = map::join(dir, name);
-            let entry_file = entry;
-            let Some(entry) = entry.locate(line) else {
+            let Some((run, offset)) = entry.locate(line) else {
                 return Err(LpError::plain(format!("{rel}:{line}: not in the line map")));
             };
-            let (mapped_line, typ_line) = (entry.0, entry.1);
 
-            match (typ_line, entry_source(&entry, entry_file)) {
-                (Some(typ_line), Some(typ)) => {
-                    println!("{typ}:{typ_line}");
-                    if let Some(text) = std::fs::read_to_string(typ).ok().and_then(|text| {
-                        text.lines()
-                            .nth(typ_line - 1)
-                            .map(str::trim_end)
-                            .map(str::to_string)
-                    }) {
-                        println!("    {text}");
-                    }
-                }
-                _ => {
-                    println!("{rel}:{line}: built by the document (no source line)");
-                }
-            }
-            if mapped_line != line {
-                eprintln!(
-                    "note: {rel}:{line} is blank or generated; nearest mapped line is {mapped_line}"
-                );
-            }
+            // Where to edit: the chunk, and how far into it this line is. Typst
+            // exposes no source positions, so a name is the pointer (ADR D14).
+            println!("chunk ⟪{}⟫, line {offset} of it", run.chunk);
+            println!("    find it with: rg '#chunk(\"{}\")'", run.chunk);
             Ok(0)
         }
         Command::Explain { out, format } => {
@@ -280,21 +248,16 @@ fn list(docs: &[PathBuf]) -> Result<(), LpError> {
         println!("{}", doc.display());
     }
     for block in &plan.blocks {
-        let kind = if block.root { "root" } else { "frag" };
-        let where_ = match block.place.line_for(0) {
-            Some((file, line)) => format!("{}:{line}", file.path.display()),
-            None => "built by the document".to_string(),
-        };
+        let kind = if block.root { "file" } else { "frag" };
         let used = if referenced.contains(&block.name) || block.root {
             String::new()
         } else {
             "unreferenced".to_string()
         };
         println!(
-            "  {kind}  {:<28} {:<8} {:<28} {}",
-            format!("<{}>", block.name),
+            "  {kind}  {:<28} {:<8} {}",
+            format!("⟪{}⟫", block.name),
             block.lang.as_deref().unwrap_or("-"),
-            where_,
             used
         );
     }

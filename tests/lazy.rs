@@ -172,28 +172,20 @@ fn map_works_in_both_directions() {
             .success()
     );
 
+    // Forward: which chunk produced this generated line?
     let forward = lp(
         &dir,
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
     assert!(forward.status.success(), "{}", stderr(&forward));
-    let forward = stdout(&forward);
-    let typ_line = forward
-        .lines()
-        .next()
-        .expect("first line")
-        .rsplit(':')
-        .next()
-        .expect("line")
-        .to_string();
-    assert!(forward.starts_with("demo.typ:"), "{forward}");
-
-    let reverse = lp(
-        &dir,
-        &[
-            "map", "--typ", "demo.typ", "--line", &typ_line, "--out", "out",
-        ],
+    assert!(
+        stdout(&forward).starts_with("chunk ⟪body⟫, line 2 of it"),
+        "{}",
+        stdout(&forward)
     );
+
+    // Reverse: which generated lines came from that chunk?
+    let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
     assert!(reverse.status.success(), "{}", stderr(&reverse));
     assert!(
         stdout(&reverse).contains("main.py:3"),
@@ -214,7 +206,7 @@ fn unused_fragment_warns_without_failing() {
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(
-        stderr(&output).contains("chunk <<never-used>> is never referenced"),
+        stderr(&output).contains("chunk ⟪never-used⟫ is never referenced"),
         "{}",
         stderr(&output)
     );

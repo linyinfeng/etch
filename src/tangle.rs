@@ -7,15 +7,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use crate::diag::LpError;
-use crate::locate::{self, Placed};
-use crate::map::{ChunkEntry, FileMap, LpMap, MAP_FILE, split};
+use crate::map::{FileMap, LpMap, MAP_FILE, Run, split};
 use crate::metadata;
-use crate::source::{self, FileText, check_output_path};
 
-/// A chunk as the document produced it, plus the place we could find for it.
+/// A chunk as the document declared it.
 pub struct Block {
     /// A `file` declaration names the path it is tangled to; a `chunk` is a
     /// fragment that only exists where it is referenced.
@@ -23,32 +20,19 @@ pub struct Block {
     pub name: String,
     pub lang: Option<String>,
     pub text: String,
-    pub place: Placed,
 }
 
 impl Block {
-    /// An error pointing at the `index`-th line of this chunk, when the source has
-    /// one. A chunk the document built has no line of its own, and saying so beats
-    /// pointing somewhere wrong.
-    fn error(&self, index: usize, message: impl Into<String>, label: impl Into<String>) -> LpError {
-        let message = message.into();
-        match self.place.line_for(index) {
-            Some((file, line)) => match file.line_range(line) {
-                Some(range) => LpError::at(&file.named, range, message, label),
-                None => LpError::plain(message),
-            },
-            None => LpError::plain(message).with_help(format!(
-                "chunk <<{}>> was built by the document rather than written literally",
-                self.name
-            )),
-        }
-    }
-
-    fn where_(&self) -> String {
-        match self.place.line_for(0) {
-            Some((file, line)) => format!("{}:{line}: ", file.path.display()),
-            None => String::new(),
-        }
+    /// An error about the `index`-th line of this chunk. It quotes the line: with
+    /// no source positions to point at, the quote is what tells the reader where
+    /// to look (ADR D14).
+    fn error(&self, index: usize, message: impl Into<String>) -> LpError {
+        let line = self.text.lines().nth(index).unwrap_or("");
+        LpError::plain(format!("{}: {line}", message.into())).with_help(format!(
+            "in chunk ⟪{}⟫, line {} of it",
+            self.name,
+            index + 1
+        ))
     }
 }
 
@@ -90,6 +74,27 @@ impl<'a> ChunkSet<'a> {
     }
 }
 
+/// Reject declared paths that would write outside the output directory.
+pub fn check_output_path(name: &str) -> Result<(), LpError> {
+    let unsafe_name = name.is_empty()
+        || name.starts_with('/')
+        || name.contains('\\')
+        || Path::new(name).components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        });
+
+    if unsafe_name {
+        return Err(LpError::plain(format!("unsafe chunk name {name:?}"))
+            .with_help("a file declaration must be a relative path inside --out, without `..`"));
+    }
+    Ok(())
+}
+
 /// `<<name>>` on a line of its own, with any indentation. Anything else on the
 /// line (prose, `a << b` in C++) stays literal.
 fn ref_target(line: &str) -> Option<(&str, &str)> {
@@ -104,20 +109,37 @@ fn ref_target(line: &str) -> Option<(&str, &str)> {
 pub struct Tangled {
     /// File contents, always ending in a newline.
     pub text: String,
-    /// `[output line, line in that source, index into the plan's sources]`. The
-    /// last two are `None` when the document built the line rather than wrote it.
-    pub lines: Vec<(usize, Option<usize>, Option<usize>)>,
-    pub chunks: Vec<ChunkEntry>,
+    /// Which chunk produced which consecutive output lines.
+    pub runs: Vec<Run>,
+    /// Lines written so far, so a run can be extended without counting the text.
+    lines: usize,
 }
 
-pub fn expand(set: &ChunkSet, root: &str, sources: &[Arc<FileText>]) -> Result<Tangled, LpError> {
+impl Tangled {
+    fn push(&mut self, chunk: &str, indent: &str, line: &str) {
+        self.text.push_str(indent);
+        self.text.push_str(line);
+        self.text.push('\n');
+        self.lines += 1;
+        match self.runs.last_mut() {
+            Some(run) if run.chunk == chunk && run.last + 1 == self.lines => run.last = self.lines,
+            _ => self.runs.push(Run {
+                chunk: chunk.to_string(),
+                first: self.lines,
+                last: self.lines,
+            }),
+        }
+    }
+}
+
+pub fn expand(set: &ChunkSet, root: &str) -> Result<Tangled, LpError> {
     let mut out = Tangled {
         text: String::new(),
-        lines: Vec::new(),
-        chunks: Vec::new(),
+        runs: Vec::new(),
+        lines: 0,
     };
     let mut stack = Vec::new();
-    expand_chunk(set, root, "", &mut stack, &mut out, sources)?;
+    expand_chunk(set, root, "", &mut stack, &mut out)?;
     Ok(out)
 }
 
@@ -127,7 +149,6 @@ fn expand_chunk(
     indent: &str,
     stack: &mut Vec<String>,
     out: &mut Tangled,
-    sources: &[Arc<FileText>],
 ) -> Result<(), LpError> {
     if let Some(start) = stack.iter().position(|entry| entry == name) {
         let mut chain: Vec<String> = stack[start..].to_vec();
@@ -135,7 +156,7 @@ fn expand_chunk(
         let message = format!("cycle in chunks: {}", chain.join(" -> "));
         let block = set.get(name).and_then(|blocks| blocks.first()).copied();
         return Err(match block {
-            Some(block) => block.error(0, message, "this chunk is part of the cycle"),
+            Some(block) => block.error(0, message),
             None => LpError::plain(message),
         });
     }
@@ -144,65 +165,24 @@ fn expand_chunk(
     for block in set.get(name).unwrap_or(&[]) {
         if block.text.trim().is_empty() {
             stack.pop();
-            return Err(block
-                .error(0, format!("chunk <<{name}>> is empty"), "empty chunk")
-                .with_help("delete it, or give it a body"));
+            return Err(LpError::plain(format!("chunk ⟪{name}⟫ is empty"))
+                .with_help("delete the declaration, or give it a code block with a body"));
         }
 
-        let span = match &block.place {
-            Placed::Nowhere => None,
-            _ => block.place.line_for(0).map(|(_, line)| {
-                let last = line + block.text.lines().count().saturating_sub(1);
-                (
-                    line,
-                    if matches!(block.place, Placed::Generated { .. }) {
-                        line
-                    } else {
-                        last
-                    },
-                )
-            }),
-        };
-        out.chunks.push(ChunkEntry {
-            name: name.to_string(),
-            typ_line: span.map(|(first, _)| first),
-            end_line: span.map(|(_, last)| last),
-        });
-
         for (index, line) in block.text.lines().enumerate() {
-            let located = block.place.line_for(index).and_then(|(file, line)| {
-                sources
-                    .iter()
-                    .position(|candidate| candidate.path == file.path)
-                    .map(|position| (position, line))
-            });
-
             match ref_target(line) {
-                None => {
-                    out.lines.push((
-                        out.lines.len() + 1,
-                        located.map(|(_, line)| line),
-                        located.map(|(position, _)| position),
-                    ));
-                    out.text.push_str(indent);
-                    out.text.push_str(line);
-                    out.text.push('\n');
-                }
+                None => out.push(name, indent, line),
                 Some((target, local_indent)) => {
                     if set.get(target).is_none() {
                         return Err(block
-                            .error(
-                                index,
-                                format!("chunk <<{target}>> is not defined"),
-                                format!("referenced from <<{name}>>"),
-                            )
+                            .error(index, format!("chunk ⟪{target}⟫ is not defined"))
                             .with_help(format!(
-                                "known chunks: {}",
+                                "referenced from ⟪{name}⟫; known chunks: {}",
                                 set.names().collect::<Vec<_>>().join(", ")
                             )));
                     }
                     let nested = format!("{indent}{local_indent}");
-                    expand_chunk(set, target, &nested, stack, out, sources)?;
+                    expand_chunk(set, target, &nested, stack, out)?;
                 }
             }
         }
@@ -245,19 +225,13 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
     let typst = metadata::binary()?;
     let cwd = std::env::current_dir().map_err(|err| LpError::plain(err.to_string()))?;
 
-    let sources = source::sources(docs)?;
-
-    let declarations = metadata::declarations(&typst, docs, &cwd)?;
-    let places = locate::places(&sources, &declarations);
-    let blocks: Vec<Block> = declarations
+    let blocks: Vec<Block> = metadata::declarations(&typst, docs, &cwd)?
         .into_iter()
-        .zip(places)
-        .map(|(declaration, place)| Block {
+        .map(|declaration| Block {
             root: declaration.is_file(),
             name: declaration.name,
             lang: declaration.lang,
             text: declaration.text,
-            place,
         })
         .collect();
 
@@ -268,11 +242,8 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
             .map(|doc| doc.display().to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        return Err(
-            LpError::plain(format!("no root chunks in {listed}")).with_help(
-                "a root chunk is a label that names a file, e.g. ```rust ... ``` <src/main.rs>",
-            ),
-        );
+        return Err(LpError::plain(format!("no file declarations in {listed}"))
+            .with_help("declare one: `#file(\"src/main.rs\", ```…```)`"));
     }
 
     let mut warnings = Vec::new();
@@ -284,9 +255,7 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
         .collect();
     for name in set.names() {
         if !file_names.contains(name) && !referenced.contains(name) {
-            let block = set.get(name).and_then(|blocks| blocks.first());
-            let where_ = block.map_or_else(String::new, |block| block.where_());
-            warnings.push(format!("{where_}chunk <<{name}>> is never referenced"));
+            warnings.push(format!("chunk ⟪{name}⟫ is never referenced"));
         }
     }
 
@@ -299,35 +268,15 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
             .get(root)
             .and_then(|blocks| blocks.first())
             .and_then(|block| block.lang.clone());
-        let tangled = expand(&set, root, &sources)?;
+        let tangled = expand(&set, root)?;
 
         if !produced.insert(root.to_string()) {
             return Err(LpError::plain(format!("output {root} is produced twice")));
         }
 
-        // An output names only the source files its own lines came from, and each
-        // line entry indexes into that shorter list.
-        let used: BTreeSet<usize> = tangled.lines.iter().filter_map(|entry| entry.2).collect();
-        let named: Vec<String> = used
-            .iter()
-            .map(|index| sources[*index].path.display().to_string())
-            .collect();
-        let remapped: BTreeMap<usize, usize> = used
-            .iter()
-            .enumerate()
-            .map(|(position, index)| (*index, position))
-            .collect();
-        let lines = tangled
-            .lines
-            .iter()
-            .map(|entry| (entry.0, entry.1, entry.2.map(|index| remapped[&index])))
-            .collect();
-
         let entry = FileMap {
-            sources: named,
             lang,
-            lines,
-            chunks: tangled.chunks,
+            runs: tangled.runs,
         };
         let (dir, name) = split(root);
         maps.entry(PathBuf::from(dir))
@@ -360,6 +309,10 @@ pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
 
 pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError> {
     let plan = plan(docs)?;
+    let documented = docs
+        .iter()
+        .map(|doc| doc.display().to_string())
+        .collect::<Vec<_>>();
     let mut outcome = Outcome {
         warnings: plan.warnings.clone(),
         ..Outcome::default()
@@ -399,20 +352,16 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError
         let existing = std::fs::read_to_string(&dest).ok();
         let output = Output {
             root: root.clone(),
-            lines: entry.lines.len(),
+            lines: text.lines().count(),
             lang: entry.lang.clone(),
         };
 
         if existing.as_deref() == Some(text.as_str()) {
             outcome.unchanged.push(output);
         } else if check {
-            outcome.stale.push(drift_report(
-                entry.sources.first().map(String::as_str).unwrap_or("-"),
-                root,
-                existing.as_deref(),
-                &entry.lines,
-                text,
-            ));
+            outcome
+                .stale
+                .push(drift_report(root, existing.as_deref(), &entry.runs, text));
         } else {
             if let Some(parent) = dest.parent() {
                 std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
@@ -434,12 +383,7 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError
                 continue;
             }
             let dir = dir.to_string_lossy().replace('\\', "/");
-            map.set_docs(
-                map.files
-                    .values()
-                    .flat_map(|file| file.sources.iter().cloned())
-                    .collect::<Vec<_>>(),
-            );
+            map.set_docs(documented.clone());
             map.write_if_changed(&out.join(&dir))?;
             live.insert(dir);
         }
@@ -476,23 +420,13 @@ fn first_difference(old: Option<&str>, new: &str) -> Option<usize> {
         .map(|index| index + 1)
 }
 
-fn drift_report(
-    typ: &str,
-    root: &str,
-    existing: Option<&str>,
-    lines: &[(usize, Option<usize>, Option<usize>)],
-    text: &str,
-) -> String {
+fn drift_report(root: &str, existing: Option<&str>, runs: &[Run], text: &str) -> String {
     match first_difference(existing, text) {
         Some(line) => {
-            let origin = lines
-                .iter()
-                .rev()
-                .find(|entry| entry.0 <= line)
-                .and_then(|entry| entry.1);
+            let origin = runs.iter().rev().find(|run| run.first <= line);
             match origin {
-                Some(typ_line) => format!("STALE  {root} (line {line} <- {typ}:{typ_line})"),
-                None => format!("STALE  {root} (line {line}, built by the document)"),
+                Some(run) => format!("STALE  {root} (line {line}, in chunk ⟪{}⟫)", run.chunk),
+                None => format!("STALE  {root} (line {line})"),
             }
         }
         None => format!("STALE  {root} (file missing)"),

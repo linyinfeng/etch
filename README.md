@@ -47,8 +47,8 @@ lp tangle <doc.typ>... [--out DIR] [--check]
 lp watch  <doc.typ>... [--out DIR] [--debounce MS] [--check-cmd CMD]
                                                # 编辑时自动同步，只重写真正变了的文件；
                                                # 有变化时跑 CMD 并把诊断回译到 .typ
-lp map    --file src/main.rs --line 42         # 生成文件的第 42 行来自哪一行 .typ
-lp map    --typ doc.typ --line 92              # 反向：这一行 .typ 产生了哪些生成位置
+lp map    --file src/main.rs --line 42         # 生成文件的第 42 行来自哪个 chunk、在它里面第几行
+lp map    --typ print-results                  # 反向：这个 chunk 产生了哪些生成行
 lp explain [--out DIR]                         # 把 file:line:col 诊断翻译回 .typ（读 stdin）
 lp list   <doc.typ>                            # 列出 chunk：根/片段、语言、源行号、是否被引用
 lp metadata <doc>...                           # 让 Typst 求值并打印它的有序事件流（调试用）
@@ -117,55 +117,25 @@ lp unaccounted doc.typ --out out --delete   # 显式删掉它们（这就是那�
 
 清单上如果有"程序真正需要、只是没被解释"的东西（`flake.lock`、锁文件、清单），正确做法不是继续声明"我不管理"，而是写进文档——作为一个**附录 chunk**，让散文解释它为什么长这样。
 
-## 行号映射
+## 出处（chunk 级，不是行号）
 
-**每个目录一份**：`out/.lpmap.json` 只管 `out/` 里直接躺着的文件，`out/src/.lpmap.json` 只管 `out/src/` 里的。渐进式披露——你打开哪个目录就读哪份映射，不用面对一棵树的全局索引；映射跟着它解释的文件走，目录消失时它也一起消失（删掉一个 `src/foo.rs` 的根 chunk，那份映射里就没有它了）。
+每个输出文件旁边一份 `.lpmap.json`（每目录一份），记的是 **chunk 区间**：哪一段输出行来自哪个声明、在声明里从第几行开始。
 
 ```json
 // examples/demo/build/.lpmap.json
-{ "version": 4, "docs": ["examples/demo/literate.typ"],
-  "files": { "Cargo.toml": { "sources": ["examples/demo/literate.typ"], "lang": "toml",
-                             "lines": [[1, 25, 0], [7, 31, 0]],
-                             "chunks": [{ "name": "Cargo.toml", "typ_line": 25, "end_line": 33 }] } } }
+{ "version": 5, "docs": ["examples/demo/literate.typ"],
+  "files": { "Cargo.toml": { "lang": "toml",
+                             "runs": [{ "chunk": "Cargo.toml", "first": 1, "last": 7 }] } } }
 ```
-
-`lines` 是 `[该目录内的生成文件行, 源文件行|null, sources 下标|null]`，指向**定义处**而不是引用处。`sources` 通常只有一个元素；当一本书拆成多章、某个输出文件的正文来自两个文件时才不止一个，诊断因此总能指到**真正含那一行的文件**。查询时按"最具体的目录优先"解析：`lp map --file src/main.rs` 用 `src/` 的映射；只给文件名（`--file main.rs`）而多个目录都有同名文件时，报歧义而不是猜。生成物不入库：CI 跑 `lp tangle --check`，漂移即失败。
-
-## chunk 由 Typst 求值决定，位置由搜索决定
-
-Typst 是图灵完备的：代码块可以来自 `#for` 循环、`#if` 分支、函数，或者被 `#include` 进来的文件。实测一个只有三行的文档：
-
-```typ
-#for i in range(3) [
-  #raw("print(" + str(i) + ")", lang: "py", block: true) #label("built-" + str(i))
-]
-```
-
-求值看到 `built-0/1/2` 三个 chunk，文本是 `print(0/1/2)`——而这些文本**在源文件里一行都没有**。所以 chunk 集合、顺序、文本、语言**一律由 `typst eval` 求值决定**（`query(raw.where(block: true))`，通过一个只 `#include` 你文件的 wrapper——你的文件不被改动）。工具里**没有 Typst 解析器**。
-
-源位置是 Typst 唯一不给的东西（它不暴露 span）。但既然 chunk 是**声明**出来的，**声明自己就是锚点**：工具去找作者写下的那串 token（`#file("src/main.rs"` / `#chunk("imports"`），再按行计数——这是查表，不是启发式搜索；`locate.rs` 里没有一行知道 fenced block 长什么样（正文也根本不从源码读，声明里带着）。
-
-| 情况 | 指向 |
-|---|---|
-| 声明是字面写下的 | 精确行（绝大多数） |
-| 名字是运行时拼的（`#chunk("part-" + str(i), …)`） | 最长字面前缀所在行，也就是**生成它的那段代码** |
-| 什么都不匹配 | 无行号；`lp map` 直说"由文档代码生成"，不编一个行号 |
-
-细节见 ADR D13（含两次实测教训：为什么不用 Rust 静态分析 Typst，为什么不用 show rule 埋点）。
-
-代价：**`typst` 是 tangle 的硬依赖**（`LP_TYPST` 或 PATH；`nix develop` 里已备），且**文档必须能求值**才能 tangle（半写状态由 Typst 自己的诊断拦截，比以前的语法门更准）。一次完整 tangle（含一次 `typst eval`）在 demo 上是 **77ms**（debug 构建）。
-
-细节见 `agent-notes/decisions/2026-09-11-typst-is-the-authority.md`（含"为什么 show rule 埋点是脆的"这个教训）。
-
-## 多章文档
 
 ```sh
-lp tangle book.typ chapter-one.typ chapter-two.typ --out out
+$ lp map --file src/main.rs --line 6
+chunk ⟪print-results⟫, line 1 of it
+$ echo 'src/main.rs:6:38: error: …' | lp explain
+  ↳ chunk ⟪print-results⟫, line 1 of it  (src/main.rs:6)
 ```
 
-根 chunk 只要出现在**任意一个**文档里即可（"没有 root"是整次调用的判定，不是每个文件）；`<<ref>>` 可以跨文件引用（按命令行给出的文件顺序拼接同名 chunk）。每个输出文件的映射会记下它真正用到的源文件，`lp map` / `lp explain` 因此指到正确的文件与行。
-
-`#include` 不需要特别处理了：Typst 的 include 是内容级合并，`lp tangle book.typ` 就够了，被 include 的章节里的 chunk 一样会被 tangle，映射也会指到**真正含那一行的章节文件**（`tests/metadata.rs::a_chapter_is_tangled_without_being_listed`）。
+**没有 `.typ:行号`，这是有意的**：Typst 脚本层拿不到源位置（元素没有 span，`location` 只是排版坐标），要行号就得在源码里搜索声明 token、或把 Typst parser 放回工具里——两种都不优雅，按项目的准入规矩就不做（见 `agent-notes/decisions/2026-09-11-no-positions.md`）。chunk 名是更好的指针：`rg '#chunk("print-results"'` 一步就到声明。
 
 ## 状态
 

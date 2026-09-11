@@ -95,13 +95,7 @@ fn a_chapter_is_tangled_without_being_listed() {
         "print('from a chapter')\n"
     );
 
-    // And the line is traced to the chapter file, not to the book that includes it.
-    let chapter = std::fs::read_to_string(path.join("chapter.typ")).expect("chapter");
-    let expected = chapter
-        .lines()
-        .position(|line| line.contains("print('from a chapter')"))
-        .expect("line")
-        + 1;
+    // The output line is attributed to the declaration that produced it.
     let mapped = lp(
         &path,
         &[
@@ -114,9 +108,8 @@ fn a_chapter_is_tangled_without_being_listed() {
             "out",
         ],
     );
-    assert_eq!(
-        stdout(&mapped).lines().next(),
-        Some(format!("chapter.typ:{expected}").as_str()),
+    assert!(
+        stdout(&mapped).starts_with("chunk ⟪src/main.py⟫, line 1 of it"),
         "{}",
         stdout(&mapped)
     );

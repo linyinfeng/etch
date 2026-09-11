@@ -13,8 +13,8 @@ fn document(body: &str) -> String {
     format!("#import \"lp.typ\": chunk, file, rule\n#show: rule\n{body}")
 }
 
-/// A document with one file declaration, a shared fragment, a fragment written in
-/// two pieces, and a code sample that is not a chunk at all.
+/// One file declaration, a shared fragment, a fragment written in two pieces,
+/// and a code sample that is not a chunk at all.
 const DOC: &str = "\
 = Demo
 
@@ -48,8 +48,6 @@ fn lp(dir: &Path, args: &[&str]) -> Output {
         .expect("run lp")
 }
 
-/// Write a document plus the package it imports; returns the text that was
-/// written, so line assertions are about the real file.
 fn write_doc(dir: &Path, name: &str, body: &str) -> String {
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
     let text = document(body);
@@ -84,14 +82,15 @@ fn tangle_writes_files_with_concat_and_indentation() {
     let (_guard, dir, _) = project(DOC);
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
-
-    let main = std::fs::read_to_string(dir.join("out/main.py")).expect("main.py");
-    assert_eq!(main, "import sys\nprint('one')\nprint('two')\n");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("out/main.py")).expect("main.py"),
+        "import sys\nprint('one')\nprint('two')\n"
+    );
 }
 
 #[test]
-fn tangle_records_where_every_line_came_from() {
-    let (_guard, dir, text) = project(DOC);
+fn tangle_records_which_chunk_every_line_came_from() {
+    let (_guard, dir, _) = project(DOC);
     assert!(
         lp(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
@@ -101,16 +100,17 @@ fn tangle_records_where_every_line_came_from() {
     let map: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(dir.join("out/.lpmap.json")).expect("map"))
             .expect("json");
-    let lines = map["files"]["main.py"]["lines"].as_array().expect("lines");
-    let sources = map["files"]["main.py"]["sources"]
-        .as_array()
-        .expect("sources");
-    assert_eq!(sources, &[serde_json::json!("demo.typ")]);
-
-    // Output line 3 comes from the second <body> declaration, not from the
-    // reference; the third element names the source file it lives in.
-    let expected = line_of(&text, "print('two')");
-    assert_eq!(lines[2], serde_json::json!([3, expected, 0]));
+    let entry = &map["files"]["main.py"];
+    // No source positions anywhere: a run says which chunk, and which lines it covers.
+    assert_eq!(
+        entry["runs"],
+        serde_json::json!([
+            { "chunk": "imports", "first": 1, "last": 1 },
+            { "chunk": "body", "first": 2, "last": 3 },
+        ])
+    );
+    assert!(entry.get("lines").is_none(), "no line numbers are recorded");
+    assert!(entry.get("sources").is_none(), "nor source files");
 }
 
 #[test]
@@ -122,14 +122,14 @@ fn indentation_follows_the_reference_site() {
             .status
             .success()
     );
-    let main = std::fs::read_to_string(dir.join("out/main.py")).expect("main.py");
-    assert_eq!(main, "if True:\n    print(1)\n");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("out/main.py")).expect("main.py"),
+        "if True:\n    print(1)\n"
+    );
 }
 
 #[test]
 fn a_chunk_written_indented_in_the_document_is_still_dedented() {
-    // Typst removes the indentation a block shares with its surroundings, and the
-    // reference site adds its own.
     let body = "- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n\n#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n";
     let (_guard, dir, _) = project(body);
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
@@ -142,8 +142,8 @@ fn a_chunk_written_indented_in_the_document_is_still_dedented() {
 
 #[test]
 fn a_chapter_can_hold_the_fragment_another_file_references() {
-    // The documents are chapters of one program: prose in one, the fragment in
-    // another, the file that pulls them together in a third.
+    // Documents are chapters of one program: prose in one, the fragment in another,
+    // the file that pulls them together in a third.
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
     write_doc(
@@ -151,7 +151,7 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
         "chapter.typ",
         "= Chapter one\n\n#chunk(\"greeting\", ```py\nprint('hi')\n```)\n",
     );
-    let book = write_doc(
+    write_doc(
         dir.path(),
         "book.typ",
         "= The program\n\n#file(\"src/main.py\", ```py\n<<greeting>>\n```)\n",
@@ -168,20 +168,6 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
         "print('hi')\n"
     );
 
-    // The line came from chapter.typ, and the map says so.
-    let map: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(path.join("out/src/.lpmap.json")).expect("map"),
-    )
-    .expect("json");
-    let entry = &map["files"]["main.py"];
-    assert_eq!(entry["sources"], serde_json::json!(["chapter.typ"]));
-
-    let chapter = std::fs::read_to_string(path.join("chapter.typ")).expect("chapter");
-    assert_eq!(
-        entry["lines"][0],
-        serde_json::json!([1, line_of(&chapter, "print('hi')"), 0])
-    );
-
     let mapped = lp(
         &path,
         &[
@@ -194,19 +180,20 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
             "out",
         ],
     );
-    let expected = format!("chapter.typ:{}", line_of(&chapter, "print('hi')"));
-    assert_eq!(stdout(&mapped).lines().next(), Some(expected.as_str()));
+    assert!(
+        stdout(&mapped).starts_with("chunk ⟪greeting⟫, line 1 of it"),
+        "{}",
+        stdout(&mapped)
+    );
 
     // A run with no file declarations anywhere is still an error.
     let no_files = lp(&path, &["tangle", "chapter.typ", "--out", "out2"]);
     assert!(!no_files.status.success());
     assert!(
-        stderr(&no_files).contains("no root chunks"),
+        stderr(&no_files).contains("no file declarations"),
         "{}",
         stderr(&no_files)
     );
-
-    assert!(line_of(&book, "#file(\"src/main.py\"") > 0);
 }
 
 #[test]
@@ -242,7 +229,7 @@ fn maps_live_next_to_the_files_they_explain() {
         );
         assert!(output.status.success(), "{file}: {}", stderr(&output));
         assert!(
-            stdout(&output).starts_with("demo.typ:"),
+            stdout(&output).starts_with("chunk ⟪src/b.py⟫"),
             "{file}: {}",
             stdout(&output)
         );
@@ -278,29 +265,25 @@ fn an_ambiguous_file_name_is_an_error_not_a_guess() {
 }
 
 #[test]
-fn check_reports_drift_with_the_typ_line() {
-    let (_guard, dir, text) = project(DOC);
+fn check_names_the_chunk_of_the_first_difference() {
+    let (_guard, dir, _) = project(DOC);
     assert!(
         lp(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
-
-    let check = lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"]);
     assert!(
-        check.status.success(),
-        "clean run must succeed: {}",
-        stderr(&check)
+        lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"])
+            .status
+            .success()
     );
 
     std::fs::write(dir.join("out/main.py"), "hand edited\n").expect("write");
     let drift = lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"]);
     assert!(!drift.status.success(), "drift must fail");
     let message = stderr(&drift);
-    assert!(message.contains("STALE  main.py"), "{message}");
-    // The first difference is line 1, which came from the <imports> declaration.
     assert!(
-        message.contains(&format!("demo.typ:{}", line_of(&text, "import sys"))),
+        message.contains("STALE  main.py (line 1, in chunk ⟪imports⟫)"),
         "{message}"
     );
 
@@ -325,8 +308,8 @@ fn the_map_follows_the_document_even_when_no_output_byte_changes() {
             .success()
     );
 
-    // A line of prose above the declarations shifts every mapping and changes no
-    // generated byte: the outputs stay untouched, the map must not.
+    // Prose above the declarations shifts nothing in the output; the map must
+    // still be rewritten so it keeps describing the document.
     let moved = format!(
         "{}\n{}",
         "#import \"lp.typ\": chunk, file, rule\n#show: rule", DOC
@@ -345,26 +328,32 @@ fn the_map_follows_the_document_even_when_no_output_byte_changes() {
         &dir,
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
-    let expected = line_of(&moved, "print('two')");
     assert!(
-        stdout(&forward).starts_with(&format!("demo.typ:{expected}")),
-        "stale map: {}",
+        stdout(&forward).starts_with("chunk ⟪body⟫, line 2 of it"),
+        "{}",
         stdout(&forward)
     );
 }
 
 #[test]
-fn dangling_reference_points_at_the_reference_line() {
+fn dangling_reference_quotes_the_line() {
     let body = "#file(\"main.py\", ```py\n<<missing>>\n```)\n";
     let (_guard, dir, _) = project(body);
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(!output.status.success());
     let message = stderr(&output);
     assert!(
-        message.contains("chunk <<missing>> is not defined"),
+        message.contains("chunk ⟪missing⟫ is not defined"),
         "{message}"
     );
-    assert!(message.contains("demo.typ:4"), "{message}");
+    assert!(
+        message.contains("<<missing>>"),
+        "the line is quoted: {message}"
+    );
+    assert!(
+        message.contains("in chunk ⟪main.py⟫, line 1 of it"),
+        "{message}"
+    );
 }
 
 #[test]
@@ -378,6 +367,15 @@ fn cycle_is_reported() {
         "{}",
         stderr(&output)
     );
+}
+
+#[test]
+fn an_empty_chunk_is_an_error() {
+    let body = "#file(\"main.py\", ```py\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("is empty"), "{}", stderr(&output));
 }
 
 #[test]
@@ -406,8 +404,8 @@ fn unsafe_paths_are_rejected() {
 }
 
 #[test]
-fn map_translates_a_generated_line_back_to_the_document() {
-    let (_guard, dir, text) = project(DOC);
+fn map_names_the_chunk_a_generated_line_came_from() {
+    let (_guard, dir, _) = project(DOC);
     assert!(
         lp(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
@@ -419,13 +417,29 @@ fn map_translates_a_generated_line_back_to_the_document() {
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
     assert!(output.status.success(), "{}", stderr(&output));
-    let expected = format!("demo.typ:{}", line_of(&text, "print('two')"));
-    assert_eq!(stdout(&output).lines().next(), Some(expected.as_str()));
+    assert_eq!(
+        stdout(&output).lines().next(),
+        Some("chunk ⟪body⟫, line 2 of it")
+    );
+
+    // Reverse: which generated lines came from that chunk?
+    let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
+    assert!(reverse.status.success(), "{}", stderr(&reverse));
+    assert!(
+        stdout(&reverse).contains("main.py:2"),
+        "{}",
+        stdout(&reverse)
+    );
+    assert!(
+        stdout(&reverse).contains("main.py:3"),
+        "{}",
+        stdout(&reverse)
+    );
 }
 
 #[test]
-fn explain_rewrites_diagnostics_to_the_document() {
-    let (_guard, dir, text) = project(DOC);
+fn explain_rewrites_diagnostics_to_the_chunk() {
+    let (_guard, dir, _) = project(DOC);
     assert!(
         lp(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
@@ -452,10 +466,7 @@ fn explain_rewrites_diagnostics_to_the_document() {
 
     assert!(stdout(&output).contains("out/main.py:3:1: boom"));
     let message = stderr(&output);
-    assert!(
-        message.contains(&format!("demo.typ:{}", line_of(&text, "print('two')"))),
-        "{message}"
-    );
+    assert!(message.contains("chunk ⟪body⟫, line 2 of it"), "{message}");
 }
 
 #[test]
@@ -464,7 +475,8 @@ fn list_reports_declarations() {
     let output = lp(&dir, &["list", "demo.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
     let listed = stdout(&output);
-    assert!(listed.contains("root  <main.py>"), "{listed}");
+    assert!(listed.contains("file  ⟪main.py⟫"), "{listed}");
+    assert!(listed.contains("frag  ⟪body⟫"), "{listed}");
     assert!(listed.contains("outputs: <main.py>"), "{listed}");
     assert!(
         !listed.contains("not a chunk"),
@@ -473,11 +485,11 @@ fn list_reports_declarations() {
 }
 
 #[test]
-fn a_chunk_built_by_code_has_no_line_and_says_so() {
-    // The declaration is written once, inside a loop: the tool must not invent a
-    // line for the chunks that come out of it.
+fn a_chunk_built_by_code_is_attributed_to_itself() {
+    // The declaration is written once, inside a loop. There is no line to point at
+    // and none is invented; the chunk it produced is named instead.
     let body = "#for i in range(2) [\n  #file(\"gen-\" + str(i) + \".py\", ```py\n  print(#i)\n  ```)\n]\n";
-    let (_guard, dir, text) = project(body);
+    let (_guard, dir, _) = project(body);
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(dir.join("out/gen-0.py").exists());
@@ -487,11 +499,18 @@ fn a_chunk_built_by_code_has_no_line_and_says_so() {
         &dir,
         &["map", "--file", "gen-0.py", "--line", "1", "--out", "out"],
     );
-    let reported = stdout(&mapped);
-    // Either the loop it was built in, or an honest "no source line".
     assert!(
-        reported.contains(&format!("demo.typ:{}", line_of(&text, "#file(\"gen-\"")))
-            || reported.contains("built by the document"),
-        "{reported}"
+        stdout(&mapped).starts_with("chunk ⟪gen-0.py⟫, line 1 of it"),
+        "{}",
+        stdout(&mapped)
     );
+}
+
+#[test]
+fn the_declaration_is_where_the_line_lives() {
+    // A sanity check that the document text itself is what the chunk quotes back,
+    // which is what makes "find it with rg" work.
+    let (_guard, _dir, text) = project(DOC);
+    assert!(line_of(&text, "#chunk(\"imports\"") > 0);
+    assert!(line_of(&text, "print('two')") > 0);
 }

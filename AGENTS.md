@@ -20,10 +20,12 @@ tests/flow.rs     跑真二进制的端到端测试
 
 ## 硬规则
 
+- **优雅是准入条件**（用户定的规矩）：**活不能优雅地做 —— 不做**。任何功能的实现路径若必须依赖启发式搜索、字符串匹配源码、或与 Typst 版本耦合的重复解析，就**不做这个功能**，而不是先脏着做出来。已按此删掉：行号映射（lpmap）、label 当 chunk 名、`is_root` 文件名启发式、`#show raw` 埋点、`typst-syntax` 静态分析（见 ADR D11→D14）。**行号映射不是待办**：Typst 脚本层拿不到源位置，要行号就得重新解析 Typst，那先破这条规矩。
+
 - **正交性**：算法里不得出现目标语言知识。语言差异只能是**数据表**（扩展名 → typst lang tag、将来可选的行指令模板）。
 - **生成物不入库**：`examples/demo/build/` 之类一律 gitignore；CI 用 `lp tangle --check` 守漂移。`.typ` 是唯一真相。
 - **报错必须指回 `.typ`**：新错误一律用 `LpError::at`（带 span），不要拼裸字符串。
-- **chunk 由声明给出**（ADR D13）：文档 import `lit/lp.typ` 并用 `#chunk(name, ```…```)` / `#file(path, ```…```)` 声明；工具用 `typst eval` 读 `query(<lp-decl>)`，**从不解析 Typst**。位置靠精确 token 查找（`#file("/path"` / `#chunk("name"`）+ 行计数，只有"运行时拼出的名字"退化成最长字面前缀。
+- **chunk 由声明给出**（ADR D13）：文档 import `lit/lp.typ` 并用 `#chunk(name, ```…```)` / `#file(path, ```…```)` 声明；工具用 `typst eval` 读 `query(<lp-decl>)`，**从不解析 Typst**。出处是 **chunk 级**（哪个声明、在它里面第几行），**不记 `.typ` 行号**（ADR D14）。
 - **不要**回头走这两条路：用 Rust 静态分析 Typst（构造上就错，见 D13）、用 `#show raw` 埋点（样式化规则会消费元素，见 D12）。
 - **`typst` 是 tangle 的硬依赖**（`LP_TYPST` 或 PATH），`cargo test` 也需要它 —— 用 `nix develop -c cargo test`。
 - **包在 `lit/lp.typ`**：改名/改参数要同步 `src/metadata.rs` 的 `QUERY`、`src/locate.rs` 的 token 形状、以及文档里那段“怎么写 chunk”的说明。
