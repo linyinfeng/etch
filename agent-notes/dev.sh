@@ -29,6 +29,7 @@ gates)
 		echo "strays $(./tangled/target/debug/lp tangle lp.typ 2>&1 | grep -c "declared without a language" || true) (language), 0 expected"
 		echo "weave  $(TYPST_PACKAGE_PATH=$PWD/.lp typst compile lp.typ /tmp/lp.pdf 2>&1 | grep -c warning || true) warnings"
 		printf "demo   %s\n" "$(bash tangled/examples/demo/run.sh 2>&1 | tail -1)"
+		if [ -d tangled/.git ]; then echo "repo   tangled/ is its own repository"; else echo "repo   MISSING tangled/.git"; fi
 	'
 	;;
 test) run cargo test --manifest-path tangled/Cargo.toml ;;
