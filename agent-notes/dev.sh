@@ -67,13 +67,19 @@ seed)
 		echo "seed   MISMATCH with tangled/ ($tree vs $inner)" >&2
 		exit 1
 	}
-	# nothing this document declares may be missing: a .gitignore rule that cuts inside a declared
-	# path would hand a fresh clone a generation that is not the one the document describes
+	# Nothing this document declares may be missing, and neither may the two members of the rule
+	# that no declaration produces: a `.gitignore` edit that cuts inside a declared path, or drops
+	# the lock file, hands a fresh clone a generation that is not the one the document describes.
 	declared=$(run ./tangled/target/debug/lp tangle lp.typ --check | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/^ok *//')
-	missing=$(printf '%s\n' "$declared" | while read -r f; do
-		[ -z "$f" ] && continue
-		git cat-file -e "$tree:$f" 2>/dev/null || echo "$f"
-	done)
+	missing=$(
+		{
+			printf '%s\n' "$declared"
+			printf '%s\n' Cargo.lock .gitignore
+		} | while read -r f; do
+			[ -z "$f" ] && continue
+			git cat-file -e "$tree:$f" 2>/dev/null || echo "$f"
+		done
+	)
 	[ -z "$missing" ] || {
 		echo "seed   declared but not in the tree: $missing" >&2
 		exit 1
