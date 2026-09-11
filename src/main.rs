@@ -1,5 +1,6 @@
 mod diag;
 mod explain;
+mod ignored;
 mod map;
 mod parse;
 mod sweep;
@@ -74,6 +75,11 @@ enum Command {
     },
     /// List the chunks in a document, with their .typ lines
     List { doc: PathBuf },
+    /// Show what a directory declares it does not manage (.lpignore)
+    Ignored {
+        #[arg(long, default_value = "out")]
+        out: PathBuf,
+    },
 }
 
 fn main() {
@@ -123,6 +129,15 @@ fn run() -> Result<i32, LpError> {
             }
             for warning in &outcome.warnings {
                 eprintln!("warning: {warning}");
+            }
+            if !outcome.declared.is_empty() {
+                let files = outcome
+                    .declared
+                    .iter()
+                    .map(|dir| out.join(dir).join(sweep::IGNORE_FILE).display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                eprintln!("note: {files} declares what lp does not manage (run `lp ignored`)");
             }
             Ok(i32::from(!outcome.stale.is_empty()))
         }
@@ -211,6 +226,7 @@ fn run() -> Result<i32, LpError> {
             list(&doc)?;
             Ok(0)
         }
+        Command::Ignored { out } => ignored::run(&out),
     }
 }
 

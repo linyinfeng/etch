@@ -39,6 +39,8 @@ pub struct Sweep {
     pub removed: Vec<String>,
     /// Directories that declared ownership, relative to the output directory.
     pub roots: Vec<String>,
+    /// `.lpignore` files met while walking, relative to the output directory.
+    pub declared: Vec<String>,
 }
 
 /// Remove files that no chunk produces, inside directories that declared
@@ -47,6 +49,7 @@ pub fn run(out: &Path, produced: &BTreeSet<String>, delete: bool) -> Result<Swee
     let mut sweep = Sweep {
         removed: Vec::new(),
         roots: Vec::new(),
+        declared: Vec::new(),
     };
     // A fresh checkout has no output directory: nothing was ever produced, so
     // there is nothing to sweep. Reporting an IO error here would bury the real
@@ -73,6 +76,11 @@ pub fn run(out: &Path, produced: &BTreeSet<String>, delete: bool) -> Result<Swee
         }
 
         let path = entry.path();
+        if path.file_name().is_some_and(|name| name == IGNORE_FILE)
+            && let Some(dir) = path.parent()
+        {
+            sweep.declared.push(relative(out, dir));
+        }
         if is_control_file(path) {
             continue;
         }

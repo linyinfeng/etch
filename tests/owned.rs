@@ -258,6 +258,33 @@ fn a_map_goes_away_with_the_files_it_explained() {
 }
 
 #[test]
+fn declared_exceptions_are_visible() {
+    let (_guard, dir) = managed(IGNORES, &[("handwritten.txt", "kept")]);
+
+    // The declaration shows up in the normal flow …
+    let tangle = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
+    assert!(
+        stderr(&tangle).contains("out/.lpignore declares what lp does not manage"),
+        "{}",
+        stderr(&tangle)
+    );
+
+    // … and on demand, with what each rule currently covers.
+    let output = lp(&dir, &["ignored", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let report = stdout(&output);
+    assert!(report.contains("handwritten.txt"), "{report}");
+    assert!(
+        report.contains("kept by hand") || report.contains("1 file: handwritten.txt"),
+        "{report}"
+    );
+    assert!(
+        report.contains("appendix chunk"),
+        "the nudge belongs there: {report}"
+    );
+}
+
+#[test]
 fn check_is_a_dry_run_for_the_sweep() {
     let (_guard, dir) = managed(IGNORES, &[]);
     std::fs::write(dir.join("out/leftover.py"), "stale").expect("stray");
