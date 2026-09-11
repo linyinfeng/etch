@@ -30,6 +30,762 @@ thinking checkable. Reading front to back is meant to be the design walk: what a
 declaration is, what a pass does with it, how the result is read back, and why each of
 those choices is the one it is.
 
+= What a pass does with the declarations
+
+Everything up to here has been reading: the document declares chunks, and two other pieces
+look things up in the result. This chapter is the writing half, and it is where the rules
+live.
+
+The shape of a pass is the shape of any careful build: *decide what would be written, then
+write only what changed, then judge the result*. Those are `plan`, the write loop and the
+ownership check, and keeping them apart is what makes `--check` a dry run rather than a
+special case of writing.
+
+== Expansion is one idea, applied recursively
+
+A line that is exactly `<<name>>`, with any indentation, is replaced by the text of that
+chunk, with the reference's indentation added to every line of it. That is the whole
+mechanism, and it is textual: nothing here knows what language the text is, or that files
+have syntax at all.
+
+Two consequences explain most of the code below. A chunk may be referenced before it is
+declared — the document is expanded, not interpreted — so the pass cannot work in one
+linear sweep. And the same chunk may be referenced from several places, so its text is
+assembled per reference rather than written once.
+
+Three things can be wrong, and each has its own check: a reference to a name nobody
+declared, a cycle of references, and a declaration with no body. All three report the chunk
+and the line inside it, never a source position — there are no source positions (ADR D14),
+which is why the quoted line is what tells the reader where to look.
+
+== The shape of the file
+
+#file("src/tangle.rs", ````rust
+<<tangle: the module note>>
+
+<<tangle: the imports>>
+
+<<tangle: a chunk as declared>>
+
+<<tangle: an error quotes the line>>
+
+<<tangle: the set of chunks>>
+
+impl<'a> ChunkSet<'a> {
+    <<tangle: one set, in document order>>
+
+    <<tangle: the declared files>>
+
+    <<tangle: every name>>
+
+    <<tangle: the blocks behind a name>>
+}
+
+<<tangle: names that stay inside the output directory>>
+
+<<tangle: what counts as a reference>>
+
+<<tangle: how to write one without it being one>>
+
+<<tangle: what comes out of an expansion>>
+
+impl Tangled {
+    <<tangle: one line, with its indentation>>
+}
+
+<<tangle: expanding a root>>
+
+fn expand_chunk(
+    set: &ChunkSet,
+    name: &str,
+    indent: &str,
+    stack: &mut Vec<String>,
+    out: &mut Tangled,
+) -> Result<(), LpError> {
+    <<tangle: a cycle, named>>
+    stack.push(name.to_string());
+
+    for block in set.get(name).unwrap_or(&[]) {
+        <<tangle: an empty chunk>>
+
+        <<tangle: one line at a time>>
+    }
+
+    stack.pop();
+    Ok(())
+}
+
+<<tangle: what a pass reports>>
+
+<<tangle: what a pass is>>
+
+<<tangle: the plan>>
+
+pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
+    <<tangle: ask typst what the document declares>>
+
+    <<tangle: a document with no files>>
+
+    <<tangle: fragments nobody uses>>
+
+    let mut maps: BTreeMap<PathBuf, LpMap> = BTreeMap::new();
+    let mut texts: BTreeMap<String, String> = BTreeMap::new();
+    let mut produced: BTreeSet<String> = BTreeSet::new();
+    for root in set.roots() {
+        <<tangle: check it, and expand it>>
+
+        <<tangle: the same path twice>>
+
+        <<tangle: record where each line came from>>
+    }
+
+    Ok(Plan {
+        maps,
+        texts,
+        warnings,
+        blocks,
+    })
+}
+
+<<tangle: what the documents produce, per directory>>
+
+pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError> {
+    <<tangle: plan, then an empty outcome>>
+
+    for (root, text) in &plan.texts {
+        <<tangle: write what changed>>
+
+        <<tangle: or say what drifted>>
+    }
+
+    <<tangle: everything must be accounted for>>
+
+    if !check {
+        <<tangle: the maps, and the ones that stopped applying>>
+    }
+    Ok(outcome)
+}
+
+<<tangle: every name a block references>>
+
+<<tangle: where two texts first differ>>
+
+<<tangle: the drift report>>
+
+<<tangle: the two shapes, pinned>>
+````)
+
+== A chunk, and the error that quotes it
+
+A `Block` is a declaration after the metadata layer has normalised it: whether it is a root,
+its name, the language from the fence, and the text. The one method on it exists because
+errors here cannot point at a place: an error about a chunk line quotes that line and says
+which line of which chunk it was.
+
+#chunk("tangle: the module note", ````rust
+//! Tangling: expand chunks into whole files, write them, and record where every
+//! output line came from.
+//!
+//! Which chunks exist is Typst's answer (`metadata.rs`), and it is the only thing
+//! the tool cannot work out for itself. What is left here is our own small part:
+//! `<<references>>`, indentation, writing files, and recording which chunk
+//! produced which output lines.
+````)
+
+#chunk("tangle: the imports", ````rust
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
+
+use crate::diag::LpError;
+use crate::map::{FileMap, LpMap, MAP_FILE, Run, split};
+use crate::metadata;
+````)
+
+#chunk("tangle: a chunk as declared", ````rust
+/// A chunk as the document declared it.
+pub struct Block {
+    /// A `file` declaration names the path it is tangled to; a `chunk` is a
+    /// fragment that only exists where it is referenced.
+    pub root: bool,
+    pub name: String,
+    pub lang: Option<String>,
+    pub text: String,
+}
+````)
+
+#chunk("tangle: an error quotes the line", ````rust
+impl Block {
+    /// An error about the `index`-th line of this chunk. It quotes the line: with
+    /// no source positions to point at, the quote is what tells the reader where
+    /// to look (ADR D14).
+    fn error(&self, index: usize, message: impl Into<String>) -> LpError {
+        let line = self.text.lines().nth(index).unwrap_or("");
+        LpError::plain(format!("{}: {line}", message.into())).with_help(format!(
+            "in chunk ⟪{}⟫, line {} of it",
+            self.name,
+            index + 1
+        ))
+    }
+}
+````)
+
+== The chunks of one invocation
+
+The set is built once per run, over every document that was named, and it keeps the blocks
+in the order the document produced them. That order is the order a name's declarations are
+concatenated in, which is why the map is a map to a *list* and not to a block.
+
+#chunk("tangle: the set of chunks", ````rust
+pub struct ChunkSet<'a> {
+    chunks: BTreeMap<&'a str, Vec<&'a Block>>,
+}
+````)
+
+#chunk("tangle: one set, in document order", ````rust
+/// One set over every chunk of the invocation, in the order the document
+/// produced them.
+pub fn new(blocks: &'a [Block]) -> Self {
+    let mut chunks: BTreeMap<&str, Vec<&Block>> = BTreeMap::new();
+    for block in blocks {
+        chunks.entry(block.name.as_str()).or_default().push(block);
+    }
+    Self { chunks }
+}
+````)
+
+#chunk("tangle: the declared files", ````rust
+/// The declared files, in the order the document declared them.
+pub fn roots(&self) -> Vec<&'a str> {
+    let mut roots: Vec<&str> = Vec::new();
+    for blocks in self.chunks.values() {
+        if let Some(block) = blocks.first()
+            && block.root
+            && !roots.contains(&block.name.as_str())
+        {
+            roots.push(block.name.as_str());
+        }
+    }
+    roots
+}
+````)
+
+#chunk("tangle: every name", ````rust
+pub fn names(&self) -> impl Iterator<Item = &'a str> {
+    self.chunks.keys().copied()
+}
+````)
+
+#chunk("tangle: the blocks behind a name", ````rust
+pub fn get(&self, name: &str) -> Option<&[&'a Block]> {
+    self.chunks.get(name).map(Vec::as_slice)
+}
+````)
+
+== A declared path is not allowed to escape
+
+A file declaration writes a path, and a path can be a lie: absolute, `..`, a Windows drive.
+The check is a whitelist in disguise — every component has to be an ordinary one — and it
+runs before anything is expanded, so a document cannot write outside the directory it was
+given even by accident.
+
+#chunk("tangle: names that stay inside the output directory", ````rust
+/// Reject declared paths that would write outside the output directory.
+pub fn check_output_path(name: &str) -> Result<(), LpError> {
+    let unsafe_name = name.is_empty()
+        || name.starts_with('/')
+        || name.contains('\\')
+        || Path::new(name).components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        });
+
+    if unsafe_name {
+        return Err(LpError::plain(format!("unsafe chunk name {name:?}"))
+            .with_help("a file declaration must be a relative path inside --out, without `..`"));
+    }
+    Ok(())
+}
+````)
+
+== What a reference is
+
+This predicate is the whole syntax of references: a line whose trimmed text starts with
+`<<` and ends with `>>` around a non-empty name that contains no angle brackets. Anything
+else is literal, which is what keeps `a << b` and `assert_eq!(x, "<<y>>")` out of trouble.
+
+#chunk("tangle: what counts as a reference", ````rust
+/// `<<name>>` on a line of its own, with any indentation. Anything else on the
+/// line (prose, `a << b` in C++) stays literal.
+fn ref_target(line: &str) -> Option<(&str, &str)> {
+    let trimmed = line.trim();
+    let inner = trimmed.strip_prefix("<<")?.strip_suffix(">>")?;
+    if inner.is_empty() || inner.contains('<') || inner.contains('>') {
+        return None;
+    }
+    Some((inner, &line[..line.len() - line.trim_start().len()]))
+}
+````)
+
+== And how to write one without it being one
+
+The escape exists because this document is its own subject: a chapter that shows what a
+reference looks like has to write a line that looks exactly like one. `@<<name>>` is
+emitted as `<<name>>` and is never expanded, which is also why the escape is not a
+reference for the purposes of the unused-chunk warning (ADR D17).
+
+#chunk("tangle: how to write one without it being one", ````rust
+/// A line that reads as a reference but has to stay literal: `@<<name>>` comes out
+/// as `<<name>>`. A document quoting the syntax itself — this project's own skill,
+/// for one — needs it (ADR D17).
+fn escaped_ref(line: &str) -> Option<String> {
+    let indent = &line[..line.len() - line.trim_start().len()];
+    let rest = line.trim().strip_prefix('@')?;
+    let inner = rest.strip_prefix("<<")?.strip_suffix(">>")?;
+    if inner.is_empty() || inner.contains('<') || inner.contains('>') {
+        return None;
+    }
+    Some(format!("{indent}<<{inner}>>"))
+}
+````)
+
+== What an expansion produces
+
+The result of expanding a root is text and a list of runs. Keeping the runs here, rather
+than deriving them later, is the reason provenance costs nothing: the line numbers are
+known at the moment the line is written.
+
+#chunk("tangle: what comes out of an expansion", ````rust
+pub struct Tangled {
+    /// File contents, always ending in a newline.
+    pub text: String,
+    /// Which chunk produced which consecutive output lines.
+    pub runs: Vec<Run>,
+    /// Lines written so far, so a run can be extended without counting the text.
+    lines: usize,
+}
+````)
+
+#chunk("tangle: one line, with its indentation", ````rust
+fn push(&mut self, chunk: &str, indent: &str, line: &str) {
+    self.text.push_str(indent);
+    self.text.push_str(line);
+    self.text.push('\n');
+    self.lines += 1;
+    match self.runs.last_mut() {
+        Some(run) if run.chunk == chunk && run.last + 1 == self.lines => run.last = self.lines,
+        _ => self.runs.push(Run {
+            chunk: chunk.to_string(),
+            first: self.lines,
+            last: self.lines,
+        }),
+    }
+}
+````)
+
+== Expanding a root, and the three ways it can fail
+
+#chunk("tangle: expanding a root", ````rust
+pub fn expand(set: &ChunkSet, root: &str) -> Result<Tangled, LpError> {
+    let mut out = Tangled {
+        text: String::new(),
+        runs: Vec::new(),
+        lines: 0,
+    };
+    let mut stack = Vec::new();
+    expand_chunk(set, root, "", &mut stack, &mut out)?;
+    Ok(out)
+}
+````)
+
+The recursion carries the indentation of the reference that pulled each chunk in, and a
+stack of the names currently being expanded so that a cycle can be reported as the chain it
+is. The stack is what makes the error message useful — "a -> b -> a" says where to look,
+"cycle detected" does not.
+
+#chunk("tangle: a cycle, named", ````rust
+if let Some(start) = stack.iter().position(|entry| entry == name) {
+    let mut chain: Vec<String> = stack[start..].to_vec();
+    chain.push(name.to_string());
+    let message = format!("cycle in chunks: {}", chain.join(" -> "));
+    let block = set.get(name).and_then(|blocks| blocks.first()).copied();
+    return Err(match block {
+        Some(block) => block.error(0, message),
+        None => LpError::plain(message),
+    });
+}
+````)
+
+#chunk("tangle: an empty chunk", ````rust
+if block.text.trim().is_empty() {
+    stack.pop();
+    return Err(LpError::plain(format!("chunk ⟪{name}⟫ is empty"))
+        .with_help("delete the declaration, or give it a code block with a body"));
+}
+````)
+
+The inner loop is the mechanism, and it is four lines of decision: an escaped reference is
+written out with the `@` removed, an ordinary reference is looked up (missing names are an
+error that lists what does exist) and expanded with the combined indentation, and anything
+else is written as it stands.
+
+#chunk("tangle: one line at a time", ````rust
+for (index, line) in block.text.lines().enumerate() {
+    if let Some(literal) = escaped_ref(line) {
+        out.push(name, indent, &literal);
+        continue;
+    }
+    match ref_target(line) {
+        None => out.push(name, indent, line),
+        Some((target, local_indent)) => {
+            if set.get(target).is_none() {
+                return Err(block
+                    .error(index, format!("chunk ⟪{target}⟫ is not defined"))
+                    .with_help(format!(
+                        "referenced from ⟪{name}⟫; known chunks: {}",
+                        set.names().collect::<Vec<_>>().join(", ")
+                    )));
+            }
+            let nested = format!("{indent}{local_indent}");
+            expand_chunk(set, target, &nested, stack, out)?;
+        }
+    }
+}
+````)
+
+== What a pass reports, and what it plans
+
+`Output` is what one file looked like to a pass, `Outcome` is the pass's whole answer —
+changed, unchanged, drifted, unaccounted, warnings — and `Plan` is what a pass would do if
+it were allowed to. The separation is what lets `--check` be a plan plus a comparison, with
+no second implementation of anything.
+
+#chunk("tangle: what a pass reports", ````rust
+#[derive(Debug)]
+pub struct Output {
+    pub root: String,
+    pub lines: usize,
+    pub lang: Option<String>,
+}
+````)
+
+#chunk("tangle: what a pass is", ````rust
+#[derive(Debug, Default)]
+pub struct Outcome {
+    /// Outputs whose bytes differ from what is on disk (written unless checking).
+    pub changed: Vec<Output>,
+    /// Outputs that were already up to date.
+    pub unchanged: Vec<Output>,
+    /// Drift reports, filled only when `check` is set.
+    pub stale: Vec<String>,
+    /// Files under the output directory that neither a chunk nor a declaration
+    /// accounts for. Non-empty means the pass failed.
+    pub unaccounted: Vec<crate::status::Unaccounted>,
+    pub warnings: Vec<String>,
+}
+````)
+
+#chunk("tangle: the plan", ````rust
+/// What the documents produce, without writing anything.
+pub struct Plan {
+    pub maps: BTreeMap<PathBuf, LpMap>,
+    pub texts: BTreeMap<String, String>,
+    pub warnings: Vec<String>,
+    pub blocks: Vec<Block>,
+}
+````)
+
+== Planning a pass
+
+Planning begins by asking for the declarations — the one thing this tool cannot work out for
+itself — and turning them into blocks.
+
+#chunk("tangle: ask typst what the document declares", ````rust
+let typst = metadata::binary()?;
+let blocks: Vec<Block> = metadata::declarations(&typst, docs)?
+    .into_iter()
+    .map(|declaration| Block {
+        root: declaration.kind().expect("checked") == metadata::Kind::File,
+        name: declaration.name,
+        lang: declaration.lang,
+        text: declaration.text,
+    })
+    .collect();
+````)
+
+#chunk("tangle: a document with no files", ````rust
+let set = ChunkSet::new(&blocks);
+if set.roots().is_empty() {
+    let listed = docs
+        .iter()
+        .map(|doc| doc.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    return Err(LpError::plain(format!("no file declarations in {listed}"))
+        .with_help("declare one: `#file(\"src/main.rs\", ```…```)`"));
+}
+````)
+
+Fragments nobody references are a warning rather than an error, because a document may
+legitimately hold a fragment for a chapter that is still being written — but a fragment that
+was declared and then renamed away is almost always a mistake, and this is what catches it.
+
+#chunk("tangle: fragments nobody uses", ````rust
+let mut warnings = Vec::new();
+let referenced: BTreeSet<String> = blocks.iter().flat_map(refs_of).collect();
+let file_names: BTreeSet<&str> = blocks
+    .iter()
+    .filter(|block| block.root)
+    .map(|block| block.name.as_str())
+    .collect();
+for name in set.names() {
+    if !file_names.contains(name) && !referenced.contains(name) {
+        warnings.push(format!("chunk ⟪{name}⟫ is never referenced"));
+    }
+}
+````)
+
+#chunk("tangle: check it, and expand it", ````rust
+check_output_path(root)?;
+let lang = set
+    .get(root)
+    .and_then(|blocks| blocks.first())
+    .and_then(|block| block.lang.clone());
+let tangled = expand(&set, root)?;
+````)
+
+#chunk("tangle: the same path twice", ````rust
+if !produced.insert(root.to_string()) {
+    return Err(LpError::plain(format!("output {root} is produced twice")));
+}
+````)
+
+#chunk("tangle: record where each line came from", ````rust
+let entry = FileMap {
+    lang,
+    runs: tangled.runs,
+};
+let (dir, name) = split(root);
+maps.entry(PathBuf::from(dir))
+    .or_default()
+    .files
+    .insert(name.to_string(), entry);
+texts.insert(root.to_string(), tangled.text);
+````)
+
+== Judging the result
+
+`produced` answers the question the ownership check asks: which files, per directory, did
+this pass account for? It is derived from the maps rather than kept alongside them, so there
+is exactly one answer to that question and no chance of the two disagreeing.
+
+#chunk("tangle: what the documents produce, per directory", ````rust
+/// What the documents produce, per directory: what `status.rs` counts against.
+pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
+    plan.maps
+        .iter()
+        .map(|(dir, map)| {
+            (
+                dir.to_string_lossy().replace('\\', "/"),
+                map.files.keys().cloned().collect(),
+            )
+        })
+        .collect()
+}
+````)
+
+== Writing the pass
+
+`run` is the three steps in order. First the plan.
+
+#chunk("tangle: plan, then an empty outcome", ````rust
+let plan = plan(docs)?;
+let documented = docs
+    .iter()
+    .map(|doc| doc.display().to_string())
+    .collect::<Vec<_>>();
+let mut outcome = Outcome {
+    warnings: plan.warnings.clone(),
+    ..Outcome::default()
+};
+````)
+
+Then the loop that compares each planned file with what is on disk: identical bytes are left
+alone — mtime included, so build tools do not rebuild — and a difference is either written,
+or, in check mode, reported as drift.
+
+#chunk("tangle: write what changed", ````rust
+let (dir, name) = split(root);
+let entry = &plan.maps[Path::new(dir)].files[name];
+let dest = out.join(root);
+let existing = std::fs::read_to_string(&dest).ok();
+let output = Output {
+    root: root.clone(),
+    lines: text.lines().count(),
+    lang: entry.lang.clone(),
+};
+````)
+
+#chunk("tangle: or say what drifted", ````rust
+if existing.as_deref() == Some(text.as_str()) {
+    outcome.unchanged.push(output);
+} else if check {
+    outcome
+        .stale
+        .push(drift_report(root, existing.as_deref(), &entry.runs, text));
+} else {
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
+    }
+    std::fs::write(&dest, text).map_err(|err| LpError::io(&dest, err))?;
+    outcome.changed.push(output);
+}
+````)
+
+Then the ownership check, after the write, for the reason recorded in D20: a `.lpignore` can
+itself be something the document produces, so a fresh tree has no control file until this
+pass writes one, and checking first would refuse to bootstrap.
+
+#chunk("tangle: everything must be accounted for", ````rust
+// A map tracks the *document*, so it can be stale even when no output byte
+// moved (a line of prose shifts every mapping); `write_if_changed` compares
+// content rather than the output files'. Maps for directories that stopped
+// producing anything are removed with the directories themselves: the map
+// travels with the files it explains.
+//
+// The ownership check comes first: it runs before any map is written, but *after*
+// the files above, because `.lpignore` is one of the things a document can produce.
+// A fresh repository has no control file yet, and the pass that writes it is the
+// pass that makes the tree consistent (ADR D20).
+outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
+if !outcome.unaccounted.is_empty() {
+    let listed = outcome
+        .unaccounted
+        .iter()
+        .flat_map(|group| {
+            let label = if group.dir.is_empty() {
+                ".".to_string()
+            } else {
+                group.dir.clone()
+            };
+            group
+                .entries
+                .iter()
+                .map(move |entry| format!("  {label}/{entry}"))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    return Err(LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
+        "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
+    ));
+}
+````)
+
+And last the maps: written only when they changed, and removed when the directory they
+describe stopped producing anything, along with the directories themselves. A map is not a
+log of what once existed; it describes what is there now.
+
+#chunk("tangle: the maps, and the ones that stopped applying", ````rust
+let mut live: BTreeSet<String> = BTreeSet::new();
+for (dir, mut map) in plan.maps {
+    if map.is_empty() {
+        continue;
+    }
+    let dir = dir.to_string_lossy().replace('\\', "/");
+    map.set_docs(documented.clone());
+    map.write_if_changed(&out.join(&dir))?;
+    live.insert(dir);
+}
+for (dir, _) in LpMap::read_all(out) {
+    if live.contains(&dir) {
+        continue;
+    }
+    let stale = out.join(&dir).join(MAP_FILE);
+    if std::fs::remove_file(&stale).is_ok() {
+        crate::status::prune_empty_dirs(stale.parent().unwrap_or(out), out);
+    }
+}
+````)
+
+== Saying what drifted
+
+The drift report is deliberately one line per file: where the first difference is, and which
+chunk produced the line on the *document's* side. Anything more is a diff, and a diff is not
+what the reader needs — the reader needs the name of the thing to edit.
+
+#chunk("tangle: every name a block references", ````rust
+/// Every name referenced by a block, in document order.
+pub fn refs_of(block: &Block) -> Vec<String> {
+    let mut names = Vec::new();
+    for line in block.text.lines() {
+        if let Some((target, _)) = ref_target(line) {
+            names.push(target.to_string());
+        }
+    }
+    names
+}
+````)
+
+#chunk("tangle: where two texts first differ", ````rust
+fn first_difference(old: Option<&str>, new: &str) -> Option<usize> {
+    let old = old?;
+    let old_lines: Vec<&str> = old.lines().collect();
+    let new_lines: Vec<&str> = new.lines().collect();
+    (0..old_lines.len().max(new_lines.len()))
+        .find(|&index| old_lines.get(index) != new_lines.get(index))
+        .map(|index| index + 1)
+}
+````)
+
+#chunk("tangle: the drift report", ````rust
+fn drift_report(root: &str, existing: Option<&str>, runs: &[Run], text: &str) -> String {
+    match first_difference(existing, text) {
+        Some(line) => {
+            let origin = runs.iter().rev().find(|run| run.first <= line);
+            match origin {
+                Some(run) => format!("STALE  {root} (line {line}, in chunk ⟪{}⟫)", run.chunk),
+                None => format!("STALE  {root} (line {line})"),
+            }
+        }
+        None => format!("STALE  {root} (file missing)"),
+    }
+}
+````)
+
+== The two predicates, pinned
+
+Two unit tests, and they exist because everything else in this chapter depends on them: what
+counts as a reference, and what the escape does. Both are pure functions of a line, which is
+why they can be tested here rather than by tangling a document.
+
+#chunk("tangle: the two shapes, pinned", ````rust
+#[cfg(test)]
+mod tests {
+    use super::{escaped_ref, ref_target};
+
+    #[test]
+    fn only_a_whole_line_reference_counts() {
+        assert_eq!(ref_target("<<body>>"), Some(("body", "")));
+        assert_eq!(ref_target("    <<body>>  "), Some(("body", "    ")));
+        // Not references: they must survive tangling as literal text.
+        assert_eq!(ref_target("std::cout << x << std::endl;"), None);
+        assert_eq!(ref_target("<<a>><<b>>"), None);
+        assert_eq!(ref_target("auto y = <<x>>;"), None);
+    }
+
+    #[test]
+    fn an_escaped_reference_comes_out_without_the_escape() {
+        assert_eq!(escaped_ref("@<<body>>").as_deref(), Some("<<body>>"));
+        assert_eq!(escaped_ref("  @<<body>>").as_deref(), Some("  <<body>>"));
+        assert_eq!(escaped_ref("<<body>>"), None);
+        assert_eq!(escaped_ref("@<<a>><<b>>"), None);
+        assert_eq!(escaped_ref("@@<<body>>"), None);
+    }
+}
+````)
 = Reading a diagnostic back to the declaration
 
 The compiler knows nothing about this document. It knows `src/main.rs`, and it will report
@@ -1681,484 +2437,6 @@ mod tests {
             common_ancestor(&[PathBuf::from("/a/book.typ")]),
             Path::new("/a")
         );
-    }
-}
-````)
-
-#file("src/tangle.rs", ````rust
-//! Tangling: expand chunks into whole files, write them, and record where every
-//! output line came from.
-//!
-//! Which chunks exist is Typst's answer (`metadata.rs`), and it is the only thing
-//! the tool cannot work out for itself. What is left here is our own small part:
-//! `<<references>>`, indentation, writing files, and recording which chunk
-//! produced which output lines.
-
-use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
-
-use crate::diag::LpError;
-use crate::map::{FileMap, LpMap, MAP_FILE, Run, split};
-use crate::metadata;
-
-/// A chunk as the document declared it.
-pub struct Block {
-    /// A `file` declaration names the path it is tangled to; a `chunk` is a
-    /// fragment that only exists where it is referenced.
-    pub root: bool,
-    pub name: String,
-    pub lang: Option<String>,
-    pub text: String,
-}
-
-impl Block {
-    /// An error about the `index`-th line of this chunk. It quotes the line: with
-    /// no source positions to point at, the quote is what tells the reader where
-    /// to look (ADR D14).
-    fn error(&self, index: usize, message: impl Into<String>) -> LpError {
-        let line = self.text.lines().nth(index).unwrap_or("");
-        LpError::plain(format!("{}: {line}", message.into())).with_help(format!(
-            "in chunk ⟪{}⟫, line {} of it",
-            self.name,
-            index + 1
-        ))
-    }
-}
-
-pub struct ChunkSet<'a> {
-    chunks: BTreeMap<&'a str, Vec<&'a Block>>,
-}
-
-impl<'a> ChunkSet<'a> {
-    /// One set over every chunk of the invocation, in the order the document
-    /// produced them.
-    pub fn new(blocks: &'a [Block]) -> Self {
-        let mut chunks: BTreeMap<&str, Vec<&Block>> = BTreeMap::new();
-        for block in blocks {
-            chunks.entry(block.name.as_str()).or_default().push(block);
-        }
-        Self { chunks }
-    }
-
-    /// The declared files, in the order the document declared them.
-    pub fn roots(&self) -> Vec<&'a str> {
-        let mut roots: Vec<&str> = Vec::new();
-        for blocks in self.chunks.values() {
-            if let Some(block) = blocks.first()
-                && block.root
-                && !roots.contains(&block.name.as_str())
-            {
-                roots.push(block.name.as_str());
-            }
-        }
-        roots
-    }
-
-    pub fn names(&self) -> impl Iterator<Item = &'a str> {
-        self.chunks.keys().copied()
-    }
-
-    pub fn get(&self, name: &str) -> Option<&[&'a Block]> {
-        self.chunks.get(name).map(Vec::as_slice)
-    }
-}
-
-/// Reject declared paths that would write outside the output directory.
-pub fn check_output_path(name: &str) -> Result<(), LpError> {
-    let unsafe_name = name.is_empty()
-        || name.starts_with('/')
-        || name.contains('\\')
-        || Path::new(name).components().any(|component| {
-            matches!(
-                component,
-                std::path::Component::ParentDir
-                    | std::path::Component::RootDir
-                    | std::path::Component::Prefix(_)
-            )
-        });
-
-    if unsafe_name {
-        return Err(LpError::plain(format!("unsafe chunk name {name:?}"))
-            .with_help("a file declaration must be a relative path inside --out, without `..`"));
-    }
-    Ok(())
-}
-
-/// `<<name>>` on a line of its own, with any indentation. Anything else on the
-/// line (prose, `a << b` in C++) stays literal.
-fn ref_target(line: &str) -> Option<(&str, &str)> {
-    let trimmed = line.trim();
-    let inner = trimmed.strip_prefix("<<")?.strip_suffix(">>")?;
-    if inner.is_empty() || inner.contains('<') || inner.contains('>') {
-        return None;
-    }
-    Some((inner, &line[..line.len() - line.trim_start().len()]))
-}
-
-/// A line that reads as a reference but has to stay literal: `@<<name>>` comes out
-/// as `<<name>>`. A document quoting the syntax itself — this project's own skill,
-/// for one — needs it (ADR D17).
-fn escaped_ref(line: &str) -> Option<String> {
-    let indent = &line[..line.len() - line.trim_start().len()];
-    let rest = line.trim().strip_prefix('@')?;
-    let inner = rest.strip_prefix("<<")?.strip_suffix(">>")?;
-    if inner.is_empty() || inner.contains('<') || inner.contains('>') {
-        return None;
-    }
-    Some(format!("{indent}<<{inner}>>"))
-}
-
-pub struct Tangled {
-    /// File contents, always ending in a newline.
-    pub text: String,
-    /// Which chunk produced which consecutive output lines.
-    pub runs: Vec<Run>,
-    /// Lines written so far, so a run can be extended without counting the text.
-    lines: usize,
-}
-
-impl Tangled {
-    fn push(&mut self, chunk: &str, indent: &str, line: &str) {
-        self.text.push_str(indent);
-        self.text.push_str(line);
-        self.text.push('\n');
-        self.lines += 1;
-        match self.runs.last_mut() {
-            Some(run) if run.chunk == chunk && run.last + 1 == self.lines => run.last = self.lines,
-            _ => self.runs.push(Run {
-                chunk: chunk.to_string(),
-                first: self.lines,
-                last: self.lines,
-            }),
-        }
-    }
-}
-
-pub fn expand(set: &ChunkSet, root: &str) -> Result<Tangled, LpError> {
-    let mut out = Tangled {
-        text: String::new(),
-        runs: Vec::new(),
-        lines: 0,
-    };
-    let mut stack = Vec::new();
-    expand_chunk(set, root, "", &mut stack, &mut out)?;
-    Ok(out)
-}
-
-fn expand_chunk(
-    set: &ChunkSet,
-    name: &str,
-    indent: &str,
-    stack: &mut Vec<String>,
-    out: &mut Tangled,
-) -> Result<(), LpError> {
-    if let Some(start) = stack.iter().position(|entry| entry == name) {
-        let mut chain: Vec<String> = stack[start..].to_vec();
-        chain.push(name.to_string());
-        let message = format!("cycle in chunks: {}", chain.join(" -> "));
-        let block = set.get(name).and_then(|blocks| blocks.first()).copied();
-        return Err(match block {
-            Some(block) => block.error(0, message),
-            None => LpError::plain(message),
-        });
-    }
-    stack.push(name.to_string());
-
-    for block in set.get(name).unwrap_or(&[]) {
-        if block.text.trim().is_empty() {
-            stack.pop();
-            return Err(LpError::plain(format!("chunk ⟪{name}⟫ is empty"))
-                .with_help("delete the declaration, or give it a code block with a body"));
-        }
-
-        for (index, line) in block.text.lines().enumerate() {
-            if let Some(literal) = escaped_ref(line) {
-                out.push(name, indent, &literal);
-                continue;
-            }
-            match ref_target(line) {
-                None => out.push(name, indent, line),
-                Some((target, local_indent)) => {
-                    if set.get(target).is_none() {
-                        return Err(block
-                            .error(index, format!("chunk ⟪{target}⟫ is not defined"))
-                            .with_help(format!(
-                                "referenced from ⟪{name}⟫; known chunks: {}",
-                                set.names().collect::<Vec<_>>().join(", ")
-                            )));
-                    }
-                    let nested = format!("{indent}{local_indent}");
-                    expand_chunk(set, target, &nested, stack, out)?;
-                }
-            }
-        }
-    }
-
-    stack.pop();
-    Ok(())
-}
-
-#[derive(Debug)]
-pub struct Output {
-    pub root: String,
-    pub lines: usize,
-    pub lang: Option<String>,
-}
-
-#[derive(Debug, Default)]
-pub struct Outcome {
-    /// Outputs whose bytes differ from what is on disk (written unless checking).
-    pub changed: Vec<Output>,
-    /// Outputs that were already up to date.
-    pub unchanged: Vec<Output>,
-    /// Drift reports, filled only when `check` is set.
-    pub stale: Vec<String>,
-    /// Files under the output directory that neither a chunk nor a declaration
-    /// accounts for. Non-empty means the pass failed.
-    pub unaccounted: Vec<crate::status::Unaccounted>,
-    pub warnings: Vec<String>,
-}
-
-/// What the documents produce, without writing anything.
-pub struct Plan {
-    pub maps: BTreeMap<PathBuf, LpMap>,
-    pub texts: BTreeMap<String, String>,
-    pub warnings: Vec<String>,
-    pub blocks: Vec<Block>,
-}
-
-pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
-    let typst = metadata::binary()?;
-    let blocks: Vec<Block> = metadata::declarations(&typst, docs)?
-        .into_iter()
-        .map(|declaration| Block {
-            root: declaration.kind().expect("checked") == metadata::Kind::File,
-            name: declaration.name,
-            lang: declaration.lang,
-            text: declaration.text,
-        })
-        .collect();
-
-    let set = ChunkSet::new(&blocks);
-    if set.roots().is_empty() {
-        let listed = docs
-            .iter()
-            .map(|doc| doc.display().to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(LpError::plain(format!("no file declarations in {listed}"))
-            .with_help("declare one: `#file(\"src/main.rs\", ```…```)`"));
-    }
-
-    let mut warnings = Vec::new();
-    let referenced: BTreeSet<String> = blocks.iter().flat_map(refs_of).collect();
-    let file_names: BTreeSet<&str> = blocks
-        .iter()
-        .filter(|block| block.root)
-        .map(|block| block.name.as_str())
-        .collect();
-    for name in set.names() {
-        if !file_names.contains(name) && !referenced.contains(name) {
-            warnings.push(format!("chunk ⟪{name}⟫ is never referenced"));
-        }
-    }
-
-    let mut maps: BTreeMap<PathBuf, LpMap> = BTreeMap::new();
-    let mut texts: BTreeMap<String, String> = BTreeMap::new();
-    let mut produced: BTreeSet<String> = BTreeSet::new();
-    for root in set.roots() {
-        check_output_path(root)?;
-        let lang = set
-            .get(root)
-            .and_then(|blocks| blocks.first())
-            .and_then(|block| block.lang.clone());
-        let tangled = expand(&set, root)?;
-
-        if !produced.insert(root.to_string()) {
-            return Err(LpError::plain(format!("output {root} is produced twice")));
-        }
-
-        let entry = FileMap {
-            lang,
-            runs: tangled.runs,
-        };
-        let (dir, name) = split(root);
-        maps.entry(PathBuf::from(dir))
-            .or_default()
-            .files
-            .insert(name.to_string(), entry);
-        texts.insert(root.to_string(), tangled.text);
-    }
-
-    Ok(Plan {
-        maps,
-        texts,
-        warnings,
-        blocks,
-    })
-}
-
-/// What the documents produce, per directory: what `status.rs` counts against.
-pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
-    plan.maps
-        .iter()
-        .map(|(dir, map)| {
-            (
-                dir.to_string_lossy().replace('\\', "/"),
-                map.files.keys().cloned().collect(),
-            )
-        })
-        .collect()
-}
-
-pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError> {
-    let plan = plan(docs)?;
-    let documented = docs
-        .iter()
-        .map(|doc| doc.display().to_string())
-        .collect::<Vec<_>>();
-    let mut outcome = Outcome {
-        warnings: plan.warnings.clone(),
-        ..Outcome::default()
-    };
-
-    for (root, text) in &plan.texts {
-        let (dir, name) = split(root);
-        let entry = &plan.maps[Path::new(dir)].files[name];
-        let dest = out.join(root);
-        let existing = std::fs::read_to_string(&dest).ok();
-        let output = Output {
-            root: root.clone(),
-            lines: text.lines().count(),
-            lang: entry.lang.clone(),
-        };
-
-        if existing.as_deref() == Some(text.as_str()) {
-            outcome.unchanged.push(output);
-        } else if check {
-            outcome
-                .stale
-                .push(drift_report(root, existing.as_deref(), &entry.runs, text));
-        } else {
-            if let Some(parent) = dest.parent() {
-                std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
-            }
-            std::fs::write(&dest, text).map_err(|err| LpError::io(&dest, err))?;
-            outcome.changed.push(output);
-        }
-    }
-
-    // A map tracks the *document*, so it can be stale even when no output byte
-    // moved (a line of prose shifts every mapping); `write_if_changed` compares
-    // content rather than the output files'. Maps for directories that stopped
-    // producing anything are removed with the directories themselves: the map
-    // travels with the files it explains.
-    //
-    // The ownership check comes first: it runs before any map is written, but *after*
-    // the files above, because `.lpignore` is one of the things a document can produce.
-    // A fresh repository has no control file yet, and the pass that writes it is the
-    // pass that makes the tree consistent (ADR D20).
-    outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
-    if !outcome.unaccounted.is_empty() {
-        let listed = outcome
-            .unaccounted
-            .iter()
-            .flat_map(|group| {
-                let label = if group.dir.is_empty() {
-                    ".".to_string()
-                } else {
-                    group.dir.clone()
-                };
-                group
-                    .entries
-                    .iter()
-                    .map(move |entry| format!("  {label}/{entry}"))
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        return Err(LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
-            "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
-        ));
-    }
-
-    if !check {
-        let mut live: BTreeSet<String> = BTreeSet::new();
-        for (dir, mut map) in plan.maps {
-            if map.is_empty() {
-                continue;
-            }
-            let dir = dir.to_string_lossy().replace('\\', "/");
-            map.set_docs(documented.clone());
-            map.write_if_changed(&out.join(&dir))?;
-            live.insert(dir);
-        }
-        for (dir, _) in LpMap::read_all(out) {
-            if live.contains(&dir) {
-                continue;
-            }
-            let stale = out.join(&dir).join(MAP_FILE);
-            if std::fs::remove_file(&stale).is_ok() {
-                crate::status::prune_empty_dirs(stale.parent().unwrap_or(out), out);
-            }
-        }
-    }
-    Ok(outcome)
-}
-
-/// Every name referenced by a block, in document order.
-pub fn refs_of(block: &Block) -> Vec<String> {
-    let mut names = Vec::new();
-    for line in block.text.lines() {
-        if let Some((target, _)) = ref_target(line) {
-            names.push(target.to_string());
-        }
-    }
-    names
-}
-
-fn first_difference(old: Option<&str>, new: &str) -> Option<usize> {
-    let old = old?;
-    let old_lines: Vec<&str> = old.lines().collect();
-    let new_lines: Vec<&str> = new.lines().collect();
-    (0..old_lines.len().max(new_lines.len()))
-        .find(|&index| old_lines.get(index) != new_lines.get(index))
-        .map(|index| index + 1)
-}
-
-fn drift_report(root: &str, existing: Option<&str>, runs: &[Run], text: &str) -> String {
-    match first_difference(existing, text) {
-        Some(line) => {
-            let origin = runs.iter().rev().find(|run| run.first <= line);
-            match origin {
-                Some(run) => format!("STALE  {root} (line {line}, in chunk ⟪{}⟫)", run.chunk),
-                None => format!("STALE  {root} (line {line})"),
-            }
-        }
-        None => format!("STALE  {root} (file missing)"),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{escaped_ref, ref_target};
-
-    #[test]
-    fn only_a_whole_line_reference_counts() {
-        assert_eq!(ref_target("<<body>>"), Some(("body", "")));
-        assert_eq!(ref_target("    <<body>>  "), Some(("body", "    ")));
-        // Not references: they must survive tangling as literal text.
-        assert_eq!(ref_target("std::cout << x << std::endl;"), None);
-        assert_eq!(ref_target("<<a>><<b>>"), None);
-        assert_eq!(ref_target("auto y = <<x>>;"), None);
-    }
-
-    #[test]
-    fn an_escaped_reference_comes_out_without_the_escape() {
-        assert_eq!(escaped_ref("@<<body>>").as_deref(), Some("<<body>>"));
-        assert_eq!(escaped_ref("  @<<body>>").as_deref(), Some("  <<body>>"));
-        assert_eq!(escaped_ref("<<body>>"), None);
-        assert_eq!(escaped_ref("@<<a>><<b>>"), None);
-        assert_eq!(escaped_ref("@@<<body>>"), None);
     }
 }
 ````)
