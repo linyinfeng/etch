@@ -55,9 +55,9 @@ like `file:line:col:` it adds one note about where that line came from.
 Every line of this file is a name; the details come in the sections after it.
 
 #file("src/explain.rs", ````rust
-<<the module note>>
+<<explain: the module note>>
 
-<<the imports>>
+<<explain: the imports>>
 
 pub fn run(out: &Path, format: &str, input: &str) -> Result<usize, LpError> {
     <<the backend that is not written yet>>
@@ -89,7 +89,7 @@ reasoning is this chapter's job. That split is deliberate — a comment inside a
 file is a pointer, and a pointer does not drift, while a second copy of the argument
 would.
 
-#chunk("the module note", ````rust
+#chunk("explain: the module note", ````rust
 //! Turning a toolchain's diagnostics into chunk references.
 //!
 //! `lp explain` is a filter: it echoes what it reads and, for every
@@ -107,7 +107,7 @@ The regex engine, the path type, this crate's error type, and the map reader wit
 helpers. `resolve_all` is the interesting one: a diagnostic names a file, and the set of
 directory maps that could explain it is searched rather than guessed (`map.rs`, next).
 
-#chunk("the imports", ````rust
+#chunk("explain: the imports", ````rust
 use std::path::Path;
 
 use regex::Regex;
@@ -171,6 +171,384 @@ eprintln!(
 mapped += 1;
 ````)
 
+= Where each generated line came from
+
+The previous chapter assumed that something knows which declaration produced a line. This
+is that something: a record written while tangling, kept next to the files it explains.
+
+What the expansion knows for free is exactly what a diagnostic cannot supply. The compiler
+sees `src/main.rs` and nothing else, but the pass that wrote that file knew, line by line,
+which declaration it was writing for. So the answer is recorded at the only moment it is
+cheap, and the rest of the program reads it back afterwards.
+
+== Runs, not lines
+
+A record per output line would be three times the size and would say nothing more: the
+lines from one declaration are consecutive by construction, and only a reference
+interrupts them. So a map stores *runs* — the first and last output line of a stretch that
+came from one chunk — and the offset into the chunk is computed when someone asks, which
+is once per diagnostic.
+
+The maps live one per directory rather than in one file at the top, because a map travels
+with the files it explains: move a directory, and its map goes with it. It also means a
+lookup only has to consult the maps under the output directory, and that the most specific
+one can win when more than one could explain a name.
+
+There is a version number because a map outlives one run: a checkout can hold maps written
+by an older `lp`, and reading one has to be able to say "not mine" instead of guessing.
+
+== The shape of the record
+
+The names in the skeleton carry a file prefix, `map:`, for a reason worth knowing early:
+chunk names are global to the whole document. Two chapters that both called a fragment
+`the module note` would concatenate their bodies into whichever file referenced that name
+— which is how this chapter was first written, and how it announced the mistake.
+
+#file("src/map.rs", ````rust
+<<map: the module note>>
+
+<<map: the imports>>
+
+<<map: the two constants>>
+
+<<map: what a map holds>>
+
+<<map: a fresh map>>
+
+impl LpMap {
+    <<map: is it empty?>>
+
+    <<map: who wrote these files>>
+
+    <<map: write only what changed>>
+
+    <<map: read one map>>
+
+    <<map: when there is no output directory>>
+
+    <<map: walk it>>
+
+    <<map: the json, and where it goes>>
+}
+
+impl FileMap {
+    <<map: which chunk produced a line>>
+}
+
+<<map: paths, in one shape>>
+
+<<map: finding the map that knows a file>>
+````)
+
+`docs` is a list, not a single path, because several documents can be tangled into one
+output directory — the chapters of a book, say — and the map should not pretend that one
+of them is *the* source.
+
+`lang` is the language the fence declared, and nothing in this program reads it back. It is
+in the map because the map is an interface: whatever consumes generated code later — an
+editor, another tool — cannot derive the language from a file name, and re-deriving it is
+not its job.
+
+#chunk("map: the module note", ````rust
+//! Which chunk produced which lines of a generated file.
+//!
+//! Not line numbers: Typst exposes no source positions, and recovering them would
+//! mean searching the source or parsing Typst again — neither is worth doing for
+//! a convenience (ADR D14). What expansion *does* know for free is which chunk
+//! produced each run of output lines, and how far into that chunk the run starts.
+//! That is what a map records, one per directory, next to the files it explains.
+````)
+
+#chunk("map: the imports", ````rust
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
+
+use ignore::WalkBuilder;
+use serde::{Deserialize, Serialize};
+
+use crate::diag::LpError;
+````)
+
+== Two names the rest of the program shares
+
+The file name is a constant because three other places care about it: this module writes
+it, the ownership check in `status.rs` exempts it, and `explain.rs` walks the tree looking
+for exactly this name. The version is a constant for the same reason — it is a fact about
+the format, and facts about the format belong in one place.
+
+#chunk("map: the two constants", ````rust
+pub const MAP_FILE: &str = ".lpmap.json";
+const VERSION: u32 = 5;
+````)
+
+== What a map holds
+
+Three structures, all serde-shaped, because the file's format is the interface: a map, the
+entry for one file, and one run of lines.
+
+#chunk("map: what a map holds", ````rust
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LpMap {
+    pub version: u32,
+    /// Documents that produced the files listed here.
+    pub docs: Vec<String>,
+    /// Keyed by file name *within this directory*.
+    pub files: BTreeMap<String, FileMap>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileMap {
+    pub lang: Option<String>,
+    /// Consecutive output lines that came from one chunk, in output order.
+    pub runs: Vec<Run>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Run {
+    pub chunk: String,
+    /// 1-based first and last output line of the run.
+    pub first: usize,
+    pub last: usize,
+}
+````)
+
+== A new map is empty, and says which version it is
+
+#chunk("map: a fresh map", ````rust
+impl Default for LpMap {
+    fn default() -> Self {
+        Self {
+            version: VERSION,
+            docs: Vec::new(),
+            files: BTreeMap::new(),
+        }
+    }
+}
+````)
+
+== Writing, reading, and the one that must not write
+
+Six small methods, and only one of them has a decision in it. `write_if_changed` compares
+the serialized bytes before writing, because build tools watch mtimes: a pass that changed
+nothing should leave the directory exactly as it found it, or every save would look like a
+reason to rebuild.
+
+Reading is split in two for the same reason the maps are: `read` knows one directory, and
+the search knows all of them, in a stable order so that two runs report the same thing.
+That search is the whole index — there is no registry of documents to keep in sync, the
+directory tree *is* the index.
+
+#chunk("map: is it empty?", ````rust
+pub fn is_empty(&self) -> bool {
+    self.files.is_empty()
+}
+````)
+
+#chunk("map: who wrote these files", ````rust
+pub fn set_docs(&mut self, docs: impl IntoIterator<Item = String>) {
+    self.docs = docs
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+}
+````)
+
+#chunk("map: write only what changed", ````rust
+/// Write only when the serialized map actually differs, so a no-op pass leaves
+/// the mtime alone.
+pub fn write_if_changed(&self, dir: &Path) -> Result<bool, LpError> {
+    let (path, json) = self.serialize(dir)?;
+    if std::fs::read_to_string(&path).ok().as_deref() == Some(json.as_str()) {
+        return Ok(false);
+    }
+    std::fs::write(&path, json).map_err(|err| LpError::io(&path, err))?;
+    Ok(true)
+}
+````)
+
+#chunk("map: read one map", ````rust
+pub fn read(dir: &Path) -> Result<Self, LpError> {
+    let path = dir.join(MAP_FILE);
+    let text = std::fs::read_to_string(&path).map_err(|err| LpError::io(&path, err))?;
+    serde_json::from_str(&text)
+        .map_err(|err| LpError::plain(format!("{}: {err}", path.display())))
+}
+````)
+
+The search is two fragments rather than one: the guard for an output directory that does
+not exist yet, and the walk. That split is also a lesson about blank lines — a fragment
+that carries one drags its indentation along when it is pulled into an indented place, so
+the blank line between these two thoughts stays in the skeleton where it belongs to no
+fragment at all.
+
+#chunk("map: when there is no output directory", ````rust
+/// Every map under `out`, paired with its directory relative to `out` (`""`
+/// for the output directory itself), in a stable order.
+pub fn read_all(out: &Path) -> Vec<(String, LpMap)> {
+    if !out.exists() {
+        return Vec::new();
+    }
+````)
+
+#chunk("map: walk it", ````rust
+    let walker = WalkBuilder::new(out)
+        .standard_filters(false)
+        .hidden(false)
+        .build();
+    let mut found = Vec::new();
+    for entry in walker.flatten() {
+        if entry.file_name() != MAP_FILE {
+            continue;
+        }
+        let Some(dir) = entry.path().parent() else {
+            continue;
+        };
+        if let Ok(map) = Self::read(dir) {
+            found.push((relative(out, dir), map));
+        }
+    }
+    found.sort_by(|a, b| a.0.cmp(&b.0));
+    found
+}
+````)
+
+#chunk("map: the json, and where it goes", ````rust
+fn serialize(&self, dir: &Path) -> Result<(PathBuf, String), LpError> {
+    let path = dir.join(MAP_FILE);
+    let json = serde_json::to_string_pretty(self)
+        .map_err(|err| LpError::plain(format!("{}: {err}", path.display())))?;
+    Ok((path, json + "\n"))
+}
+````)
+
+== Which chunk produced a line
+
+The lookup asks for the run that covers the line, and if there is none it takes the closest
+earlier run instead of giving up. That tolerance is deliberate: for a line the map does not
+cover — a file edited after the last pass, or a line number from a stale build — "the
+declaration that was writing just before this point" is a better answer than a shrug, and
+the offset it reports is allowed to run past the end of the chunk when that is what the
+truth looks like.
+
+#chunk("map: which chunk produced a line", ````rust
+/// Which chunk produced this output line, and how far into it the line is
+/// (1-based). Falls back to the closest earlier run so blank lines still
+/// report something.
+pub fn locate(&self, line: usize) -> Option<(&Run, usize)> {
+    let run = self
+        .runs
+        .iter()
+        .find(|run| run.first <= line && line <= run.last)
+        .or_else(|| self.runs.iter().rev().find(|run| run.first < line))?;
+    Some((run, line.saturating_sub(run.first) + 1))
+}
+````)
+
+== Paths, in one shape
+
+Every path in this module is a string with forward slashes, and the output directory itself
+is the empty string. Those strings travel through Typst declaration names, through
+diagnostics written by other tools, and through JSON, so the shape is fixed once here
+rather than re-derived at each use.
+
+#chunk("map: paths, in one shape", ````rust
+/// Split an output path into `(directory, file name)`; the directory is `""` for
+/// files directly in the output directory. Both use forward slashes.
+pub fn split(rel: &str) -> (&str, &str) {
+    match rel.rsplit_once('/') {
+        Some((dir, name)) => (dir, name),
+        None => ("", rel),
+    }
+}
+
+pub fn join(dir: &str, name: &str) -> String {
+    if dir.is_empty() {
+        name.to_string()
+    } else {
+        format!("{dir}/{name}")
+    }
+}
+
+/// Relative path with forward slashes.
+pub fn relative(out: &Path, path: &Path) -> String {
+    path.strip_prefix(out)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+````)
+
+== Finding the map that knows a file
+
+This is the part that has to be careful, because the same file is named differently by
+different callers: a diagnostic may write the path relative to the output directory,
+relative to the working directory, or absolutely. So the directory part of what was
+reported is compared against each map's own directory, and a map is a candidate when it is
+a suffix of that path, or is the output directory itself.
+
+When several maps could explain the name, the most specific one wins — a map further down
+the tree says more about a file than one above it. When two are equally specific, that is
+an error with the candidates listed, because picking one would silently answer about the
+wrong file. And when none matches, the error lists every file the maps know, which turns a
+typo into something visible instead of a mystery.
+
+#chunk("map: finding the map that knows a file", ````rust
+/// Find the map that knows a file: every directory's map is consulted, and the
+/// most specific one wins.
+///
+/// The path may be written relative to the output directory, to the working
+/// directory, or absolutely — so the *directory* part of what a toolchain reported
+/// is compared against each map's own directory, and only maps that are a suffix
+/// of it (or the output directory itself) are considered. A bare file name with
+/// several candidates is an error rather than a guess.
+pub fn resolve_all<'a>(
+    maps: &'a [(String, LpMap)],
+    file: &str,
+) -> Result<(&'a str, &'a str, &'a FileMap), LpError> {
+    let normalized = file.replace('\\', "/");
+    let (indir, name) = split(&normalized);
+
+    let mut candidates: Vec<(&str, &str, &FileMap)> = Vec::new();
+    for (dir, map) in maps {
+        let Some((key, entry)) = map.files.get_key_value(name) else {
+            continue;
+        };
+        let in_scope = indir.is_empty()
+            || dir.is_empty()
+            || indir == dir
+            || indir.ends_with(&format!("/{dir}"));
+        if in_scope {
+            candidates.push((dir.as_str(), key.as_str(), entry));
+        }
+    }
+
+    candidates.sort_by_key(|(dir, _, _)| std::cmp::Reverse(dir.len()));
+    let Some(best) = candidates.first() else {
+        let known = maps
+            .iter()
+            .flat_map(|(dir, map)| map.files.keys().map(move |name| join(dir, name)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(LpError::plain(format!("{file}: no map knows this file"))
+            .with_help(format!("known files: {known}")));
+    };
+    if candidates
+        .get(1)
+        .is_some_and(|(dir, _, _)| dir.len() == best.0.len())
+    {
+        let all = candidates
+            .iter()
+            .map(|(dir, name, _)| join(dir, name))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(
+            LpError::plain(format!("{file}: which map?")).with_help(format!("candidates: {all}"))
+        );
+    }
+    Ok(*best)
+}
+````)
 = Not yet arranged
 
 The declarations below are the rest of this repository, still waiting for their chapters.
@@ -541,221 +919,6 @@ fn list(docs: &[PathBuf]) -> Result<(), LpError> {
         }
     );
     Ok(())
-}
-````)
-
-#file("src/map.rs", ````rust
-//! Which chunk produced which lines of a generated file.
-//!
-//! Not line numbers: Typst exposes no source positions, and recovering them would
-//! mean searching the source or parsing Typst again — neither is worth doing for
-//! a convenience (ADR D14). What expansion *does* know for free is which chunk
-//! produced each run of output lines, and how far into that chunk the run starts.
-//! That is what a map records, one per directory, next to the files it explains.
-
-use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
-
-use ignore::WalkBuilder;
-use serde::{Deserialize, Serialize};
-
-use crate::diag::LpError;
-
-pub const MAP_FILE: &str = ".lpmap.json";
-const VERSION: u32 = 5;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LpMap {
-    pub version: u32,
-    /// Documents that produced the files listed here.
-    pub docs: Vec<String>,
-    /// Keyed by file name *within this directory*.
-    pub files: BTreeMap<String, FileMap>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileMap {
-    pub lang: Option<String>,
-    /// Consecutive output lines that came from one chunk, in output order.
-    pub runs: Vec<Run>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Run {
-    pub chunk: String,
-    /// 1-based first and last output line of the run.
-    pub first: usize,
-    pub last: usize,
-}
-
-impl Default for LpMap {
-    fn default() -> Self {
-        Self {
-            version: VERSION,
-            docs: Vec::new(),
-            files: BTreeMap::new(),
-        }
-    }
-}
-
-impl LpMap {
-    pub fn is_empty(&self) -> bool {
-        self.files.is_empty()
-    }
-
-    pub fn set_docs(&mut self, docs: impl IntoIterator<Item = String>) {
-        self.docs = docs
-            .into_iter()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-    }
-
-    /// Write only when the serialized map actually differs, so a no-op pass leaves
-    /// the mtime alone.
-    pub fn write_if_changed(&self, dir: &Path) -> Result<bool, LpError> {
-        let (path, json) = self.serialize(dir)?;
-        if std::fs::read_to_string(&path).ok().as_deref() == Some(json.as_str()) {
-            return Ok(false);
-        }
-        std::fs::write(&path, json).map_err(|err| LpError::io(&path, err))?;
-        Ok(true)
-    }
-
-    pub fn read(dir: &Path) -> Result<Self, LpError> {
-        let path = dir.join(MAP_FILE);
-        let text = std::fs::read_to_string(&path).map_err(|err| LpError::io(&path, err))?;
-        serde_json::from_str(&text)
-            .map_err(|err| LpError::plain(format!("{}: {err}", path.display())))
-    }
-
-    /// Every map under `out`, paired with its directory relative to `out` (`""`
-    /// for the output directory itself), in a stable order.
-    pub fn read_all(out: &Path) -> Vec<(String, LpMap)> {
-        if !out.exists() {
-            return Vec::new();
-        }
-
-        let walker = WalkBuilder::new(out)
-            .standard_filters(false)
-            .hidden(false)
-            .build();
-        let mut found = Vec::new();
-        for entry in walker.flatten() {
-            if entry.file_name() != MAP_FILE {
-                continue;
-            }
-            let Some(dir) = entry.path().parent() else {
-                continue;
-            };
-            if let Ok(map) = Self::read(dir) {
-                found.push((relative(out, dir), map));
-            }
-        }
-        found.sort_by(|a, b| a.0.cmp(&b.0));
-        found
-    }
-
-    fn serialize(&self, dir: &Path) -> Result<(PathBuf, String), LpError> {
-        let path = dir.join(MAP_FILE);
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|err| LpError::plain(format!("{}: {err}", path.display())))?;
-        Ok((path, json + "\n"))
-    }
-}
-
-impl FileMap {
-    /// Which chunk produced this output line, and how far into it the line is
-    /// (1-based). Falls back to the closest earlier run so blank lines still
-    /// report something.
-    pub fn locate(&self, line: usize) -> Option<(&Run, usize)> {
-        let run = self
-            .runs
-            .iter()
-            .find(|run| run.first <= line && line <= run.last)
-            .or_else(|| self.runs.iter().rev().find(|run| run.first < line))?;
-        Some((run, line.saturating_sub(run.first) + 1))
-    }
-}
-
-/// Split an output path into `(directory, file name)`; the directory is `""` for
-/// files directly in the output directory. Both use forward slashes.
-pub fn split(rel: &str) -> (&str, &str) {
-    match rel.rsplit_once('/') {
-        Some((dir, name)) => (dir, name),
-        None => ("", rel),
-    }
-}
-
-pub fn join(dir: &str, name: &str) -> String {
-    if dir.is_empty() {
-        name.to_string()
-    } else {
-        format!("{dir}/{name}")
-    }
-}
-
-/// Relative path with forward slashes.
-pub fn relative(out: &Path, path: &Path) -> String {
-    path.strip_prefix(out)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .replace('\\', "/")
-}
-
-/// Find the map that knows a file: every directory's map is consulted, and the
-/// most specific one wins.
-///
-/// The path may be written relative to the output directory, to the working
-/// directory, or absolutely — so the *directory* part of what a toolchain reported
-/// is compared against each map's own directory, and only maps that are a suffix
-/// of it (or the output directory itself) are considered. A bare file name with
-/// several candidates is an error rather than a guess.
-pub fn resolve_all<'a>(
-    maps: &'a [(String, LpMap)],
-    file: &str,
-) -> Result<(&'a str, &'a str, &'a FileMap), LpError> {
-    let normalized = file.replace('\\', "/");
-    let (indir, name) = split(&normalized);
-
-    let mut candidates: Vec<(&str, &str, &FileMap)> = Vec::new();
-    for (dir, map) in maps {
-        let Some((key, entry)) = map.files.get_key_value(name) else {
-            continue;
-        };
-        let in_scope = indir.is_empty()
-            || dir.is_empty()
-            || indir == dir
-            || indir.ends_with(&format!("/{dir}"));
-        if in_scope {
-            candidates.push((dir.as_str(), key.as_str(), entry));
-        }
-    }
-
-    candidates.sort_by_key(|(dir, _, _)| std::cmp::Reverse(dir.len()));
-    let Some(best) = candidates.first() else {
-        let known = maps
-            .iter()
-            .flat_map(|(dir, map)| map.files.keys().map(move |name| join(dir, name)))
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(LpError::plain(format!("{file}: no map knows this file"))
-            .with_help(format!("known files: {known}")));
-    };
-    if candidates
-        .get(1)
-        .is_some_and(|(dir, _, _)| dir.len() == best.0.len())
-    {
-        let all = candidates
-            .iter()
-            .map(|(dir, name, _)| join(dir, name))
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(
-            LpError::plain(format!("{file}: which map?")).with_help(format!("candidates: {all}"))
-        );
-    }
-    Ok(*best)
 }
 ````)
 
