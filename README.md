@@ -162,5 +162,6 @@ nix develop -c cargo test
 - [`agent-notes/decisions/`](agent-notes/decisions/) — 已拍板的 ADR（架构、chunk 声明、输出所有权、watch 契约、无行号、自举布局）
 - [`agent-notes/research/`](agent-notes/research/) — 现有工具盘点、Typst 实测事实、设计空间
 - [`experiments/`](experiments/) — 丢弃型验证（Python 端到端 spike、`typst-syntax` span probe、Stage 1 的转写脚本）
+- [`.agents/skills/literate-programming/`](.agents/skills/literate-programming/SKILL.md) — agent skill：怎么做 LP、以及 lp 下的具体机制（带一个跑得通的例子）
 
 未做：`lp explain --format cargo`（cargo JSON）、`ci.sh`、自举 Stage 2（抽公共 chunk、加散文、按章节拆）——候选与代价见 handoff §6。

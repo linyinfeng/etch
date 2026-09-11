@@ -28,6 +28,7 @@
 - `research/2026-09-11-pretty-for-indentation.md` — **`pretty` 能不能解决缩进问题：不能，也不需要**（实测：`nest`/`align`/`indent` 只作用于软换行，`text` 内嵌换行不受影响；要逐行缩进仍得自己拆行）。附真正的原因：两次缩进 bug 都在 **Typst 渲染侧**（`slice(0, m.start)` 恒为空），而第一次的修复落在了渲染路径**没调用**的 helper 上，检查因此一直是绿的。
 - `research/2026-09-11-source-positions.md` — **Typst 能不能给出源码行号**：脚本层/插件层**不能**（元素无 span、`location` 只有排版坐标、插件协议只传字节），只有编译器层能（`typst-syntax` 的 span，对外只经诊断）；并实测出"字符串搜索声明 token"在 demo 上会命中**散文**（第 61 行 vs 声明的第 64 行）。含四条路（不做行号 / parser 当 span 查询器 / 作者写行号 / 继续搜索）的代价表与推荐。
 - `research/2026-09-11-typst-structure-and-include.md` — 实测 Typst 文档自身的结构（heading 一等元素 + 字段）与 include 语义（内容级合并、label 全局），以及 `lp` 的两个缺口（不跟随 include、跨文档引用不成立）与补齐顺序。
+- `research/2026-09-11-literate-programming-thinking.md` — **LP 的思想与各方立场**（结论在前）：Knuth 的四条可分开表态的主张、noweb 的语言无关路线、notebook 的分界、文档生成派的胜利、Nørmark 的第三条路、"LP 已死/被吸收"、AI 时代的两面论证；附证据强度表（哪些是实测、哪些只是证词、哪些没找到证据）。配套的 agent skill 在 `../.agents/skills/literate-programming/`。
 - `decisions/2026-09-11-no-positions.md` — **D14 行号映射不做了**（用户规矩："活不能优雅地做 → 不做"）：Typst 脚本层拿不到源位置，要行号只能搜索源码或重新解析 Typst；改成 **chunk 级出处**（chunk 区间），删掉 `locate.rs`/`source.rs` 与 span 报错。
 - `decisions/2026-09-11-self-hosting-layout.md` — **D15 自举布局（Stage 1 已落地）**：crate 留在仓库根、根就是 `--out`、`bootstrap/` 是冻结种子；达成标准（`--check` 等于冻结前手写源码）与永久不变量（自己构的二进制 `--check` 绿，`tests/self.rs`）分开；`<<name>>` 独占一行的撞车改我们的夹具（`concat!`）而不加转义语法。
 - `decisions/2026-09-11-declared-chunks.md` — **D13 声明式 chunk（取代 D8 的 label 命名与 D12 的四层搜索）**：文档 import `lit/lp.typ` 并用 `#chunk`/`#file` 声明；工具只读声明流，位置靠精确 token 查找。
@@ -48,3 +49,4 @@
 - 下一步候选与代价见 `handoff.md` §6（cargo JSON 后端 + `ci.sh` 是小尾巴；自举 M3 是大头）。**删除语义已在 D10 定下**（`.lpignore` 目录声明 / `--check` 干跑）。
 - 差异化：**chunk 级出处 + 生成物漂移检测与归属**——报错给到"哪个声明、在它里面第几行"，chunk 名一步 `rg` 到声明；littst / typst-unlit 都不解决这两点。
 - 长期目标（D3）：原型冻结为 bootstrap，工具自身源码改写成 literate `.typ` 并自举；固定点测试保证 bootstrap 与自举产物逐字节一致。
+- **agent skill（新增）**：`.agents/skills/literate-programming/` —— `SKILL.md`（纪律 + lp 机制 + 错误对照表）+ `references/example.md`（一个真的 tangle 过、跑过的两文件例子）+ `references/thinking.md`（什么时候值得用 LP、反方批评、证据强度）。pi 与其他支持 Agent Skills 的 harness 会自动发现它。

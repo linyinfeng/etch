@@ -9,6 +9,7 @@
 /.gitignore
 /.lpmap.json
 /.pi
+/.agents
 /AGENTS.md
 /Cargo.lock
 /README.md
