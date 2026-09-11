@@ -5587,6 +5587,11 @@ tangle unpacked: `TYPST_PACKAGE_PATH` is set to it for the weave and for the pro
 renderer. That is the one place a user of this tool has to know about the unpacking at all, and
 it is the same line their editor would need.
 
+One thing to know about tangled scripts: a file the tangle writes has ordinary permissions, so a
+shell script comes out readable and not executable. `bash run.sh` is the way in, and a project
+that wants the bit set can `chmod` it or declare it in its build; the tool will not decide by
+looking at the name.
+
 #file("examples/demo/run.sh", ````bash
 <<demo: the harness>>
 ````)
@@ -5595,7 +5600,7 @@ it is the same line their editor would need.
 #!/usr/bin/env bash
 # The whole flow: tangle, build and run the result, weave, drift check, and
 # translating a real rustc error back into the document.
-# Run with: examples/demo/run.sh (typst and cargo on the path)
+# Run with: bash examples/demo/run.sh (typst and cargo on the path)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 

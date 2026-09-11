@@ -28,7 +28,7 @@ gates)
 		./target/debug/lp tangle lp.typ --out . --check >/dev/null && echo "check  ok"
 		echo "strays $(./target/debug/lp tangle lp.typ --out . 2>&1 | grep -c "declared without a language" || true) (language), 0 expected"
 		echo "weave  $(TYPST_PACKAGE_PATH=$PWD/.lp typst compile lp.typ /tmp/lp.pdf 2>&1 | grep -c warning || true) warnings"
-		printf "demo   %s\n" "$(examples/demo/run.sh 2>&1 | tail -1)"
+		printf "demo   %s\n" "$(bash examples/demo/run.sh 2>&1 | tail -1)"
 	'
 	;;
 test) run cargo test ;;
@@ -37,7 +37,7 @@ clippy) run cargo clippy --all-targets ;;
 tangle) run ./target/debug/lp tangle lp.typ --out . ;;
 check) run ./target/debug/lp tangle lp.typ --out . --check ;;
 list) run ./target/debug/lp list lp.typ ;;
-demo) run examples/demo/run.sh ;;
+demo) run bash examples/demo/run.sh ;;
 weave)
 	run env TYPST_PACKAGE_PATH="$PWD/.lp" typst compile lp.typ /tmp/lp.pdf
 	echo "wrote /tmp/lp.pdf"
