@@ -36,6 +36,11 @@ jobs:
       - name: build the seed
         run: cargo build --manifest-path tangled/Cargo.toml
 
+      # The seed is the previous generation, so a document that moved a file leaves the old one behind.
+      # Nothing is removed on its own; this asks, and on an ordinary run there is nothing to ask about.
+      - name: drop what the previous generation left behind
+        run: ./tangled/target/debug/lp unaccounted lp.typ --delete
+
       - name: tangle, and check the tree against the document
         run: |
           set -euo pipefail
