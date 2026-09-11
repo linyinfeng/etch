@@ -37,9 +37,17 @@
 - ✅ 删除语义（超出原计划）：删根 chunk 不再留孤儿——`.lpignore` 目录声明 + `ignore` crate 的 gitignore 语义 + `--check` 干跑，见 ADR D10，回归在 `tests/owned.rs`。
 
 ### M3 — 自举（bootstrap → self-host）
-- 原型冻结为 `bootstrap/`（仍可编译可跑），工具自身源码改写为 `self.typ`（literate 文档）。
-- **自举不变量（固定点测试）**：`bootstrap tangle self.typ --out src` 的产物与 `bootstrap/` 手写源码**逐字节相同**，且用产物 `cargo build` 出来的工具与原型行为一致（跑同一套测试）。
-- 达标后 `self.typ` 成为唯一真相；`bootstrap/` 作为**非工具生成的种子**保留（因为生成物不入库，种子必须可编译）。
+
+**Stage 1 — 逐字节固定点（已完成，2026-09-11，ADR D15）**
+- ✅ 原型冻结为 `bootstrap/`（可编译可跑，tracked，**永不重新生成**）。
+- ✅ 工具自身源码改写为 `self.typ`（本次是忠实转写：一个文件一个根 chunk，不共享、不加散文）。
+- ✅ **达成标准**：`bootstrap/target/debug/lp tangle self.typ --out . --check` 绿 = 产物与冻结前的手写源码逐字节相同。
+- ✅ **永久不变量**（`tests/self.rs`）：自己构出来的二进制跑 `lp tangle self.typ --out . --check` 必须绿——“文档复现了我正在运行的那份源码”，不依赖 `bootstrap/` 仍然相等。
+- ✅ 翻转完成：根的 `Cargo.toml`/`src/`/`tests/` 出 git、进 `.gitignore`；根 `.lpignore` 列出全部手写资产（`--out` 就是仓库根）。
+
+**Stage 2 — literate 化（未做，需要时再说）**
+- 把重复片段抽成 `#chunk` 共享、加散文、按章节用 `#include` 拆。
+- 这时产物**不再**等于 `bootstrap/`；合法状态由永久不变量守（`--check` 绿 + `cargo test` 绿），达成标准那一栏变成历史。
 - 自举是可用性测试：如果天天退回手写源码，说明 chunk 语义或错误定位不可用。
 
 ## CLI 表面
@@ -62,7 +70,7 @@ lp unaccounted <doc.typ>... [--out DIR] [--delete]
 ## 测试策略（ponytail：能失败的最小检查）
 - `cargo test`：tangle 语义 fixture（拼接/缩进/嵌套块/悬空/环/重复 label）、oracle 一致性、固定点（M3）。
 - 端到端沿用 `experiments/2026-09-11-chunk-spike/run.sh` 的模式：tangle → 跑生成物 → 比对期望输出 → `--check`。
-- CI：`nix develop -c ./ci.sh`（`typst compile` + `cargo test` + `lp tangle --check` 无漂移）。
+- CI：**暂不做**（2026-09-11 用户：自举稳住之前 CI 没意义）。将来要跑的就是 README "自举"那三步 + `lp tangle self.typ --check` + `examples/demo/run.sh`。
 
 ## 明确不做（YAGNI）
 双向同步（Entangled 路线）、IR/provenance 数据库、多 markup 适配器（Ravel 路线）、代码块执行（Calepin 路线）、编辑器插件、`codly` 深度集成。

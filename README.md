@@ -137,14 +137,30 @@ $ echo 'src/main.rs:6:38: error: …' | lp explain
 
 **没有 `.typ:行号`，这是有意的**：Typst 脚本层拿不到源位置（元素没有 span，`location` 只是排版坐标），要行号就得在源码里搜索声明 token、或把 Typst parser 放回工具里——两种都不优雅，按项目的准入规矩就不做（见 `agent-notes/decisions/2026-09-11-no-positions.md`）。chunk 名是更好的指针：`rg '#chunk("print-results"'` 一步就到声明。
 
+## 自举（仓库自己就是产物）
+
+`self.typ` 描述这个 crate 自己：`Cargo.toml`、`src/*.rs`、`tests/*.rs` 都是它的声明，**都不入库**。仓库里 tracked 的是 `bootstrap/`——冻结的种子，不随文档更新（工具坏掉时它是唯一可信起点）。
+
+clone 之后先跑种子，再跑工具：
+
+```sh
+nix develop -c cargo build --manifest-path bootstrap/Cargo.toml
+nix develop -c ./bootstrap/target/debug/lp tangle self.typ --out .
+nix develop -c cargo test
+```
+
+之后改工具就是改 `self.typ`（实时回路：`lp watch self.typ --out . --check-cmd 'cargo build --message-format=short'`）。手改 `src/` 会被 `tests/self.rs` 抓住——它跑 `lp tangle self.typ --out . --check`，要求文档复现**正在运行的那份源码**。
+
+`--out` 是仓库根，所以根 `.lpignore` 列出所有手写资产（`lit/`、`agent-notes/`、`bootstrap/`、`examples/`……）；新增顶层文件要顺手声明它，否则 `tangle` 报"未处置"。选型与落选方案见 [`agent-notes/decisions/2026-09-11-self-hosting-layout.md`](agent-notes/decisions/2026-09-11-self-hosting-layout.md)。
+
 ## 状态
 
-原型可用：M1 + M2（`lp watch`、输出目录所有权、chunk 级出处）。详见 [`agent-notes/`](agent-notes/README.md)：
+原型可用：M1 + M2（`lp watch`、输出目录所有权、chunk 级出处）+ **自举 Stage 1**（`self.typ` 逐字节复现整个 crate，`bootstrap/` 是种子）。详见 [`agent-notes/`](agent-notes/README.md)：
 
 - [`agent-notes/handoff.md`](agent-notes/handoff.md) — **接手先读这份**：行为契约、铁规矩、已知脏点、下一步候选
 - [`agent-notes/plan.md`](agent-notes/plan.md) — M0–M3 计划与已完成范围
-- [`agent-notes/decisions/`](agent-notes/decisions/) — 已拍板的 ADR（架构、chunk 声明、输出所有权、watch 契约、无行号）
+- [`agent-notes/decisions/`](agent-notes/decisions/) — 已拍板的 ADR（架构、chunk 声明、输出所有权、watch 契约、无行号、自举布局）
 - [`agent-notes/research/`](agent-notes/research/) — 现有工具盘点、Typst 实测事实、设计空间
-- [`experiments/`](experiments/) — 两个丢弃型验证（Python 端到端 spike、`typst-syntax` span probe）
+- [`experiments/`](experiments/) — 丢弃型验证（Python 端到端 spike、`typst-syntax` span probe、Stage 1 的转写脚本）
 
-未做：`lp explain --format cargo`（cargo JSON）、`ci.sh`、M3 自举（工具自身源码改写成 literate `.typ`）——候选与代价见 handoff §6。
+未做：`lp explain --format cargo`（cargo JSON）、`ci.sh`、自举 Stage 2（抽公共 chunk、加散文、按章节拆）——候选与代价见 handoff §6。

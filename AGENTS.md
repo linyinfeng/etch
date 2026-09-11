@@ -1,20 +1,26 @@
 # 项目约定
 
-## 代码结构（M1 原型）
+## 代码结构（自举 Stage 1，ADR D15）
 
 ```
-src/main.rs       CLI（clap）+ 命令派发 + lp list
-src/parse.rs      typst-syntax CST 遍历 → chunk（两种 label 写法）
-src/tangle.rs     展开、缩进、严格报错、写文件、--check
-src/map.rs        每个目录一份 .lpmap.json 的 schema + 解析（最具体目录优先）
-src/explain.rs    诊断行 → .typ 行（纯查表 + 通用正则）
-src/diag.rs       LpError（miette，指向 .typ 源 span）
-lit/lit.typ       Typst 渲染库（`#show: lit`）
-examples/demo/    可跑的多文件示例；run.sh 是端到端回归入口
-tests/flow.rs     跑真二进制的端到端测试
+self.typ              唯一真相：声明 Cargo.toml + src/*.rs + tests/*.rs
+bootstrap/            冻结的种子 crate（tracked，永不重新生成）
+Cargo.toml src/ tests/  生成物（gitignore）——只改 self.typ，不要手改这里
+.lpignore             仓库根的保护清单（--out 就是仓库根）
+lit/lp.typ            Typst 包：声明（#chunk/#file）+ 渲染
+src/main.rs           CLI（clap）+ 命令派发
+src/tangle.rs         展开、缩进、严格报错、写文件、--check
+src/status.rs         输出目录所有权（.lpignore 交给 ignore crate）
+src/map.rs            每目录一份 .lpmap.json（chunk 区间，schema v5）
+src/watch.rs          notify + 去抖 + 只写变化的字节
+src/metadata.rs       typst eval 'query(<lp-decl>)' → 声明流
+src/explain.rs        诊断行 → chunk（纯查表 + 通用正则）
+src/diag.rs           LpError（miette）
+examples/demo/        可跑的多文件示例；run.sh 是端到端回归入口
+tests/*.rs            跑真二进制的端到端测试（tests/self.rs 守自复现）
 ```
 
-常用命令：`nix develop -c cargo test`、`nix develop -c examples/demo/run.sh`（端到端）、`nix develop -c cargo clippy`。
+常用命令：`nix develop -c cargo test`、`nix develop -c examples/demo/run.sh`（端到端）、`nix develop -c cargo clippy`。**fresh clone 先按 README 的"自举"三步**（`src/` 不在 git 里）：`cargo build --manifest-path bootstrap/Cargo.toml` → `./bootstrap/target/debug/lp tangle self.typ --out .` → `cargo test`。
 
 实时回路（手测）：`nix develop -c cargo run -- watch examples/demo/literate.typ --out examples/demo/build --check-cmd "cargo build --manifest-path examples/demo/build/Cargo.toml --message-format=short"`，然后在另一个终端改 `.typ`。
 
@@ -23,18 +29,18 @@ tests/flow.rs     跑真二进制的端到端测试
 - **优雅是准入条件**（用户定的规矩）：**活不能优雅地做 —— 不做**。任何功能的实现路径若必须依赖启发式搜索、字符串匹配源码、或与 Typst 版本耦合的重复解析，就**不做这个功能**，而不是先脏着做出来。已按此删掉：行号映射（lpmap）、label 当 chunk 名、`is_root` 文件名启发式、`#show raw` 埋点、`typst-syntax` 静态分析（见 ADR D11→D14）。**行号映射不是待办**：Typst 脚本层拿不到源位置，要行号就得重新解析 Typst，那先破这条规矩。
 
 - **正交性**：算法里不得出现目标语言知识。语言差异只能是**数据表**（扩展名 → typst lang tag、将来可选的行指令模板）。
-- **生成物不入库**：`examples/demo/build/` 之类一律 gitignore；CI 用 `lp tangle --check` 守漂移。`.typ` 是唯一真相。
-- **报错必须指回 `.typ`**：新错误一律用 `LpError::at`（带 span），不要拼裸字符串。
+- **生成物不入库**：`examples/demo/build/` 之类一律 gitignore；CI 用 `lp tangle --check` 守漂移。`.typ` 是唯一真相。**工具自身的 crate 也是生成物**（ADR D15）：只改 `self.typ`，手改 `src/` 会被 `tests/self.rs` 抓住；`bootstrap/` 是冻结种子，不要跟着文档更新。
+- **报错必须指回声明**：新错误一律用 `LpError`（miette），不要拼裸字符串。出处是 **chunk 级**（哪个声明、在它里面第几行），**没有 `.typ` 行号**（D14）。
 - **chunk 由声明给出**（ADR D13）：文档 import `lit/lp.typ` 并用 `#chunk(name, ```…```)` / `#file(path, ```…```)` 声明；工具用 `typst eval` 读 `query(<lp-decl>)`，**从不解析 Typst**。出处是 **chunk 级**（哪个声明、在它里面第几行），**不记 `.typ` 行号**（ADR D14）。
 - **不要**回头走这两条路：用 Rust 静态分析 Typst（构造上就错，见 D13）、用 `#show raw` 埋点（样式化规则会消费元素，见 D12）。
 - **`typst` 是 tangle 的硬依赖**（`LP_TYPST` 或 PATH），`cargo test` 也需要它 —— 用 `nix develop -c cargo test`。
-- **包在 `lit/lp.typ`**：改名/改参数要同步 `src/metadata.rs` 的 `QUERY`、`src/locate.rs` 的 token 形状、以及文档里那段“怎么写 chunk”的说明。
-- **一个 chunk 的行可以来自多个文件**：`Block.file` 是 `Arc<FileText>`，报错用 `block.file.named`；映射里 per-line 记 `sources` 下标（schema v3）。
+- **包在 `lit/lp.typ`**：改名/改参数要同步 `src/metadata.rs` 的 `QUERY`、`lit/lp.typ` 里的元数据字段（`lp: "chunk"|"file"`, `name`, `lang`, `text`）、以及文档里那段“怎么写 chunk”的说明。
+- **一个 chunk 的行可以来自多处**：同名声明按文档顺序拼接（可以跨多个文档）；出处只到 chunk 级。
 - **未处置即错误，删除必须显式**（ADR D10）：`--out` 整个目录里的每个文件都要被 chunk 产出或被 `.lpignore` 声明，否则 `lp tangle` 失败并列出（两条出路：声明 / `lp unaccounted --delete`）。`lp` 从不自行删除。豁免只有 `.lpignore` 与 `.lpmap.json` 两个控制文件，无 git 特例。改这块前先看 `tests/owned.rs`。
 - **写盘只写变化的字节**（ADR D9）：不要无脑重写生成物或 `.lpmap.json`；有语法错误时不得 tangle。改这两条行为前先看 `tests/lazy.rs`。
 
 - **语言**：与用户交流用中文；代码、标识符、注释用英文。注释只解释"为什么"（全局规则见 `~/.pi/agent/AGENTS.md`）。
-- **调研优先**：本项目当前处于调研/设计阶段。任何"某方案可行/不可行"的结论要么附可复现命令，要么标 **未验证**。
+- **调研优先**：任何"某方案可行/不可行"的结论要么附可复现命令，要么标 **未验证**。
 - **agent-notes**：`agent-notes/README.md` 是索引，`research/YYYY-MM-DD-<topic>.md` 一个主题一份，结论放最前面。做了决定就新建 `agent-notes/decisions/`，追加不改写。事实过期就地改并注明修正。
 - **实验代码不是产品**：`experiments/` 下是一次性验证，可以糙；产品代码不要从那里"长出来"，要新写。
 - **工具链（NixOS）**：用 flake 的 devShell：`nix develop -c <cmd>`（提供 typst 0.15.1 / cargo 1.97 / rustfmt / clippy / python3）。临时单跑某个工具用 `nix shell nixpkgs#typst -c ...`。不要用非 Nix 的包管理器。

@@ -1,12 +1,20 @@
-# 接手说明（handoff）— 2026-09-11，截至 `0be430a`
+# 接手说明（handoff）— 2026-09-11，截至自举 Stage 1（`5efc543`）
 
 > 这是**快照**，会过期。行动前先 `git log --oneline -5`、读 `agent-notes/README.md`（索引 + 当前状态），细节都指向 `research/` 与 `decisions/`。
 
 ## 0. 30 秒
 
 - **是什么**：`lp` —— 基于 Typst 的 literate programming 工具。同一个 `.typ` 文档既是可排版的文档（weave = `typst compile`），也是多种目标语言源码的唯一真相（tangle = `lp tangle`）。与目标语言正交：工具里没有任何目标语言知识。
-- **仓库**：`~/Projects/literate`（分支 `main`，`0be430a`，工作树干净）。devshell 带 `typst 0.15.1` + `cargo 1.97`：`nix develop -c <cmd>`。
-- **三件事先跑一遍**：`nix develop -c cargo test`（47 个测试，**需要 typst**）、`nix develop -c examples/demo/run.sh`（端到端）、`nix develop -c cargo run -- --help`。
+- **仓库**：`~/Projects/literate`（分支 `main`）。devshell 带 `typst 0.15.1` + `cargo 1.97`：`nix develop -c <cmd>`。
+- **自举 Stage 1 已落地（ADR D15）**：`self.typ` 是唯一真相；根 `Cargo.toml`/`src/`/`tests/` 是**生成物**（gitignore）；`bootstrap/` 是**冻结种子**。所以 clone 后 `src/` 根本不存在，先跑种子：
+
+  ```sh
+  nix develop -c cargo build --manifest-path bootstrap/Cargo.toml   # 种子
+  nix develop -c ./bootstrap/target/debug/lp tangle self.typ --out . # 生成 crate
+  nix develop -c cargo test                                          # 48 个，需要 typst
+  ```
+
+- **已有生成物时**先跑这三件事：`nix develop -c cargo test`（48 个，**需要 typst**）、`nix develop -c examples/demo/run.sh`（端到端）、`nix develop -c ./target/debug/lp tangle self.typ --out . --check`（自复现，必须绿）。
 
 ## 1. 它现在是什么（行为契约）
 
@@ -18,6 +26,8 @@
 | 输出目录里的东西归谁 | `lp`（`status.rs`） | 三类：**produced**（`#file` 声明写的）/ **declared**（`.lpignore`，规则即 gitignore、**匹配=保护**）/ **unaccounted**（都不是 → `tangle` **报错**；只有 `lp unaccounted --delete` 才删） |
 | weave | `typst compile` | 包同时负责渲染（带标题的块 + 引用标记），文档不需要样式 show rule |
 
+**布局契约（D15）**：`self.typ` 声明整个 crate；`bootstrap/` 是冻结种子（tracked，永不重新生成）；根 `.lpignore` 列出所有手写资产，因为 `--out` 就是仓库根（每次 `tangle` 走整棵树，实测 0.82s 含一次 typst 求值，8477 个 `target/` 文件，walk 不是瓶颈）。
+
 `lp watch`：`notify` + 去抖；**只写变化的字节**（mtime 不动）；**文档不能求值就跳过本轮并保留上一份好产物**；`--check-cmd` 只在真改写后跑并把诊断回译成 chunk。契约见 `decisions/2026-09-11-watch-contract.md`。
 
 ## 2. 铁规矩（先读这一节再动手）
@@ -26,21 +36,22 @@
 2. **不解析 Typst**：工具对 Typst 的全部理解 = 跑一次 `typst eval` 读声明流。不要引入 `typst-syntax` 之类去"理解文档"。
 3. **不做行号映射**：不是待办，是**已决定不做**（Typst 脚本层拿不到源位置；要行号就得破规矩 1/2）。见 `decisions/2026-09-11-no-positions.md` 与 `research/2026-09-11-source-positions.md`。
 4. **正交性**：算法里不得出现目标语言知识；语言差异只能是数据表。
-5. **生成物不入库**：`examples/demo/build/` 之类一律 gitignore；CI 用 `lp tangle --check` 守漂移。
+5. **生成物不入库**：`examples/demo/build/` 与**工具自己的 crate** 都是生成物；`.typ` 是唯一真相。**手改 `src/`/`tests/` 会被 `tests/self.rs` 抓住**——要改工具就改 `self.typ`。
 
 ## 3. 决策索引（一句话版）
 
 | ADR | 决定 |
 | --- | --- |
 | `mvp-decisions.md` | 场景=多文件工程；形态=纯 `.typ`；实现=Rust→自举；生成物不入库；错误定位=D1（已被 D14 取代） |
-| `engine-and-deps.md` | D6 引擎（后来由 D13 取代）；D7 用成熟库，不手写已被解决的问题 |
+| `engine-and-deps.md` | D6 引擎（解析部分由 D13 取代）；D7 用成熟库，不手写已被解决的问题 |
 | `chunk-labels.md` | ~~label 当 chunk 名~~ → 被 D13 取代（保留字符集限制的历史记录） |
 | `output-ownership.md` | D10 删除只由 `.lpignore` 声明授权；map 不再是账本；`--check` 是干跑 |
 | `watch-contract.md` | D9 只写变化字节 / 不 tangle 半写文档 / 事件合并 / check 融合 |
-| `map-scope.md` | D11 每目录一份 map；v3 起 per-line 源文件 |
+| `map-scope.md` | D11 每目录一份 map；v5 起记 chunk 区间 |
 | `typst-is-the-authority.md` | D12 chunk 的权威是 Typst 求值；**含 show rule 埋点为何脆的实测** |
 | `declared-chunks.md` | D13 **声明式 chunk**：`#chunk`/`#file`，声明自带 name/lang/text |
 | `no-positions.md` | D14 **删掉行号映射**，出处降到 chunk 级；`locate.rs`/`source.rs` 删除 |
+| `self-hosting-layout.md` | D15 **自举布局**：根即 `--out`、`bootstrap/` 冻结种子、达成标准与永久不变量分开、引用撞车改夹具不加语法 |
 
 ## 4. 不许回头做的事（都踩过，附证据）
 
@@ -51,31 +62,38 @@
 | 在源码里搜索声明 token 定位行号 | 实测在**自己的 demo** 上指到了散文（第 61 行 vs 声明的第 64 行），见 `research/2026-09-11-source-positions.md` |
 | 自己实现 `.lpignore` 的匹配/优先级 | `ignore` crate 的 walker 就是干这个的（`status.rs` 已交回给它） |
 | 往生成物注入行指令 / `#line` | 语言无关性 + `--check` 要逐字一致；已被 D5 否掉 |
+| 手改 `src/`、`tests/` 或让 `bootstrap/` 跟着文档更新 | 前者 `tests/self.rs` 立刻红；后者等于把种子变成第二份"生成物"，工具坏掉时没有可信起点（D15） |
+| 现在就给引用加转义语法 | 撞车只出现在"目标语言文件里恰好有一行独占的 `<<name>>`"，我们自己的 4 处是测试夹具，已用 `concat!` 解决；升级路径（行首 `@`）记在 D15，真有人需要再做 |
 
 ## 5. 当前状态与已知脏点
 
-- **测试 47 个**（`6 单元 + 19 flow + 5 lazy + 7 metadata + 10 owned`），clippy/fmt 干净，`examples/demo/run.sh` 全绿（tangle → cargo run → weave → `--check` → map → explain 回译 → 复原）。
-- 规模：`src/` 约 1.5k 行（`tangle` 449 / `status` 367 / `main` 279 / `map` 211 / `watch` 168 / `metadata` 109 / `explain` 54 / `diag` 53）+ 包 `lit/lp.typ` 76 行。
+- **测试 48 个**（6 单元 + 19 flow + 5 lazy + 7 metadata + 10 owned + 1 self），fmt/clippy 干净，`examples/demo/run.sh` 全绿。
+- **自举 Stage 1 已验**：种子 `bootstrap/target/debug/lp tangle self.typ --out . --check` 全 ok，且 `diff -r bootstrap/{src,tests} .` 逐字节相同；`tests/self.rs` 守永久不变量（自己构的二进制自复现）。
+- 规模：`self.typ` 3228 行（14 个根 chunk）；生成 `src/` 约 1.8k 行 + `lit/lp.typ` 78 行；`bootstrap/` 是同一批字节的冻结副本。
 - 上一轮审计后**剩余**的脏点（按程度）：
   1. `metadata.rs` 的 `QUERY` 字符串与包之间是隐式契约（字段名两处各写一遍；serde 会兜住缺字段，未知 kind 已在边界报错）——低风险，值得一句注释/一个断言；
-  2. `status.rs` 的 `compress` 用字符串拼路径（`format!("{prefix}{child}")`）——展示层，建议留；
-  3. `main.rs` 的 `list` 重复 `plan()` 的一小段（自建 ChunkSet/referenced）——3 行，建议留；
-  4. `examples/demo/run.sh` 用 `sed -i` 改动生成物来演示报错回译——演示步骤，已注明。
+  2. `self.typ` 是**转写产物**：一个文件一个根 chunk，没有共享、没有散文（Stage 2 的活，不是 bug）；
+  3. `bootstrap/Cargo.toml` 的 `[workspace] exclude = ["experiments/*"]` 现在是相对 `bootstrap/` 的死路径——无害（种子是冻结文件），别顺手"修"；
+  4. `status.rs` 的 `compress` 用字符串拼路径、`main.rs` 的 `list` 重复 `plan()` 的一小段、`examples/demo/run.sh` 用 `sed -i` 改生成物演示报错回译——都是展示/演示层，建议留。
 
 ## 6. 下一步候选（带代价）
 
 | | 内容 | 代价 |
 | --- | --- | --- |
-| A | `lp explain --format cargo`（`cargo_metadata` 解 JSON）+ `ci.sh`（compile + test + `--check`） | 小，M2 尾巴 |
-| B | 分节归属：用 `location()` 按 `(page, y)` 合并 heading 流与声明流（已验证可行） | 中；但注意 D12 的教训——别再依赖 show rule |
-| C | "章节即文件"：heading 带 `<src/main.rs>`，该节内声明的 chunk 都归这个文件 | 语义变化，需新 ADR |
-| D | 自举 M3：原型冻结 `bootstrap/`，工具自身源码写成 `self.typ` + 固定点测试（tangle 产物与手写源码逐字节相同） | 大，项目目标是自举 |
+| A | 自举 Stage 2：把 `self.typ` 里重复片段抽成 `#chunk` 共享、加散文、按章节拆 | 中；**产物不再等于 `bootstrap/` 是预期结果**，靠 `tests/self.rs` + `cargo test` 守 |
+| B | `lp explain --format cargo`（`cargo_metadata` 解 `--message-format=json`） | 小；`--message-format=short` 已经能走通通用后端，所以不急 |
+| C | 分节归属：用 `location()` 按 `(page, y)` 合并 heading 流与声明流（已验证可行） | 中；注意 D12 的教训——别再依赖 show rule |
+| D | "章节即文件"：heading 带 `<src/main.rs>`，该节内声明的 chunk 都归这个文件 | 语义变化，需新 ADR |
 | E | `lit/lp.typ` 发布成 `@preview` 包（目前只能 `#import "相对路径"`） | 小-中，需要包名与版本策略 |
+
+**明确不做**：`ci.sh`（用户 2026-09-11："没自举做什么 ci"）——自举稳住了再谈，届时跑的就是 §0 那三步 + `--check` + `run.sh`。
 
 ## 7. 环境陷阱
 
 - **`typst` 必须在 PATH**（或 `LP_TYPST`）：tangle 靠它读声明，`cargo test` 也需要 → 一律 `nix develop -c ...`。
+- **fresh clone 不能直接 `cargo test`**：`src/` 是生成物，先按 §0 跑种子那两步。
 - **flake 只看 git 已跟踪的文件**：新建/改 `flake.nix` 后要先 `git add`，否则 `nix develop` 报 `not tracked by Git`。
-- **`.lpignore` 语义与 `.gitignore` 反向**：匹配 = **保护**（"要保留什么"的清单），不是"忽略"。控制文件只有 `.lpignore` 与 `.lpmap.json`，**没有 git 特例**，点文件是普通内容。
+- **`.lpignore` 语义与 `.gitignore` 反向**：匹配 = **保护**（"要保留什么"的清单），不是"忽略"。控制文件只有 `.lpignore` 与 `.lpmap.json`，**没有 git 特例**，点文件是普通内容。新增顶层文件（编辑器临时文件、新工具目录）要顺手声明，否则 `tangle` 报"未处置"。
+- **`--out` 是仓库根**：`lp tangle self.typ --out . --check` 是干跑（不写任何东西），可以随时跑；`lp unaccounted ... --delete` 在这个仓库里等于对全仓库动刀——别在没看清单的时候跑。
 - **`examples/demo/build/` 是生成物**（gitignore），里面有 `.lpignore`（唯一被跟踪的文件，靠 `.gitignore` 里的 `!` 规则）。
 - **本会话里 pi-lens 偶尔报 `~/.config/pi-web/...` 的路径**（例如 `src/main.rs`、`out/a.py`）：那是 harness 把仓库相对路径按自己的 cwd 解析的**假象**，那些文件不存在；以仓库内路径为准。

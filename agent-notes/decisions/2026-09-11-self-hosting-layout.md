@@ -16,6 +16,7 @@ lit/ agent-notes/ examples/ experiments/ flake.nix README.md ...   # 手写资�
 
 - 生成物就在它现在的位置——不搬进 `crate/`、不动 `cargo test` 的路径。D3 里"为自举留位置"留的就是这个：`bootstrap/` 与根目录的 `src/` 共存。
 - `--out .`（仓库根）意味着**所有权规则管整个仓库**，所以根 `.lpignore` 是自举的一部分：它列出所有手写资产（`.git/`、`target/`、`bootstrap/`、`lit/`、`agent-notes/`……）。新增一个手写顶层文件就要声明它，否则 `tangle` 报错——这是 D10 的本意，不是摩擦事故。
+- `bootstrap/Cargo.lock` 与根 `Cargo.lock` 一样入库：种子要能钉住自己的依赖图，它不是文档的产物。
 
 **2. 达成标准与永久不变量分开。**
 
@@ -57,17 +58,21 @@ lit/ agent-notes/ examples/ experiments/ flake.nix README.md ...   # 手写资�
 ## 影响的代价
 
 - **首次 clone 不能直接编译**：要先跑 bootstrap（README 会写清三步）。这是 D4"生成物不入库"的必然结果，不是新增代价。
-- **每次 `tangle` 走整棵仓库树**（`--out .`）：`ignore` 的 walker 会看 `target/`、`.git/`。实测数据在 `research/2026-09-11-lazy-tangle.md` 的同名议题下补充；若真成瓶颈，退路是把生成物收进一个子目录。
+- **每次 `tangle` 走整棵仓库树**（`--out .`）：`ignore` 的 walker 会看 `target/`、`.git/`。实测（2026-09-11，`time ./target/debug/lp unaccounted examples/demo/literate.typ --out .`，主仓库 `target/` 下 8477 个文件）：**0.82s，含一次 typst 求值**——walk 不是瓶颈。若将来成为瓶颈，退路是把生成物收进一个子目录。`self.typ` 全量 `--check` 是 0.79s。
 - `Cargo.lock` 与根 `.lpmap.json` 也落在 `--out` 范围内，需要在保护清单/生成物里各有归属。
 
 ## 验证（本 ADR 的结论怎么复核）
 
-```sh
-# 撞车清单（应为空，除夹具那 4 行的修复点）
-rg -n '^\s*<<[^<>]+>>\s*$' src tests
+已验（2026-09-11，worktree `self-host`）：
 
-# fence 长度（最长 3 → 用 4 个反引号）
-rg -o '`+' -N tests/*.rs | awk '{print length($0)-length(substr($0,1,0))}' | sort -n | tail -1
+- 撞车清单：修完夹具后 `rg -n '^\s*<<[^<>]+>>\s*$' src tests` 为空；夹具常量修复前后编译输出逐字节相同（203 / 178 字节）。
+- **达成标准**：种子 `./bootstrap/target/debug/lp tangle self.typ --out . --check` 14 个文件全 ok；`diff -r -x .lpmap.json bootstrap/src src` 与 `diff -r -x .lpmap.json bootstrap/tests tests` 均空 → 逐字节相同。
+- **永久不变量**：`cargo test` 48 绿（含 `tests/self.rs` 的 1 个）。
+- 成本：主仓库 `target/` 8477 个文件时 `lp unaccounted … --out .` 0.82s（含一次 typst 求值）；`self.typ --check` 0.79s。
+
+```sh
+# 撞车清单（应为空）
+rg -n '^\s*<<[^<>]+>>\s*$' src tests
 
 # 达成标准
 nix develop -c cargo build --manifest-path bootstrap/Cargo.toml

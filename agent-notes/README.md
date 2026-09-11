@@ -29,17 +29,19 @@
 - `research/2026-09-11-source-positions.md` — **Typst 能不能给出源码行号**：脚本层/插件层**不能**（元素无 span、`location` 只有排版坐标、插件协议只传字节），只有编译器层能（`typst-syntax` 的 span，对外只经诊断）；并实测出"字符串搜索声明 token"在 demo 上会命中**散文**（第 61 行 vs 声明的第 64 行）。含四条路（不做行号 / parser 当 span 查询器 / 作者写行号 / 继续搜索）的代价表与推荐。
 - `research/2026-09-11-typst-structure-and-include.md` — 实测 Typst 文档自身的结构（heading 一等元素 + 字段）与 include 语义（内容级合并、label 全局），以及 `lp` 的两个缺口（不跟随 include、跨文档引用不成立）与补齐顺序。
 - `decisions/2026-09-11-no-positions.md` — **D14 行号映射不做了**（用户规矩："活不能优雅地做 → 不做"）：Typst 脚本层拿不到源位置，要行号只能搜索源码或重新解析 Typst；改成 **chunk 级出处**（chunk 区间），删掉 `locate.rs`/`source.rs` 与 span 报错。
+- `decisions/2026-09-11-self-hosting-layout.md` — **D15 自举布局（Stage 1 已落地）**：crate 留在仓库根、根就是 `--out`、`bootstrap/` 是冻结种子；达成标准（`--check` 等于冻结前手写源码）与永久不变量（自己构的二进制 `--check` 绿，`tests/self.rs`）分开；`<<name>>` 独占一行的撞车改我们的夹具（`concat!`）而不加转义语法。
 - `decisions/2026-09-11-declared-chunks.md` — **D13 声明式 chunk（取代 D8 的 label 命名与 D12 的四层搜索）**：文档 import `lit/lp.typ` 并用 `#chunk`/`#file` 声明；工具只读声明流，位置靠精确 token 查找。
 - `decisions/2026-09-11-typst-is-the-authority.md` — **D12 架构定案**：chunk 集合/顺序/文本由 **Typst 求值**给出（wrapper 埋点 + `typst eval`，不改用户文档），源位置由**四层纯搜索定位器**给出（Literal / Template / Generated / Nowhere）；静态分析被否决（图灵完备面前构造上就是错的）。含实测的两个决定性 case 与代价（typst 成为硬依赖、文档必须能求值）。
 - `research/2026-09-11-lazy-tangle.md` — 实时 / lazy tangle 的实测：全量重算只要 3–7ms，真瓶颈是写入抖动；`lp watch` 实现要点、FUSE/LSP 投影的天花板、复现命令。
 - `../experiments/2026-09-11-chunk-spike/` — 可运行的最小验证：纯 `.typ` 同时 weave 成 PDF、tangle 成可运行的 `hello.py`，带 `--check` 漂移检测和行号映射。
 - `../experiments/2026-09-11-typst-syntax-probe/` — 验证 `typst-syntax` 能给出精确 span 且文本与 `typst eval` 逐字节一致（D6 的依据）。
 
-## 当前状态（截至 2026-09-11，`0be430a`）
+## 当前状态（截至 2026-09-11，`5efc543`）
 
 > **修正（D13/D14 之后重写）**：原版这一节还写着 "`typst-syntax` 就是 tangle 的解析器" 与 "报错映射回 `.typ` 行号是差异化"，两条都已被推翻。以 `handoff.md` 为准。
 
-- 调研 + spike + 决策 + **M1 原型 + M2（`lp watch`、输出目录所有权、chunk 级出处）** 均已完成并合入 main。`src/` 是普通 Rust 工程（`cargo test` 全绿 47 个：6 单元 + 41 端到端），`lit/lp.typ` 是包（渲染 + 声明），`examples/demo/` 是可跑的多文件示例。
+- 调研 + spike + 决策 + **M1 原型 + M2（`lp watch`、输出目录所有权、chunk 级出处）+ 自举 Stage 1** 均已完成并合入 main。`cargo test` 全绿 48 个（6 单元 + 42 端到端）；`lit/lp.typ` 是包（渲染 + 声明），`examples/demo/` 是可跑的多文件示例。
+- **自举 Stage 1（D15）**：`self.typ` 逐字节复现整个 crate，`Cargo.toml`/`src/`/`tests/` 是生成物（gitignore），`bootstrap/` 是冻结种子；fresh clone 先跑种子再 `tangle self.typ --out .`。Stage 2（抽公共 chunk、加散文）未做，见 `plan.md`。
 - 核心假设（D13/D14 定稿）：**chunk 由文档声明**（`#chunk`/`#file`），工具只跑 `typst eval 'query(<lp-decl>)'` 读回声明流，**从不解析 Typst**；weave 就是 `typst compile`；出处是 **chunk 级**（哪个声明、在它里面第几行），**不记 `.typ` 行号**。
 - 已跑通的一次性链路：`nix develop -c examples/demo/run.sh`（tangle 多文件 crate → 构建运行 → weave PDF → `--check` → `lp map` → 用 `lp explain` 把 rustc 报错回译到 chunk → 复原）。
 - 已跑通的实时链路：`lp watch <doc> --check-cmd 'cargo build --message-format=short'` —— 只重写真正变了的文件，检查只在真改写后跑，诊断自动指回 chunk。契约见 ADR D9，实测见 `research/2026-09-11-lazy-tangle.md`。
