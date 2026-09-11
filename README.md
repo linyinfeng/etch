@@ -35,7 +35,7 @@ def greet(name):
 
 - `#file(path, …)` 声明**输出文件**，`#chunk(name, …)` 声明**片段**——名字、语言、正文都在声明里，工具不需要读源码猜。
 - `<<name>>` 独占一行时是引用，展开时按引用点的缩进整体缩进；其他位置（`std::cout << x`）保持字面量。**要原样展示这一行**就用转义 `@<<name>>`——它照样输出 `<<name>>`，但不会被展开（ADR D17；skill 与本文档自己就靠它）。
-- **名字必须先被引用、后被声明**（ADR D16）：读者总是先遇到名字，再遇到填进它的正文；把细节写在名字之前，`lp` 拒绝。片段展开进文件时语言（fence 的 tag）也必须与该文件一致。
+- **声明顺序自由**（ADR D18）：可以先给文件骨架再逐节填，也可以先讲清楚各个想法、把它们写成片段，最后再用一节组装成文件——由论证决定。工具不检查顺序，也不检查 fence 的 `lang` 是否一致（那只是数据；检查不了就不检查）。
 - **同名的多个声明按文档顺序拼接**（noweb / org-babel `:noweb-ref` 语义）——一个文件可以分几处写。
 - 包负责渲染（带标题的块 + 引用标记），文档不需要任何样式化 show rule；`#show: rule` 只是让 `<<引用>>` 显示成绿色。
 - 没有"名字看起来像文件名"之类的启发式：是不是输出文件由 `file` 还是 `chunk` 决定。
@@ -161,6 +161,6 @@ nix develop -c cargo test
 - [`agent-notes/decisions/`](agent-notes/decisions/) — 已拍板的 ADR（架构、chunk 声明、输出所有权、watch 契约、无行号、自举布局）
 - [`agent-notes/research/`](agent-notes/research/) — 现有工具盘点、Typst 实测事实、设计空间
 - [`experiments/`](experiments/) — 丢弃型验证（Python 端到端 spike、`typst-syntax` span probe、Stage 1 的转写脚本）
-- [`.agents/skills/literate-programming/`](.agents/skills/literate-programming/SKILL.md) — agent skill：怎么写 LP、lp 下的机制、以及结构强制不了的那半边（语义自洽）。**它自己也由 `self.typ` 生成**（ADR D17 的转义就是为它加的）
+- [`.agents/skills/literate-programming/`](.agents/skills/literate-programming/SKILL.md) — agent skill：怎么写 LP、lp 下的机制、以及工具查不了的那半边（顺序与语义自洽）。**它自己也由 `self.typ` 生成**（ADR D17 的转义就是为它加的）
 
 未做：`lp explain --format cargo`（cargo JSON）、`ci.sh`、自举 Stage 2（抽公共 chunk、加散文、按章节拆）——候选与代价见 handoff §6。

@@ -15,14 +15,14 @@
   ```
 
 - **已有生成物时**先跑这三件事：`nix develop -c cargo test`（51 个，**需要 typst**）、`nix develop -c examples/demo/run.sh`（端到端）、`nix develop -c ./target/debug/lp tangle self.typ --out . --check`（自复现，必须绿）。
-- **两条结构规则是硬错误（D16）**：任何片段的**第一次被引用必须在它的声明之前**（先命名、后细节）；片段展开进文件时 `lang` 必须与根一致。语义自洽（散文与代码是否一致）工具查不了，是 **skill** 那半边。
+- **顺序自由（D18，推翻 D16）**：声明顺序由论证决定——骨架在前、或“先讲想法与片段、最后组装”，都正当；fence 的 `lang` 只是数据（高亮/映射），不做一致性检查。工具只管**机制**（引用可解析、无环、非空、`--check`、输出目录被解释）；**“重思路、渐进式披露、逻辑自洽”全部靠 skill**（写作者）。
 
 ## 1. 它现在是什么（行为契约）
 
 | 问题 | 谁回答 | 机制 |
 | --- | --- | --- |
 | 有哪些 chunk、什么顺序、文本、语言 | **Typst 求值** | 文档 import `lit/lp.typ` 用 `#chunk(name, ```…```)` / `#file(path, ```…```)` **声明**；工具 `typst eval 'query(<lp-decl>)'` 读回来。`#for`/`#if`/函数/`#include` 生成的 chunk 一视同仁 |
-| `<<name>>` 展开、缩进、悬空/环/空 chunk 报错、**先命名后展开**、**lang 一致** | `lp`（`tangle.rs`） | 纯文本替换 + 每行缩进；作用在**求值后**的文本上。顺序与 lang 是硬错误（D16）；要原样展示 `<<name>>` 独占一行用 `@<<name>>`（D17） |
+| `<<name>>` 展开、缩进、悬空/环/空 chunk 报错 | `lp`（`tangle.rs`） | 纯文本替换 + 每行缩进；作用在**求值后**的文本上。要原样展示 `<<name>>` 独占一行用 `@<<name>>`（D17） |
 | 每行输出从哪来 | `lp`（`map.rs`，schema v5） | **chunk 区间**：`runs = [{chunk, first, last}]`，每目录一份 `.lpmap.json`。**没有 `.typ` 行号**（见 §2） |
 | 输出目录里的东西归谁 | `lp`（`status.rs`） | 三类：**produced**（`#file` 声明写的）/ **declared**（`.lpignore`，规则即 gitignore、**匹配=保护**）/ **unaccounted**（都不是 → `tangle` **报错**；只有 `lp unaccounted --delete` 才删） |
 | weave | `typst compile` | 包同时负责渲染（带标题的块 + 引用标记），文档不需要样式 show rule |
@@ -53,8 +53,9 @@
 | `declared-chunks.md` | D13 **声明式 chunk**：`#chunk`/`#file`，声明自带 name/lang/text |
 | `no-positions.md` | D14 **删掉行号映射**，出处降到 chunk 级；`locate.rs`/`source.rs` 删除 |
 | `self-hosting-layout.md` | D15 **自举布局**：根即 `--out`、`bootstrap/` 冻结种子、达成标准与永久不变量分开、引用撞车改夹具不加语法 |
-| `document-invariants.md` | D16 **结构不变量（硬错误）**：先命名后展开、片段与文件 lang 一致；边界：语义自洽是写作者的事（skill） |
+| `document-invariants.md` | ~~D16 结构不变量~~ → **已被 D18 推翻**（留档：边界划分与“为什么推错”） |
 | `reference-escape.md` | D17 **转义**：`@<<name>>` 输出字面量；skill 进文档后必须能展示引用语法 |
+| `order-is-free.md` | D18 **顺序自由**：不检查声明顺序、不检查 lang；工具管机制，论证归写作者 |
 
 ## 4. 不许回头做的事（都踩过，附证据）
 
@@ -70,11 +71,11 @@
 
 ## 5. 当前状态与已知脏点
 
-- **测试 51 个**（7 单元 + 21 flow + 5 lazy + 7 metadata + 10 owned + 1 self），fmt/clippy 干净，`examples/demo/run.sh` 全绿。
-- **结构强制已落地**：`lp tangle` 现在会拒绝“先写细节后命名”与“片段 lang 与文件不符”（D16）；引用转义 `@<<name>>`（D17）。`examples/demo/literate.typ` 与两个 fixture 已按规则重排。
-- **skill 也是生成物**：`.agents/skills/literate-programming/`（SKILL.md + 两个 reference）由 `self.typ` 声明；改 skill = 改文档。
+- **测试 49 个**（7 单元 + 19 flow + 5 lazy + 7 metadata + 10 owned + 1 self），fmt/clippy 干净，`examples/demo/run.sh` 全绿。
+- **工具只管机制**：引用可解析、无环、非空、`--check`、输出目录被解释；顺序自由、lang 不检查（D18）。引用转义 `@<<name>>`（D17）。
+- **skill 也是生成物**：`.agents/skills/literate-programming/`（SKILL.md + 两个 reference）由 `self.typ` 声明；改 skill = 改文档。skill 的骨干是七条“论证守则”（承诺、术语、不说假话、说出未做到的部分、先改开头、交付前读文章）。
 - **自举 Stage 1 已验**：种子 `bootstrap/target/debug/lp tangle self.typ --out . --check` 全 ok，且 `diff -r bootstrap/{src,tests} .` 逐字节相同；`tests/self.rs` 守永久不变量（自己构的二进制自复现）。
-- 规模：`self.typ` 3228 行（14 个根 chunk）；生成 `src/` 约 1.8k 行 + `lit/lp.typ` 78 行；`bootstrap/` 是同一批字节的冻结副本。
+- 规模：`self.typ` 3778 行（17 个根 chunk：Cargo.toml + `src/` + `tests/` + skill 三个文件）；生成的 `src/` 1890 行 + `lit/lp.typ` 86 行；`bootstrap/` 是同一批字节的冻结副本。
 - 上一轮审计后**剩余**的脏点（按程度）：
   1. `metadata.rs` 的 `QUERY` 字符串与包之间是隐式契约（字段名两处各写一遍；serde 会兜住缺字段，未知 kind 已在边界报错）——低风险，值得一句注释/一个断言；
   2. `self.typ` 是**转写产物**：一个文件一个根 chunk，没有共享、没有散文（Stage 2 的活，不是 bug）；

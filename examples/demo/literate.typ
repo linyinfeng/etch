@@ -15,11 +15,11 @@ lp tangle examples/demo/literate.typ --out examples/demo/build
 ```
 
 Text like this never reaches the generated code. `#chunk("name", …)` declares a
-fragment and chunks pull each other in with `<<name>>`. The order is the reading
-order: the three files first, as skeletons that name what they need, then each
-piece in the section that explains it. A name is always used before it is
-declared, and `lp` refuses a document where that is not true — so the structure
-below is not a convention, it is the one the tool accepts.
+fragment and chunks pull each other in with `<<name>>`. The order below is a
+choice: the three files first, as skeletons that name what they need, then each
+piece in the section that explains it. Pieces first and assembly last would be
+just as legitimate — the argument decides, not the tool — and this document says
+so in its first paragraph because a reader should know which shape they are in.
 
 == The manifest
 

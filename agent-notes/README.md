@@ -31,7 +31,8 @@
 - `research/2026-09-11-literate-programming-thinking.md` — **LP 的思想与各方立场**（结论在前）：Knuth 的四条可分开表态的主张、noweb 的语言无关路线、notebook 的分界、文档生成派的胜利、Nørmark 的第三条路、"LP 已死/被吸收"、AI 时代的两面论证；附证据强度表（哪些是实测、哪些只是证词、哪些没找到证据）。配套的 agent skill 在 `../.agents/skills/literate-programming/`。
 - `decisions/2026-09-11-no-positions.md` — **D14 行号映射不做了**（用户规矩："活不能优雅地做 → 不做"）：Typst 脚本层拿不到源位置，要行号只能搜索源码或重新解析 Typst；改成 **chunk 级出处**（chunk 区间），删掉 `locate.rs`/`source.rs` 与 span 报错。
 - `decisions/2026-09-11-self-hosting-layout.md` — **D15 自举布局（Stage 1 已落地）**：crate 留在仓库根、根就是 `--out`、`bootstrap/` 是冻结种子；达成标准（`--check` 等于冻结前手写源码）与永久不变量（自己构的二进制 `--check` 绿，`tests/self.rs`）分开；`<<name>>` 独占一行的撞车改我们的夹具（`concat!`）而不加转义语法。
-- `decisions/2026-09-11-document-invariants.md` — **D16 结构不变量（硬错误）**：**先命名后展开**（片段的第一次被引用必须在声明之前）、片段 `lang` 与根一致；并划清了边界：工具只能强制结构，散文的语义自洽是写作者（人/agent）的事——skill 就是那半边。
+- `decisions/2026-09-11-document-invariants.md` — ~~D16 结构不变量（硬错误）：先命名后展开 + lang 一致~~ → **已被 D18 推翻**（两条检查都从代码里撤了）；保留的价值是里面的边界划分（工具只能强制机制）与“为什么推错”。
+- `decisions/2026-09-11-order-is-free.md` — **D18 顺序自由**：声明顺序完全自由（骨架在前 / 碎片在前最后组装都正当），`lang` 只是数据不检查；工具只管引用可解析/无环/非空/`--check`/所有权，**重思路与语义自洽全部落在 skill（写作者）**。教训：别把不可判定的性质换成可判定的代理。
 - `decisions/2026-09-11-reference-escape.md` — **D17 引用转义**：`@<<name>>` 输出字面量 `<<name>>`（tangle 去 `@`、weave 当文本、不计入引用图）。触发原因：skill 自己进了文档，而它必须原样展示 `<<name>>` 独占一行的样子。
 - `decisions/2026-09-11-declared-chunks.md` — **D13 声明式 chunk（取代 D8 的 label 命名与 D12 的四层搜索）**：文档 import `lit/lp.typ` 并用 `#chunk`/`#file` 声明；工具只读声明流，位置靠精确 token 查找。
 - `decisions/2026-09-11-typst-is-the-authority.md` — **D12 架构定案**：chunk 集合/顺序/文本由 **Typst 求值**给出（wrapper 埋点 + `typst eval`，不改用户文档），源位置由**四层纯搜索定位器**给出（Literal / Template / Generated / Nowhere）；静态分析被否决（图灵完备面前构造上就是错的）。含实测的两个决定性 case 与代价（typst 成为硬依赖、文档必须能求值）。
@@ -43,7 +44,7 @@
 
 > **修正（D13/D14 之后重写）**：原版这一节还写着 "`typst-syntax` 就是 tangle 的解析器" 与 "报错映射回 `.typ` 行号是差异化"，两条都已被推翻。以 `handoff.md` 为准。
 
-- 调研 + spike + 决策 + **M1 原型 + M2（`lp watch`、输出目录所有权、chunk 级出处）+ 自举 Stage 1 + 结构不变量（D16/D17）** 均已完成并合入 main。`cargo test` 全绿 51 个（7 单元 + 44 端到端）；`lit/lp.typ` 是包（渲染 + 声明），`examples/demo/` 是可跑的多文件示例（已按 D16 重排成“文件先、片段后”）。
+- 调研 + spike + 决策 + **M1 原型 + M2（`lp watch`、输出目录所有权、chunk 级出处）+ 自举 Stage 1 + 引用转义（D17）** 均已完成并合入 main。`cargo test` 全绿 49 个（7 单元 + 19 flow + 5 lazy + 7 metadata + 10 owned + 1 self）；`lit/lp.typ` 是包（渲染 + 声明），`examples/demo/` 是可跑的多文件示例（骨架式排版，但顺序不是强制的）。
 - **自举 Stage 1（D15）**：`self.typ` 逐字节复现整个 crate，`Cargo.toml`/`src/`/`tests/` 是生成物（gitignore），`bootstrap/` 是冻结种子；fresh clone 先跑种子再 `tangle self.typ --out .`。Stage 2（抽公共 chunk、加散文）未做，见 `plan.md`。
 - 核心假设（D13/D14 定稿）：**chunk 由文档声明**（`#chunk`/`#file`），工具只跑 `typst eval 'query(<lp-decl>)'` 读回声明流，**从不解析 Typst**；weave 就是 `typst compile`；出处是 **chunk 级**（哪个声明、在它里面第几行），**不记 `.typ` 行号**。
 - 已跑通的一次性链路：`nix develop -c examples/demo/run.sh`（tangle 多文件 crate → 构建运行 → weave PDF → `--check` → `lp map` → 用 `lp explain` 把 rustc 报错回译到 chunk → 复原）。
@@ -51,4 +52,4 @@
 - 下一步候选与代价见 `handoff.md` §6（cargo JSON 后端 + `ci.sh` 是小尾巴；自举 M3 是大头）。**删除语义已在 D10 定下**（`.lpignore` 目录声明 / `--check` 干跑）。
 - 差异化：**chunk 级出处 + 生成物漂移检测与归属**——报错给到"哪个声明、在它里面第几行"，chunk 名一步 `rg` 到声明；littst / typst-unlit 都不解决这两点。
 - 长期目标（D3）：原型冻结为 bootstrap，工具自身源码改写成 literate `.typ` 并自举；固定点测试保证 bootstrap 与自举产物逐字节一致。
-- **agent skill**：`.agents/skills/literate-programming/` —— `SKILL.md`（LP 纪律 + lp 机制 + 错误对照表）+ `references/example.md`（深嵌套形态的两文件例子，真跑过）+ `references/thinking.md`（立场、反方批评、证据强度）。**它由 `self.typ` 生成**（与 crate 一样是生成物）：要改 skill 就改文档。
+- **agent skill**：`.agents/skills/literate-programming/` —— `SKILL.md`（写作者的七条论证守则 + lp 机制 + 错误对照表）+ `references/example.md`（深嵌套形态的两文件例子，真跑过）+ `references/thinking.md`（立场、反方批评、证据强度）。**它由 `self.typ` 生成**（与 crate 一样是生成物）：要改 skill 就改文档。

@@ -1413,18 +1413,12 @@ pub fn expand(set: &ChunkSet, root: &str) -> Result<Tangled, LpError> {
         lines: 0,
     };
     let mut stack = Vec::new();
-    expand_chunk(set, root, root, "", &mut stack, &mut out)?;
+    expand_chunk(set, root, "", &mut stack, &mut out)?;
     Ok(out)
-}
-
-/// The language a chunk declared, if it declared one.
-fn lang_of<'a>(set: &ChunkSet<'a>, name: &str) -> Option<&'a str> {
-    set.get(name)?.first()?.lang.as_deref()
 }
 
 fn expand_chunk(
     set: &ChunkSet,
-    root: &str,
     name: &str,
     indent: &str,
     stack: &mut Vec<String>,
@@ -1465,21 +1459,8 @@ fn expand_chunk(
                                 set.names().collect::<Vec<_>>().join(", ")
                             )));
                     }
-                    // The lang tag is the only statement the document makes about what a
-                    // piece of text is, so a fragment expanded into a file has to agree
-                    // with it (ADR D16).
-                    if let (Some(want), Some(got)) = (lang_of(set, root), lang_of(set, target))
-                        && want != got
-                    {
-                        return Err(block.error(
-                            index,
-                            format!(
-                                "chunk ⟪{target}⟫ is {got}, but it is expanded into ⟪{root}⟫, which is {want}"
-                            ),
-                        ));
-                    }
                     let nested = format!("{indent}{local_indent}");
-                    expand_chunk(set, root, target, &nested, stack, out)?;
+                    expand_chunk(set, target, &nested, stack, out)?;
                 }
             }
         }
@@ -1508,45 +1489,6 @@ pub struct Outcome {
     /// accounts for. Non-empty means the pass failed.
     pub unaccounted: Vec<crate::status::Unaccounted>,
     pub warnings: Vec<String>,
-}
-
-/// The document is read front to back, so a name has to be introduced before the text
-/// that fills it in: a fragment declared before anything refers to it hands the reader
-/// details they have no use for yet (ADR D16).
-fn check_reading_order(blocks: &[Block]) -> Result<(), LpError> {
-    let mut declared: BTreeMap<&str, usize> = BTreeMap::new();
-    for (index, block) in blocks.iter().enumerate() {
-        declared.entry(block.name.as_str()).or_insert(index);
-    }
-
-    let mut first_used: BTreeMap<&str, usize> = BTreeMap::new();
-    for (index, block) in blocks.iter().enumerate() {
-        for line in block.text.lines() {
-            if let Some((target, _)) = ref_target(line) {
-                first_used.entry(target).or_insert(index);
-            }
-        }
-    }
-
-    // Alphabetical, so a document with several backwards declarations always reports
-    // the same one first.
-    for (name, declaration) in declared {
-        let Some(use_site) = first_used.get(name) else {
-            continue;
-        };
-        if declaration >= *use_site {
-            continue;
-        }
-        let line = blocks[declaration].text.lines().next().unwrap_or("");
-        return Err(LpError::plain(format!(
-            "chunk ⟪{name}⟫ is declared before anything refers to it: {line}"
-        ))
-        .with_help(format!(
-            "move this declaration after ⟪{}⟫, the first chunk that refers to ⟪{name}⟫: a name has to be introduced before the text that fills it in (ADR D16; `lp metadata` prints the order)",
-            blocks[*use_site].name
-        )));
-    }
-    Ok(())
 }
 
 /// What the documents produce, without writing anything.
@@ -1579,8 +1521,6 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
         return Err(LpError::plain(format!("no file declarations in {listed}"))
             .with_help("declare one: `#file(\"src/main.rs\", ```…```)`"));
     }
-
-    check_reading_order(&blocks)?;
 
     let mut warnings = Vec::new();
     let referenced: BTreeSet<String> = blocks.iter().flat_map(refs_of).collect();
@@ -2328,37 +2268,6 @@ fn dangling_reference_quotes_the_line() {
     );
     assert!(
         message.contains("in chunk ⟪main.py⟫, line 1 of it"),
-        "{message}"
-    );
-}
-
-#[test]
-fn a_fragment_declared_before_its_first_use_is_an_error() {
-    let body = "#file(\"main.py\", ```py\nprint(1)\n```)\n\n#chunk(\"early\", ```py\nx = 1\n```)\n\n#chunk(\"late\", ```py\n<<early>>\n```)\n";
-    let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
-    assert!(!output.status.success());
-    let message = stderr(&output);
-    assert!(
-        message.contains("chunk ⟪early⟫ is declared before anything refers to it"),
-        "{message}"
-    );
-    assert!(
-        message.contains("move this declaration after ⟪late⟫"),
-        "{message}"
-    );
-}
-
-#[test]
-fn a_fragment_in_another_language_is_an_error() {
-    let body =
-        "#file(\"main.py\", ```py\n<<bits>>\n```)\n\n#chunk(\"bits\", ```rust\nlet x = 1;\n```)\n";
-    let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
-    assert!(!output.status.success());
-    let message = stderr(&output);
-    assert!(
-        message.contains("chunk ⟪bits⟫ is rust, but it is expanded into ⟪main.py⟫, which is py"),
         "{message}"
     );
 }
@@ -3405,13 +3314,11 @@ The failure mode to avoid is prose that *sounds* explained. A confident paragrap
 
 | Invariant | Message |
 | --- | --- |
-| A name is used before it is declared | `chunk ⟪x⟫ is declared before anything refers to it` |
-| A fragment's language matches the file it lands in | `chunk ⟪x⟫ is rust, but it is expanded into ⟪main.py⟫, which is py` |
 | Every reference resolves; no cycles; no empty bodies | `chunk ⟪x⟫ is not defined` / `cycle in chunks:` / `chunk ⟪x⟫ is empty` |
 | Every file under `--out` is produced by a chunk or declared | `nothing accounts for these files` |
 | The generated files still equal the document | `--check` prints `STALE` |
 
-The first rule is the structural half of "name before detail": the tool will not let you hand a reader a detail before you have introduced it. The rest are drift and consistency guards. None of them can tell whether the prose is *true* — that is the writer's half.
+That is the whole list, and it is deliberately about *mechanism*: the tool can tell that a reference points at something and that the output still matches the text. It cannot tell whether the order is the best one for a reader, and it does not try — the order is yours (see below). None of these checks can tell whether the prose is *true* either.
 
 ## The shape: every file is a skeleton
 
@@ -3443,7 +3350,14 @@ return stack.pop()
 ```)
 ````
 
-Two things this buys: a reader can stop at any level and still have a true account of the program, and the order rule keeps the promise-keeping honest.
+Two things this buys: a reader can stop at any level and still have a true account of the program, and every name in the text has exactly one place where it is filled in.
+
+**The order of the declarations is free, and it is an editorial decision.** Two shapes both work, and the argument decides which one the reader wants:
+
+- *Skeleton first* (what the example does): show the files, then fill them in section by section. The reader knows the shape from the first page.
+- *Pieces first, assembly last*: explain the important idea and build its fragments as the text goes, then assemble them into files in a short final section. The reader meets each idea where it is worth explaining, and sees the whole only when they can appreciate it.
+
+Neither is more literate than the other. What is *not* a matter of taste is that the prose must say which one it is doing: if files appear at the end, the opening has to promise that.
 
 ## Mechanics
 
@@ -3483,8 +3397,6 @@ Provenance is chunk-level on purpose — which declaration, and which line insid
 
 | Message | Cause | Fix |
 | --- | --- | --- |
-| `chunk ⟪x⟫ is declared before anything refers to it` | a fragment written before the section that names it | move the declaration after its first reference |
-| `chunk ⟪x⟫ is <lang>, but it is expanded into ⟪path⟫, which is <lang>` | a fragment pasted into a file of another language | fix the fence tag or the chunk |
 | `chunk ⟪x⟫ is not defined` | a reference to nothing | declare it, or fix the typo |
 | `cycle in chunks:` | fragments referencing each other | break the cycle; an article is a DAG |
 | `chunk ⟪x⟫ is empty` | a declaration with no body | delete it or fill it |
@@ -3507,7 +3419,7 @@ Provenance is chunk-level on purpose — which declaration, and which line insid
 ```sh
 nix develop -c ./target/debug/lp tangle self.typ --out . --check   # the gate
 nix develop -c ./target/debug/lp watch self.typ --out . --check-cmd 'cargo build --message-format=short'
-nix develop -c cargo test                                          # 50 tests, includes self-reproduction
+nix develop -c cargo test                                          # 49 tests, includes self-reproduction
 ```
 
 A fresh clone has no `src/`: build the frozen seed in `bootstrap/`, then tangle (see `README.md` §自举). `tests/self.rs` fails if the files on disk stop matching the document, so hand-editing `src/` cannot survive. Adding a top-level directory means adding one line to the root `.lpignore`.
@@ -3805,10 +3717,9 @@ repository.
   argument needed a name for something. When a chunk name and a function name compete, the chunk
   is usually the coarser thing, because it belongs to a sentence.
 - **Reading front to back is the contract**: idea → shape → steps → details. `lp` enforces the
-  structural half of that contract (a name may not be filled in before it is introduced, and the
-  code may not contradict the language the document declares). The other half — that the prose
-  is *true* and the argument *holds* — cannot be checked by a tool, and that is what
-  [`../SKILL.md`](../SKILL.md) is for.
+  structure of the mechanism (references resolve, no cycles, generated files equal the text). The
+  other half — the order, and whether the prose is *true* and the argument *holds* — cannot be
+  checked by a tool, and that is what [`../SKILL.md`](../SKILL.md) is for.
 - **In an agent workflow** this is the point: the article is the complete context for the code
   (nothing is implemented that the text does not explain), and the checks are what stop the two
   from drifting. Writing prose is no longer the expensive part of literate programming — being
@@ -3849,7 +3760,7 @@ Keep these; they are the reasons this stance has to be argued rather than assume
 
 | Kind | Examples |
 | --- | --- |
-| Measured, reproducible | adoption history (WEB/CWEB niche, noweb in dozens of languages for decades, notebooks dominating data science); `typst-unlit` clobbering line numbers; `lp`'s own numbers (full tangle 3–7 ms, whole-repo ownership walk 0.82 s, 50 tests) |
+| Measured, reproducible | adoption history (WEB/CWEB niche, noweb in dozens of languages for decades, notebooks dominating data science); `typst-unlit` clobbering line numbers; `lp`'s own numbers (full tangle 3–7 ms, whole-repo ownership walk 0.82 s, 49 tests) |
 | Reasoned testimony | Knuth, Ramsey, Nørmark, Silver, apiad, Anticodians — decades of practice, no control groups |
 | **Not found** | any reproducible study showing literate programming reduces defects or maintenance cost. Knuth claims it, second-hand posts repeat it. Treat it as **unverified**, not as fact. |
 
