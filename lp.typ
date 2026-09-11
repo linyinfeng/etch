@@ -5339,8 +5339,10 @@ agent-notes/dev.sh tangled                   # ... and the branch carries it
 
 The task is four plumbing commands: a temporary index, a temporary work tree filled from
 `tangled/`'s own repository, `git commit-tree` with the previous seed as parent, and
-`git update-ref` on `refs/heads/tangled`. It never touches the working tree of `main` — and it cannot
-simply add `tangled/`, because a directory holding a `.git` is a repository, and git will not add
+`git update-ref` on `refs/heads/tangled`. It never touches the working tree of `main`, and the branch
+is never checked out anywhere: a worktree of it would be stale the moment the next generation is
+committed, so it is read with `git show` or unpacked with `git archive` when someone wants to look
+at a whole tree. It also cannot simply add `tangled/`, because a directory holding a `.git` is a repository, and git will not add
 what is inside one.
 
 == What the branch carries, and what it does not

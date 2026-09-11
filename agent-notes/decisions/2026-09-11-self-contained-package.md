@@ -68,6 +68,10 @@
 - **何时刷新**：属于一次改动，不属于仪式。要求只有一条：seed 必须是**能读懂当前文档**的一代；落后一代就够，等于当前更好。`--check` 管不了这件事（它守树，不守分支）。
 - **同时**：内层 `.gitignore` 的规则改成不锚定（`.lp`/`.lpmap.json`/`target` 落在树里任何位置都算工具状态——示例目录下也会出现），`[workspace] exclude` 去掉 `seed`。
 
+### 分支不留工作树（2026-09-12）
+
+用户决定：`tangled` 只是分支，不留常驻工作树，按需 checkout / `git show` / `git archive` 取用。好处是那个隐患消失——分支被 checkout 时，plumbing 的 `update-ref` 会让工作树静默变旧。代价是临时看一眼要自己敲命令；`dev.sh tangled` 因此加了一条守卫：发现该分支被某个工作树 checkout 就拒绝更新并打印位置（按需看完删掉再刷）。
+
 ### seed 分支里放什么（同日追问后写明）
 
 用户问：`.lpmap.json` 不该出现在 seed 里吗？判断依据是什么？tangle 的哪些输出被排除出了 seed？

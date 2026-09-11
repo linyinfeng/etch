@@ -59,7 +59,7 @@
 | (d) 转义 `@<<name>>` 为什么存在 | "The package"（第二个 pattern）+ "how to write one without it being one" | `rg -n '@<<' lp.typ \| head`（`@` 只在文档里，tangle 之后就不见了） |
 | (e) 没有行号、出处到 chunk 级 | "Reading a diagnostic back to the declaration" + "Where each generated line came from" | `lp map --out . --file src/diag.rs --line 5`；`echo 'src/diag.rs:5:1: boom' \| lp explain --out .` |
 | (f) 所有权的三组与 `--check` | "Who owns the output directory" + "What this repository carries" | `lp unaccounted lp.typ --out .`；`touch /tmp/stray && lp tangle lp.typ --out . --check` |
-| (g) 自举：种子分支、`git archive`、自复现 | "Starting from nothing"、"Replacing the seed"、"How the tests are written" | 文档里那四行 bootstrap 命令；`cargo test --test self` |
+| (g) 自举：种子分支（`tangled`，不留工作树）、`git archive`、自复现 | "Starting from nothing"、"Replacing the seed"、"How the tests are written" | 文档里那四行 bootstrap 命令；`cargo test --test self` |
 
 ## 下一步候选
 
@@ -74,7 +74,7 @@
 - **自用脚本**：`agent-notes/dev.sh gates`（或 `test`/`fmt`/`clippy`/`check`/`demo`/`weave`/`bootstrap`，或 `dev.sh <任意命令>`）。它是临时的，环境有别的着落时删掉即可。
 - **两条由 agent 管的历史**：`tangled/` 有自己的历史（`git -C tangled log`），`tangled` 分支是同一代产物在文档仓库里的载体。何时提交是用户的判断，书里只**推荐**「一代一 commit」；本仓库按 diff 需要由 agent 提交。改动文档后：`tangle` → `gates` → 有新代就在 `tangled/` 提交，然后 `agent-notes/dev.sh tangled` 刷新分支（它会断言两处树哈希相同，不等就报 `MISMATCH` 并以非零退出）。树的 `.gitignore`（`.lp`、`.lpmap.json`、`target`、示例的 build 目录）与 `/.git` 一样是**内层仓库的设置**，已在保护清单里声明。
 - **输出目录**：默认是文档旁边的 `tangled/`，并且它**是一个 git repo**（bootstrap 里 `git init tangled`，幂等）——生成的代码有独立的历史，`tangled/.lpignore` 里的 `/.git`、`/.gitignore` 就是这句话。`cargo` 的命令要带 `--manifest-path tangled/Cargo.toml`。
-- **种子在 `tangled` 分支上**（2026-09-12 由 `seed` 改名）：内容 = 当前这一代（`tangled/` 树根的内容：声明产出的文件 + `Cargo.lock` + 树的 `.gitignore`），为的是新 clone 里还没有 `lp` 二进制时的第一次构建。取用 `git archive`（clone 里分支叫 `origin/tangled`，所以 bootstrap 两种名字都试）；刷新用 `dev.sh tangled`。**git 不能 `add` 一个含 `.git` 的目录**（它当嵌套仓库跳过，静默），所以该任务走临时索引 + 临时工作树 + `commit-tree`/`update-ref`，不碰工作树。
+- **种子在 `tangled` 分支上**（2026-09-12 由 `seed` 改名；**不留工作树**，按需 `git show tangled:<path>` 看一个文件、`git archive tangled | tar -x -C <dir>` 看一整棵树；`dev.sh tangled` 若发现它被 checkout 就拒绝动 ref）：内容 = 当前这一代（`tangled/` 树根的内容：声明产出的文件 + `Cargo.lock` + 树的 `.gitignore`），为的是新 clone 里还没有 `lp` 二进制时的第一次构建。取用 `git archive`（clone 里分支叫 `origin/tangled`，所以 bootstrap 两种名字都试）；刷新用 `dev.sh tangled`。**git 不能 `add` 一个含 `.git` 的目录**（它当嵌套仓库跳过，静默），所以该任务走临时索引 + 临时工作树 + `commit-tree`/`update-ref`，不碰工作树。
 - **包是自包含的**：工具把内置包解压到 `<doc>/.lp/{local/lp/0.1.0}/` 并传给 `typst --package-path`；纯 `typst` 的步骤（weave、LSP）要自己设 `TYPST_PACKAGE_PATH=<doc>/.lp`。
 - **`--out` 就是仓库根**：`lp tangle lp.typ --out . --check` 是干跑、随时可跑；`lp unaccounted … --delete` 等于对全仓库动刀，看清单再动手。
 - **本机噪声**：pi-lens 偶尔报 `~/.config/pi-web/...` 的路径，那是 harness 的 cwd 假象；以仓库内路径为准。

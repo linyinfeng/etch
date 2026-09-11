@@ -51,6 +51,10 @@ clippy) run cargo clippy --manifest-path tangled/Cargo.toml --all-targets ;;
 tangle) run ./tangled/target/debug/lp tangle lp.typ ;;
 check) run ./tangled/target/debug/lp tangle lp.typ --check ;;
 tangled)
+	# The branch is never checked out: a worktree of it would go stale the moment this runs.
+	# Checked out on demand is fine — while it is out, leave the ref alone and say where it is.
+	checked_out=$(git worktree list --porcelain | awk '/^worktree /{p=$2} $1=="branch" && $2=="refs/heads/tangled"{print p}')
+	[ -z "$checked_out" ] || { echo "tangled    checked out at $checked_out — ref left alone" >&2; exit 1; }
 	# Write the current generation into the `tangled` branch. A temporary index and a temporary work
 	# tree, built from the tree's own repository: `git add tangled` cannot work, because a
 	# directory holding a .git is a repository and git will not add what is inside one.
