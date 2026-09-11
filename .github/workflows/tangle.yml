@@ -1,7 +1,8 @@
 name: tangle
 
-# main generates the tree and hands it to the seed branch. The branch is checked where it is
-# published, not here: this pipeline only writes it after everything has passed.
+# main tangles the document and hands the tree to the seed branch. What is checked here is the
+# tangle's own property — the tree matches the document — and nothing about the generated code:
+# that code's CI is the generated code's to define.
 
 on:
   push:
@@ -26,9 +27,7 @@ jobs:
         with:
           fetch-depth: 0 # the seed lives on another branch
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      - uses: dtolnay/rust-toolchain@stable # rustc and cargo, to build the seed
 
       # Tangling asks the document for its declarations, so typst is a hard dependency.
       - name: typst
@@ -56,14 +55,6 @@ jobs:
           set -euo pipefail
           ./tangled/target/debug/lp tangle lp.typ
           ./tangled/target/debug/lp tangle lp.typ --check
-
-      - name: gates
-        run: |
-          set -euo pipefail
-          cargo fmt --manifest-path tangled/Cargo.toml --check
-          cargo clippy --manifest-path tangled/Cargo.toml --all-targets
-          cargo test --manifest-path tangled/Cargo.toml
-          bash tangled/examples/demo/run.sh
 
       # Everything passed, so this is the generation. A seed carries exactly what the tree's own
       # repository commits — its `.gitignore` is part of the generation — so the index decides, not a

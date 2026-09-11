@@ -5321,8 +5321,9 @@ matter — that text is whatever its language says it is.
 The seed only ever reads, and it is output: the same tree the tangle writes, committed at the root
 of its own branch instead of being kept in the working tree. Keeping it in step is part of building
 this repository rather than part of using the tool: the pipeline does it on every change to the
-document — it takes the previous generation as the seed, builds it, tangles this document, runs the
-gates, and only then hands the branch the result. What this document can state is the property that has to hold —
+document — it takes the previous generation as the seed, builds it, tangles this document, checks the
+tree against it, and then hands the branch the result. Nothing about the generated code is checked
+there: a program's tests are the program's business, not the document's. What this document can state is the property that has to hold —
 the branch carries a generation that can read the document, and a generation only ever reads.
 
 So it is output in the strict sense: never edited, never checked out, never worked in. A worktree of
