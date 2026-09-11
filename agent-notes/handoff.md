@@ -1,12 +1,32 @@
-# 接手说明（handoff）— 2026-09-11
+# 接手说明（handoff）— 2026-09-11（`lp.typ` 重排成论证之后）
 
 > 这是**快照**，会过期。行动前先 `git log --oneline -5`，然后读 `lp.typ`（唯一权威）与 `agent-notes/README.md`（索引 + 当前状态）。
 
 ## 30 秒
 
 - **是什么**：`lp` —— 基于 Typst 的 literate programming 工具。同一个 `.typ` 既是可排版的文档（weave = `typst compile`），也是多种目标语言源码的唯一真相（tangle = `lp tangle`）。目标语言正交：算法里没有任何目标语言知识。
-- **仓库形态（D19）**：tracked 只有 `README.md`（一行指针）、`AGENTS.md`（一行指针）、`lp.typ`（工具本身，自解释）、`seed/`（本代产物的冻结副本）、`agent-notes/`，外加 `flake.nix`/`flake.lock`（nix 只认 git 里的 flake，见下）。其余一切——crate、包、skill、示例、`.gitignore`/`.lpignore`——都是 `lp tangle lp.typ --out .` 的产物。
-- **先跑什么**：`lp.typ` 的 "Starting from nothing" 三行：`nix develop -c cargo build --manifest-path seed/Cargo.toml` → 用种子 `tangle lp.typ --out .` → `nix develop -c cargo test`。
+- **仓库形态（D19）**：tracked 只有 `README.md`/`AGENTS.md`（各一行指针）、`lp.typ`、`seed/`、`agent-notes/`，外加 `flake.nix`/`flake.lock`（nix 只认 git 里的 flake）。其余一切——crate、包、skill、示例、控制文件——都是 `lp tangle lp.typ --out .` 的产物。
+- **`lp.typ` 已重排成一篇论证**（约 6100 行，其中约 1250 行散文）。阅读顺序即"构建顺序"：
+
+  ```text
+  这个工具在说什么（含 literate 的四条主张）
+  包：一个声明是什么            lit/lp.typ
+  错误怎么报                    src/diag.rs
+  问文档它声明了什么            src/metadata.rs
+  一趟 pass 拿声明做什么         src/tangle.rs
+  把诊断译回声明                src/explain.rs
+  每行输出来自哪里              src/map.rs
+  输出目录归谁                  src/status.rs
+  边编辑边保持同步              src/watch.rs
+  命令面                        src/main.rs
+  测试怎么写                    tests/*.rs（五个文件，一个用例一个片段）
+  构建环境 / 仓库携带什么 / git 忽略什么   Cargo.toml、flake.nix、.lpignore、.gitignore
+  从零开始 / 换种子 / 规则
+  例子                          examples/demo/**（按它自己的小节拆）
+  写作者那半边                  skill 三个文件（按它自己的小节拆）
+  ```
+
+- **每个生成文件都是"骨架 + 命名片段"**：根声明正文只剩真实行与 `<<步骤>>`，每个片段都在解释它的那一节里定义。重排期间**十五个生成文件全部逐字节不变**。
 
 ## 现在是什么（契约）
 
@@ -16,30 +36,41 @@
 | 引用展开、缩进、悬空/环/空报错 | `lp`（`tangle.rs`） | 纯文本替换 + 缩进；`@<<name>>` 是转义，原样输出 `<<name>>` 且不计为引用（D17） |
 | 每行输出来自哪个声明 | `lp`（`map.rs`，schema v5） | chunk 区间；**没有 `.typ` 行号**（D14） |
 | 输出目录里的东西归谁 | `lp`（`status.rs`） | produced / declared（`.lpignore`，匹配=保护）/ unaccounted（错误）；检查在写盘**之后**跑（D20） |
-| weave | `typst compile` | 包由文档自己产出（附录 "The package"） |
+| weave | `typst compile` | 包由文档自己产出（"包"那一章） |
 
-## 铁律
+## 写这个文档时的四条规矩（都踩过）
 
-`lp.typ` 的 "The rules" 一节是权威——**别在这里抄一份**，抄了就会漂。一句话：工具能强制的只有机制（引用可解析、无环、非空、`--check`、所有权）；**顺序自由、`lang` 只当数据**（D18）；"重思路、渐进式披露、语义自洽"靠**写作者**，skill 是那半边的成文（`.agents/skills/literate-programming/`，同样是产物）。
+- **只改 `lp.typ`**；生成物一律由 `tangle` 产出，手改会被 `tests/self.rs` 抓住。
+- **私有片段名带文件前缀**（`map: …`、`tangle: …`、`flow: …`）：**chunk 名是全文档全局的**，两章同名会**拼接**进同一个文件——`map.rs` 一度被塞进 `explain.rs` 的开头。
+- **缩进引用的片段里不许有空行**：引用点的缩进会加到片段的每一行，空行会变成一行空格（`cargo fmt --check` 报差异）。空行留在骨架里。
+- **片段不能含它所在框架的收尾 `}`**：收尾括号留在骨架里。
 
-## 踩过的坑（别回头走）
+## 重排的纪律（下次再重排时照做）
 
-- 用 Rust 静态分析 Typst、用 `#show raw` 埋点、在源码里搜索声明 token 定位行号——三条都实测过、都不做（D12/D13/D14）。
-- 手改生成物（`src/`、`tests/`、技能、包……）：`tests/self.rs` 会红。
-- 把不可判定的性质换成可判定的代理然后当同一条规则（D16 就是这么推错的，见 D18）。
-- `.lpignore` 是**逐目录**的，不能替另一个文档的产物背书；演示目录的边界在根 `.lpignore` 里声明（`/examples/demo/build`）。
-- 新增顶层目录要写进 `.lpignore`，否则 `tangle` 报"未处置"。
-- `flake.nix` 同时是 tracked 与生成物：nix 拒绝评估不在 git 里的 flake，所以这是唯一必须两边都在的文件；改它要改 `lp.typ`。
+- 抽取脚本按行范围抽片段（fence 长度自动、`@` 转义、空行断言），**但永远从纯净副本抽取**（`/tmp/*.before`）：`src/` 会被 tangle 重写，而 `git checkout -- lp.typ` 会连未提交的章节一起回退（都踩过）。
+- 一章一提交；提交前四道闸门全绿：`--check`、`cargo test`（49）、`examples/demo/run.sh`、`typst compile lp.typ` 零警告。**每次都用 `diff` 对照重排前的副本**——`--check` 只能证明"文档与磁盘一致"，证不了"重排没有改写代码"。
+
+## 教学清单（目标判据的可核对位置）
+
+| 要教的 | 在文档哪里 |
+| --- | --- |
+| (a) literate 的四条可分别表态的主张 | 开头 "What literate programming is, in four claims"；反方论证在 skill 的 `thinking.md`（"The case against"） |
+| (b) tangle / weave 的分工 | 开头 + "The package"（渲染与声明为什么在同一个函数里）+ 每章的运行方式 |
+| (c) 名字即接口、顺序自由 | "The package"、"What a pass does with the declarations"（展开即递归替换）、"The rules"（顺序自由，D18） |
+| (d) 转义 `@<<name>>` 为什么存在 | "The package"（第二个 pattern）+ "What a reference is / how to write one without it being one" |
+| (e) 没有行号、出处到 chunk 级 | "Reading a diagnostic back to the declaration"（为什么拒绝 `#line`）+ "Where each generated line came from" |
+| (f) 所有权的三组与 `--check` | "Who owns the output directory" + "What this repository carries" |
+| (g) 自举：种子、`cp -r seed/. .`、自复现 | "Starting from nothing"、"Replacing the seed"、"How the tests are written"（`tests/self.rs`） |
 
 ## 下一步候选
 
-- **文档的 literate 化（Stage 2）**：`lp.typ` 现在是"按序声明各个文件 + 散文附录"；下一步是把重复片段抽成 `#chunk` 共享、让散文与代码真正交织，让文档从"能自举"变成"值得读"。
-- `lp explain --format cargo`（`cargo_metadata` 解 `--message-format=json`）。
+- `lp explain --format cargo`（`cargo_metadata` 解 `--message-format=json`）；现在命令面一章里就写着它是"not yet"。
 - 把 `lit/lp.typ` 发布到 `@preview`（包现在由文档产出，剩下的是流程问题）。
+- 文档再长时的退路：按章节拆成多个文档（工具已支持多文档、`#include` 也在求值层合并）。
 
 ## 环境陷阱
 
 - **`typst` 必须在 PATH**（或 `LP_TYPST`）：tangle 靠它读声明，`cargo test` 也需要 → 一律 `nix develop -c …`；临时单跑用 `nix shell nixpkgs#typst -c …`。
-- **flake 只看 git 已跟踪的文件**：所以 `flake.nix`/`flake.lock` 必须在 index 里（D19 例外清单）。
+- **flake 只看 git 已跟踪的文件**：`flake.nix`/`flake.lock` 因此在 index 里（D19 的例外清单）。
 - **`--out` 就是仓库根**：`lp tangle lp.typ --out . --check` 是干跑、随时可跑；`lp unaccounted … --delete` 等于对全仓库动刀，看清单再动手。
-- 本会话里 pi-lens 偶尔报 `~/.config/pi-web/...` 的路径（例如 `src/main.rs`、`out/a.py`）：harness 把仓库相对路径按自己的 cwd 解析的假象，那些文件不存在；以仓库内路径为准。
+- **本机噪声**：pi-lens 偶尔报 `~/.config/pi-web/...` 的路径，那是 harness 的 cwd 假象；以仓库内路径为准。

@@ -43,13 +43,12 @@
 - `../experiments/2026-09-11-chunk-spike/` — 可运行的最小验证：纯 `.typ` 同时 weave 成 PDF、tangle 成可运行的 `hello.py`，带 `--check` 漂移检测和行号映射。
 - `../experiments/2026-09-11-typst-syntax-probe/` — 验证 `typst-syntax` 能给出精确 span 且文本与 `typst eval` 逐字节一致（D6 的依据）。
 
-## 当前状态（截至 2026-09-11，`3ce95aa`）
+## 当前状态（截至 2026-09-11，重排完成）
 
-仓库形态已经收敛（D19）：**tracked 只有五样**——`README.md`（一行指针）、`AGENTS.md`（一行指针）、`lp.typ`（工具本身，自解释、自包含）、`seed/`（本代产物的冻结副本 + 它那套 devshell）、`agent-notes/`（不适合进本体的经验）。其余一切（crate、包、skill、示例、flake、`.gitignore`/`.lpignore`）都是 `lp tangle lp.typ --out .` 的产物。
+`lp.typ` 已经是一篇**按论证顺序排列的文档**：开头是"literate 的四条可分别表态的主张"（这是它第一次被明确写出来，之前只在调研笔记里），然后是包、错误类型、问文档（metadata）、一趟 pass（tangle）、回译（explain）、出处（map）、所有权（status）、实时回路（watch）、命令面（main）、测试怎么写、构建环境与仓库文件、自举/换种子/规则、例子、写作者那半边（skill）。
 
-- 测试 49 个（7 单元 + 19 flow + 5 lazy + 7 metadata + 10 owned + 1 self）；fmt/clippy 干净；`examples/demo/run.sh` 端到端绿。
-- fresh clone 的三步在 `lp.typ` 的 "Starting from nothing" 一节（第一遍用 `seed/flake.nix`，因为 devshell 本身也是产物）。
-- 工具强制的只有**机制**（引用可解析/无环/非空/`--check`/所有权）；顺序自由、`lang` 不检查（D18）。**语义自洽归写作者**，skill 是那半边的成文（`.agents/skills/literate-programming/`，同样是产物）。
-- 两条链路不变：`examples/demo/run.sh`（一次性端到端）与 `lp watch … --check-cmd`（实时）。
-- 差异化：**chunk 级出处 + 生成物漂移检测与归属**——报错给到"哪个声明、在它里面第几行"，chunk 名一步 `rg` 到声明；littst / typst-unlit 都不解决这两点。
-- 下一步候选见 `handoff.md` §6。
+- **结构**：十五个生成文件全是"骨架 + 命名片段"——根声明正文只剩真实行与 `<<步骤>>`，每个片段都定义在解释它的那一节里。`Not yet arranged` 与两个 `Appendix` 都不存在了。
+- **重排的可信度**：每一个文件都拿"重排前的纯净副本"逐字节 diff 过（`--check` 只能证明文档与磁盘一致，证不了重排没改写代码）；十四次提交，每次四道闸门全绿（`--check`、49 测试、`examples/demo/run.sh`、weave 0 警告）。
+- **重排期间撞到并写进文档的规矩**：chunk 名全局（同名拼接）、缩进片段里不许有空行、片段不含所在框架的收尾 `}`；抽取永远从 `/tmp` 纯净副本开始。
+- **契约不变**：工具只管机制（引用可解析/无环/非空/`--check`/所有权）；顺序自由、`lang` 不查（D18）；语义自洽归写作者，skill 是那半边的成文。
+- 下一步候选见 `handoff.md`（`explain --format cargo`、把包发到 `@preview`）。

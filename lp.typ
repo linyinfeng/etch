@@ -1,17 +1,16 @@
 // lp, described by itself.
 //
-// Nothing here is documentation *about* the tool: this file is the tool. Tangling it
-// produces the crate, the package, the example, the agent skill and the control files;
-// compiling it produces the document you are reading.
+// Nothing here is documentation *about* the tool: this file is the tool. Tangling it produces
+// the crate, the package, the example, the agent skill and the control files; compiling it
+// produces the document you are reading.
 //
-// The document is being rearranged into an argument — from what a declaration is, through
-// what a pass does with it, to the pieces that read the result back. Order is free here,
-// so the rearrangement moves one file at a time; everything still waiting sits under
-// "Not yet arranged", and the tests are the gate for every step.
+// The document is arranged as an argument — from what a declaration is, through what a pass
+// does with it, to the pieces that read the result back — and the tests are the gate for every
+// change. Order is free here, so a chapter can be moved without moving its code.
 //
-// Two mechanical facts about writing here: a line that is exactly `<<name>>` is a
-// reference, and `@<<name>>` is how you write such a line without it being one (ADR D17).
-// The prose is Typst, not Markdown: emphasis is *one star*.
+// Two mechanical facts about writing here: a line that is exactly `<<name>>` is a reference,
+// and `@<<name>>` is how you write such a line without it being one (D17). The prose is Typst,
+// not Markdown: emphasis is *one star*.
 
 #import "lit/lp.typ": chunk, file, rule
 #show: rule
@@ -29,6 +28,27 @@ where the thinking lives; the code is quoted into it as the evidence that makes 
 thinking checkable. Reading front to back is meant to be the design walk: what a
 declaration is, what a pass does with it, how the result is read back, and why each of
 those choices is the one it is.
+
+== What literate programming is, in four claims
+
+The idea splits into four claims, and they are worth separating because a reader can accept some
+of them without the others.
+
+1. *The document is the source.* The code is tangled out of it, so there is no second copy that
+   can disagree with the prose.
+2. *The order belongs to the reader.* Names are resolved while tangling, not while reading, so
+   the text can be arranged in the order the design is understood rather than the order the
+   machine runs it.
+3. *A program is written as literature.* Prose is not a comment on the code; it is where the
+   thinking lives, and the code is the evidence that the thinking is real.
+4. *The woven document is worth having on its own.* Here that is `typst compile lp.typ`: the same
+   declarations, rendered as the page you are reading.
+
+This document takes the first claim literally and argues for the other three by being an example
+of them. The objections to all four — that the payoff falls as a language gets more expressive,
+that tooling friction kept literate programming niche, that reading code just got cheap — are
+stated in full in the skill's own reference file, `thinking.md`, which this document also
+produces. A stance that cannot state its opposition is not an argument.
 
 = The package: what a declaration is
 
@@ -993,10 +1013,8 @@ fn ref_target(line: &str) -> Option<(&str, &str)> {
 
 == And how to write one without it being one
 
-The escape exists because this document is its own subject: a chapter that shows what a
-reference looks like has to write a line that looks exactly like one. `@<<name>>` is
-emitted as `<<name>>` and is never expanded, which is also why the escape is not a
-reference for the purposes of the unused-chunk warning (ADR D17).
+`@<<name>>` stays literal — the escape's reason is with the pattern that recognises it — and
+it is not a reference for the purposes of the unused-chunk warning either (D17).
 
 #chunk("tangle: how to write one without it being one", ````rust
 /// A line that reads as a reference but has to stay literal: `@<<name>>` comes out
