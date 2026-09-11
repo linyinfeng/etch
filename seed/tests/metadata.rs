@@ -270,3 +270,27 @@ fn a_document_without_declarations_says_what_to_do() {
         "the remedy belongs there: {message}"
     );
 }
+#[test]
+fn a_document_needs_nothing_but_itself() {
+    // No copy of the package next to it, no environment variable, no git: the tool carries the
+    // package and unpacks it for Typst (D21).
+    if !typst_available() {
+        eprintln!("skipping: typst is not on PATH");
+        return;
+    }
+
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(
+        dir.path().join("alone.typ"),
+        "#import \"@local/lp:0.1.0\": chunk, file, rule\n#show: rule\n\n#file(\"main.py\", ```py\n<<body>>\n```)\n\n#chunk(\"body\", ```py\nprint('alone')\n```)\n",
+    )
+    .expect("doc");
+    let path = dir.path().to_path_buf();
+
+    let output = lp(&path, &["tangle", "alone.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(path.join("out/main.py")).expect("output"),
+        "print('alone')\n"
+    );
+}
