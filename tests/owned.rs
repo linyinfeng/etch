@@ -1,6 +1,7 @@
 //! Declarative ownership: a `.lpignore` in the output tree says "the files here
-//! are lp's, except what this file lists" — so a deleted root chunk cannot leave
-//! a stale file behind, while hand-written and foreign files stay put.
+//! are lp's, except what this file lists", with gitignore's own rules — so a
+//! deleted root chunk cannot leave a stale file behind, while hand-written and
+//! foreign files stay put.
 
 use std::path::Path;
 use std::process::{Command, Output};
@@ -40,15 +41,21 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).to_string()
 }
 
-/// A tangled project whose output directory declares ownership.
-fn managed() -> (TempDir, std::path::PathBuf) {
+fn string(doc: &str) -> String {
+    doc.to_string()
+}
+
+/// A project whose output directory declares ownership of itself.
+fn managed(ignore_file: &str, extra: &[(&str, &str)]) -> (TempDir, std::path::PathBuf) {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
-    std::fs::create_dir_all(dir.path().join("out/build")).expect("out");
-    std::fs::write(dir.path().join("out/.lpignore"), IGNORES).expect("ignore file");
-    std::fs::write(dir.path().join("out/handwritten.txt"), "kept by hand").expect("handwritten");
-    std::fs::write(dir.path().join("out/build/art.txt"), "not ours").expect("artifact");
-    std::fs::write(dir.path().join("out/Cargo.lock"), "foreign lockfile").expect("lock");
+    std::fs::create_dir_all(dir.path().join("out")).expect("out");
+    std::fs::write(dir.path().join("out/.lpignore"), ignore_file).expect("ignore file");
+    for (rel, contents) in extra {
+        let path = dir.path().join("out").join(rel);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(&path, contents).expect("file");
+    }
     let path = dir.path().to_path_buf();
     let output = lp(&path, &["tangle", "doc.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
@@ -61,11 +68,18 @@ fn without_b(doc: &str) -> String {
 
 #[test]
 fn deleting_a_root_chunk_removes_its_file_and_the_directories_left_behind() {
-    let (_guard, dir) = managed();
+    let (_guard, dir) = managed(
+        IGNORES,
+        &[
+            ("handwritten.txt", "kept by hand"),
+            ("build/art.txt", "not ours"),
+            ("Cargo.lock", "foreign lockfile"),
+        ],
+    );
     assert!(dir.join("out/src/b.py").exists());
 
     // A leftover the tool has never heard of: inside a managed directory, so it
-    // is a candidate too (this is the whole point of declaring ownership).
+    // is a candidate too — that is the point of declaring ownership.
     std::fs::write(dir.join("out/previous-version.py"), "stale").expect("stray");
     std::fs::write(dir.join("doc.typ"), without_b(DOC)).expect("doc");
 
@@ -82,18 +96,6 @@ fn deleting_a_root_chunk_removes_its_file_and_the_directories_left_behind() {
     );
     assert!(!dir.join("out/previous-version.py").exists());
     assert!(dir.join("out/a.py").exists());
-}
-
-#[test]
-fn ignored_files_survive_every_sweep() {
-    let (_guard, dir) = managed();
-    std::fs::write(dir.join("doc.typ"), without_b(DOC)).expect("doc");
-    assert!(
-        lp(&dir, &["tangle", "doc.typ", "--out", "out"])
-            .status
-            .success()
-    );
-
     for kept in [
         "out/handwritten.txt",
         "out/build/art.txt",
@@ -105,7 +107,88 @@ fn ignored_files_survive_every_sweep() {
 }
 
 #[test]
-fn without_an_ignore_file_nothing_outside_the_line_map_is_touched() {
+fn the_pattern_language_is_gitignores() {
+    // `dir/` and `**` work as they do in a `.gitignore`; a match protects the file
+    // (here: it is not ours to delete), and everything unprotected that no chunk
+    // produces goes.
+    let (_guard, dir) = managed(
+        "build/\n**/*.log\n",
+        &[
+            ("build/art.txt", "not ours"),
+            ("deep/nested/app.log", "log"),
+            ("deep/nested/keep.txt", "ours"),
+        ],
+    );
+    let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    assert!(dir.join("out/build/art.txt").exists(), "directory pattern");
+    assert!(dir.join("out/deep/nested/app.log").exists(), "** pattern");
+    assert!(
+        !dir.join("out/deep/nested/keep.txt").exists(),
+        "unprotected and unproduced: {}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn a_deeper_ignore_file_can_take_a_file_back() {
+    // Precedence is gitignore's: the deeper file wins, and `!` removes a file from
+    // the protected set (makes it ours again). One walk applies both, so the
+    // result does not depend on how many `.lpignore` files there are.
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
+    std::fs::create_dir_all(dir.path().join("out/src")).expect("out");
+    std::fs::write(dir.path().join("out/.lpignore"), "src/*\n").expect("ignore");
+    std::fs::write(dir.path().join("out/src/.lpignore"), "!stale.py\n").expect("ignore");
+    std::fs::write(dir.path().join("out/src/stale.py"), "ours after all").expect("file");
+    std::fs::write(dir.path().join("out/src/other.py"), "protected").expect("file");
+    let path = dir.path().to_path_buf();
+
+    let output = lp(&path, &["tangle", "doc.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        !path.join("out/src/stale.py").exists(),
+        "taken back by the deeper file: {}",
+        stdout(&output)
+    );
+    assert!(
+        path.join("out/src/other.py").exists(),
+        "still protected by the outer file"
+    );
+    assert!(path.join("out/src/b.py").exists(), "produced by a chunk");
+}
+
+#[test]
+fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
+    let (_guard, dir) = managed("kept.dot\n", &[("kept.dot", "x"), ("stray", "y")]);
+    std::fs::write(dir.join("out/stray.cache"), "not listed").expect("file");
+
+    let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    // The ledger and the rules themselves are never content.
+    assert!(dir.join("out/.lpmap.json").exists());
+    assert!(dir.join("out/.lpignore").exists());
+    // A dotfile is a file: listed, it stays; unlisted, it goes.
+    assert!(dir.join("out/kept.dot").exists());
+    assert!(!dir.join("out/stray.cache").exists(), "{}", stdout(&output));
+}
+
+#[test]
+fn a_git_store_inside_the_output_directory_is_never_touched() {
+    let (_guard, dir) = managed(
+        IGNORES,
+        &[(".git/config", "[core]\n"), (".git/objects/ab", "blob")],
+    );
+    let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(dir.join("out/.git/config").exists());
+    assert!(dir.join("out/.git/objects/ab").exists());
+}
+
+#[test]
+fn without_an_ignore_file_nothing_outside_the_ledger_is_touched() {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
     let path = dir.path().to_path_buf();
@@ -122,7 +205,7 @@ fn without_an_ignore_file_nothing_outside_the_line_map_is_touched() {
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(
         !path.join("out/src/b.py").exists(),
-        "the map knows this one was ours"
+        "the ledger knows this one was ours"
     );
     assert!(
         path.join("out/precious.py").exists(),
@@ -132,7 +215,7 @@ fn without_an_ignore_file_nothing_outside_the_line_map_is_touched() {
 }
 
 #[test]
-fn map_orphans_are_reported_and_need_prune_without_an_ignore_file() {
+fn ledger_orphans_are_reported_and_need_prune_without_an_ignore_file() {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
     let path = dir.path().to_path_buf();
@@ -159,7 +242,7 @@ fn map_orphans_are_reported_and_need_prune_without_an_ignore_file() {
 
 #[test]
 fn check_is_a_dry_run_for_the_sweep() {
-    let (_guard, dir) = managed();
+    let (_guard, dir) = managed(IGNORES, &[]);
     std::fs::write(dir.join("out/leftover.py"), "stale").expect("stray");
 
     let output = lp(&dir, &["tangle", "doc.typ", "--out", "out", "--check"]);
@@ -176,16 +259,31 @@ fn check_is_a_dry_run_for_the_sweep() {
 }
 
 #[test]
-fn hidden_files_are_never_removed() {
-    let (_guard, dir) = managed();
-    std::fs::write(dir.join("out/.gitignore"), "out/").expect("dotfile");
-    std::fs::write(dir.join("out/.keep"), "").expect("dotfile");
-
+fn nested_managed_directories_keep_their_scoping() {
+    // Only `src/` declares ownership, so a stray file next to it is not content
+    // of anything and stays put.
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("doc.typ"), string(DOC)).expect("doc");
+    std::fs::create_dir_all(dir.path().join("out")).expect("out");
+    std::fs::write(dir.path().join("out/.gitignore"), "hand made").expect("outer file");
+    std::fs::create_dir_all(dir.path().join("out/src")).expect("dir");
+    std::fs::write(dir.path().join("out/src/.lpignore"), "# ours\n").expect("ignore");
+    let path = dir.path().to_path_buf();
     assert!(
-        lp(&dir, &["tangle", "doc.typ", "--out", "out"])
+        lp(&path, &["tangle", "doc.typ", "--out", "out"])
             .status
             .success()
     );
-    assert!(dir.join("out/.gitignore").exists());
-    assert!(dir.join("out/.keep").exists());
+
+    std::fs::write(path.join("out/src/stale.py"), "stale").expect("stray");
+    let output = lp(&path, &["tangle", "doc.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        !path.join("out/src/stale.py").exists(),
+        "inside the managed directory"
+    );
+    assert!(
+        path.join("out/.gitignore").exists(),
+        "outside it, so not ours"
+    );
 }

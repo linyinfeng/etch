@@ -84,7 +84,9 @@ src/main.rs:6:38: error[E0425]: cannot find function `ad` in module `math`
 
 删掉（或改名）一个根 chunk 后，它产出的文件会变成孤儿：`lp tangle` 会报告 `orphan <file>`，`--prune` 删除它，`--check` 把它当漂移（退出码 1）。
 
-要让一个目录完全归 `lp` 管，在里面放一份 `.lpignore`（语法同 `.gitignore`）：该目录下（递归）任何**没有 chunk 产出且未被忽略**的文件会被删除，被列出的文件永不动。点文件（`.lpmap.json`、`.gitignore`…）无论规则如何都不删。demo 里 `examples/demo/build/.lpignore` 就是例子（cargo 的 `target/`、`Cargo.lock`、weave 出来的 PDF 都列在里面）。
+要让一个目录完全归 `lp` 管，在里面放一份 `.lpignore`：**规则就是 gitignore 的**（glob、`!`、`**`、`dir/`、嵌套文件与"深层覆盖浅层"的优先级都由 `ignore` crate 处理，一次遍历搞定）。该目录下任何**没有 chunk 产出且未被规则匹配**的文件会被删除；匹配上的文件留下。demo 里 `examples/demo/build/.lpignore` 就是例子（cargo 的 `target/`、`Cargo.lock`、weave 出来的 PDF 都列在里面）。
+
+两点要说清：**匹配语法和优先级与 gitignore 相同，但"匹配上了"的含义相反**——gitignore 里匹配=不跟踪，这里匹配=**保护**（把它当"要保留什么"的清单来读就对了）。豁免的只有两个控制文件 `.lpmap.json` 与 `.lpignore`，其余包括点文件都是普通内容；`.git` 目录永不进入。
 
 干跑用 `lp tangle --check`：它列出会被删的东西，一个文件也不动。没有任何 `.lpignore` 时，`lp` 只考虑自己写过的文件（账本），且必须显式 `--prune`；`--check` 与 `--prune` 互斥。
 

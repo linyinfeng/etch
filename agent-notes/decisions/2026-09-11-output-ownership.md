@@ -17,12 +17,19 @@ lp map --file b.py         → "not in the line map"
 
 - **决定**：
   1. **`.lpmap.json` 当账本（ledger），不当快照。** 一条记录会**在其 chunk 被删除后继续保留**（对应的文件还在磁盘上时）；文件消失则记录被清掉。含义：`lp` 知道自己写过哪些文件，即使现在的文档不再产出它们。
-  2. **`.lpignore` = 目录级所有权声明。** 某个目录里有 `.lpignore`，就表示"这个目录里的文件是 `lp` 的，除了文件里列出的那些"。该目录下（递归，嵌套的 `.lpignore` 同样生效）任何**没有 chunk 产出且未被忽略**的文件会被删除。忽略规则用 `ignore` crate（ripgrep 同源）解析，语法等同 `.gitignore`（glob、`!取反`、`dir/`）。
-  3. **点文件永不删除**（`.lpmap.json`、`.lpignore`、`.gitignore`…），无论规则怎么写。
+  2. **`.lpignore` = 目录级所有权声明，规则就是 gitignore。** 某个目录里有 `.lpignore`，就表示"这个目录里的文件是 `lp` 的，除了文件里列出的那些"；该目录下任何**没有 chunk 产出且未被规则匹配**的文件会被删除。**匹配语义完全交给 `ignore` crate**（ripgrep 同源）：`WalkBuilder` 一次遍历就完成全部工作——嵌套 `.lpignore`、深层覆盖浅层、`!` 取反、`**`、`dir/`、注释、转义。不自己发现"被管理的根"，不自己实现匹配与优先级。
+  3. **只有两个控制文件豁免**：`.lpmap.json`（账本）与 `.lpignore`（规则本身）。其余文件——**包括点文件**——都是普通内容：`.gitignore`、`.cache` 之类想留下就写进 `.lpignore`。另外 `.git` 目录永不进入（`filter_entry` 剪枝），因为仓库自己的存储不算工作区内容（git 也不跟踪它）。
   4. **没有 `.lpignore` 时保守行事**：只考虑账本里记过、且当前文档不再产出的文件，且**必须显式 `--prune`** 才删除；默认只报告 `orphan`。
   5. **`--check` 永不删除**，它是干跑：把本该删掉的列成 `ORPHAN`（含 "would be removed"），并以非零退出。`--check` 与 `--prune` 互斥（clap 层面）。
   6. 删除文件后，**它所属的空目录链会被收起**（只收自己刚清空的那些，不扫全树）。
+### 一处必须讲清的反向（对齐 gitignore 的边界）
+
+**匹配语法与优先级 = gitignore，但"匹配上了"的含义是反的**：在 git 里"被 ignore = 不跟踪"，在这里"被 ignore = **保护**、留下"。这是需求本身定的（用户规格原话：*"没有被 ignore 的文件，如果没有对应 chunk，就会被删除"*），所以把 `.lpignore` 当成"要保留什么"的清单来读，与 gitignore 的心智模型一致——只是方向相反。
+
+落选：把匹配含义也做成 gitignore 方向（匹配 = 交给 `lp` 管理）——那会让"保护手写文件"这件最常做的事变成写一条取反规则，且与用户规格相悖。
+
 - **落选**：
+  - 手写"被管理目录"的发现与嵌套去重（本次会话中途的实现）：用 `ignore` 库自己的 walk 就没这问题了，还白拿优先级语义。
   - 只做账本孤儿（本次会话最初实现）：漏掉"从来不是我们写的"残留（换 `--out` 跑过一次、旧版本留下的文件），而且第一个 pass 写回新 map 后孤儿记录就没了——测试 `map_orphans_are_reported_and_need_prune_without_an_ignore_file` 当场抓住了这个 bug（`--prune` 无效）。账本语义修掉了它。
   - 只做 `.lpignore` 扫描：没有 ignore 的目录完全没有保护/提示。
   - 一律要求 `--prune` 才删：`.lpignore` 已经是显式选择加入（用户的设计原话是"就会被删除"），再叠一层开关是冗余摩擦。
@@ -32,4 +39,4 @@ lp map --file b.py         → "not in the line map"
   - `.lpmap.json` 的语义变化要在 README 里写明（账本而非快照）。
   - `lp tangle`/`lp watch` 都会执行扫描（watch 里删文件后同样触发 `--check-cmd`）。
   - `--prune` 保留，服务于没有 `.lpignore` 的场景。
-- **回归**：`tests/owned.rs` 6 个用例（删除根 chunk → 文件与空目录一起消失；忽略文件全部存活；没有 `.lpignore` 时不动 map 之外的东西；`--check` 干跑；点文件豁免；无 ignore 时孤儿需 `--prune`）。另加 `lp map` 的账本行为由 `tests/flow.rs`/`tests/lazy.rs` 覆盖。
+- **回归**：`tests/owned.rs` 9 个用例——删除根 chunk（文件与空目录一起消失、被匹配的文件全部存活）；`dir/` 与 `**` 生效；**深层 `.lpignore` 覆盖浅层且 `!` 能把文件从保护集里拿回来**；控制文件与 `.git` 豁免而普通点文件照规则处理；嵌套声明的作用域；无 `.lpignore` 时不动账本之外的东西；`--check` 干跑；无 ignore 时孤儿需 `--prune`。账本行为另由 `tests/flow.rs`/`tests/lazy.rs` 覆盖。

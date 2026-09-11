@@ -5,18 +5,26 @@
 //! produces is then removed, so deleting or renaming a root chunk cannot leave a
 //! stale file behind for a build system to pick up.
 //!
-//! Two rules keep this from being a footgun:
+//! The rules are gitignore's, because they *are* gitignore: pattern matching,
+//! `!` re-inclusion, `**`, directory-only patterns, nested ignore files and the
+//! precedence between them all come from the `ignore` crate (the engine behind
+//! ripgrep). A single walk of the output directory applies every `.lpignore` in
+//! the tree, deepest file winning — no discovery pass, no reimplementation.
 //!
-//! * Nothing is removed outside a directory that carries its own `.lpignore`
-//!   (nested ignore files are honoured, so `src/` can be managed while the rest
-//!   of the tree is left alone), and nothing matched by that file is touched.
-//! * Hidden files (`.lpmap.json`, `.lpignore`, `.gitignore`, …) are never
-//!   removed, whatever the rules say.
+//! Three deliberate differences from a work tree:
 //!
-//! `--check` never deletes: it reports exactly what a sweep would remove, which
-//! makes it the dry run.
+//! * Patterns only ever decide what `lp` **keeps**, never what it takes: a file
+//!   is a candidate for removal only when a directory above it declared
+//!   ownership, and deletion always requires that declaration. Without one, the
+//!   ledger in `tangle.rs` is the only record of what is ours.
+//! * `.git` is never entered, so a repository living inside the output directory
+//!   is not content (git does not track its own store either).
+//! * `.lpmap.json` and `.lpignore` are control files, never content — deleting
+//!   the ledger, or the rules that decide what may be deleted, would be a
+//!   self-inflicted wound. Everything else, dotfiles included, is an ordinary
+//!   file: list it in `.lpignore` or lose it.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
@@ -33,92 +41,96 @@ pub struct Sweep {
     pub roots: Vec<String>,
 }
 
-/// Every directory under `out` that carries a `.lpignore`.
-pub fn managed_roots(out: &Path) -> Vec<PathBuf> {
-    let walker = WalkBuilder::new(out)
-        .standard_filters(false)
-        .hidden(false)
-        .build();
-    let mut roots = Vec::new();
-    for entry in walker.flatten() {
-        if entry.file_name() == IGNORE_FILE
-            && let Some(dir) = entry.path().parent()
-        {
-            roots.push(dir.to_path_buf());
-        }
-    }
-    roots
-}
-
-fn under_managed(path: &Path, roots: &[PathBuf], out: &Path) -> bool {
-    roots
-        .iter()
-        .any(|root| path.starts_with(root) && path != out)
-}
-
 /// Remove files that no chunk produces, inside directories that declared
 /// ownership. `produced` holds paths relative to `out`.
 pub fn run(out: &Path, produced: &BTreeSet<String>, delete: bool) -> Result<Sweep, LpError> {
-    let roots = managed_roots(out);
     let mut sweep = Sweep {
         removed: Vec::new(),
-        roots: roots
-            .iter()
-            .map(|root| match relative(out, root) {
-                rel if rel.is_empty() => ".".to_string(),
-                rel => rel,
-            })
-            .collect(),
+        roots: Vec::new(),
     };
-    if roots.is_empty() {
-        return Ok(sweep);
-    }
-
+    let mut roots: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut declared: BTreeMap<PathBuf, bool> = BTreeMap::new();
     let mut candidates: Vec<PathBuf> = Vec::new();
-    for root in &roots {
-        // The walker yields only entries the `.lpignore` rules do not exclude.
-        let walker = WalkBuilder::new(root)
-            .standard_filters(false)
-            .hidden(false)
-            .parents(false)
-            .add_custom_ignore_filename(IGNORE_FILE)
-            .build();
 
-        for entry in walker {
-            let entry = entry
-                .map_err(|err| LpError::plain(format!("cannot scan {}: {err}", root.display())))?;
-            if entry.depth() == 0 || !entry.file_type().is_some_and(|kind| kind.is_file()) {
-                continue;
-            }
-            let path = entry.path();
-            if !under_managed(path, &roots, out) {
-                continue;
-            }
-            // Hidden files are off limits: the map, the ignore files themselves,
-            // and whatever else a tool keeps in a dotfile.
-            if path
-                .file_name()
-                .is_some_and(|name| name.to_string_lossy().starts_with('.'))
-            {
-                continue;
-            }
-            let rel = relative(out, path);
-            if rel == MAP_FILE || produced.contains(&rel) {
-                continue;
-            }
-            candidates.push(path.to_path_buf());
+    let mut builder = WalkBuilder::new(out);
+    builder
+        .standard_filters(false)
+        .hidden(false)
+        .parents(false)
+        .require_git(false)
+        .add_custom_ignore_filename(IGNORE_FILE)
+        .filter_entry(|entry| entry.file_name() != ".git");
+
+    for entry in builder.build() {
+        let entry =
+            entry.map_err(|err| LpError::plain(format!("cannot scan {}: {err}", out.display())))?;
+        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+            continue;
         }
+
+        let path = entry.path();
+        if is_control_file(path) {
+            continue;
+        }
+        // The walker yields only entries the `.lpignore` rules keep; what remains
+        // is content of whichever directory declared ownership above it.
+        let Some(root) = declaring_root(out, path, &mut declared) else {
+            continue;
+        };
+        let rel = relative(out, path);
+        if produced.contains(&rel) {
+            continue;
+        }
+        roots.insert(root);
+        candidates.push(path.to_path_buf());
     }
+
+    sweep.roots = roots
+        .iter()
+        .map(|root| match relative(out, root) {
+            rel if rel.is_empty() => ".".to_string(),
+            rel => rel,
+        })
+        .collect();
 
     candidates.sort();
     for path in candidates {
         sweep.removed.push(relative(out, &path));
         if delete {
             std::fs::remove_file(&path).map_err(|e| LpError::io(&path, e))?;
-            prune_empty_parents(&path, out, &roots);
+            prune_empty_parents(&path, out, &mut declared);
         }
     }
     Ok(sweep)
+}
+
+/// The outermost directory at or above `path` (but not above `out`) that carries
+/// a `.lpignore`. `None` means nothing declared ownership of this path.
+fn declaring_root(out: &Path, path: &Path, cache: &mut BTreeMap<PathBuf, bool>) -> Option<PathBuf> {
+    let declares = |dir: &Path, cache: &mut BTreeMap<PathBuf, bool>| {
+        *cache
+            .entry(dir.to_path_buf())
+            .or_insert_with(|| dir.join(IGNORE_FILE).exists())
+    };
+
+    let mut root = None;
+    let mut dir = path.parent();
+    while let Some(current) = dir {
+        if !current.starts_with(out) {
+            break;
+        }
+        if declares(current, cache) {
+            root = Some(current.to_path_buf());
+        }
+        dir = current.parent();
+    }
+    root
+}
+
+/// `lp`'s own control files never count as content.
+fn is_control_file(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name == MAP_FILE || name == IGNORE_FILE)
 }
 
 /// Relative path with forward slashes, matching the line map's keys.
@@ -129,18 +141,14 @@ pub fn relative(out: &Path, path: &Path) -> String {
         .replace('\\', "/")
 }
 
-fn prune_empty_parents(path: &Path, out: &Path, roots: &[PathBuf]) {
+fn prune_empty_parents(path: &Path, out: &Path, cache: &mut BTreeMap<PathBuf, bool>) {
     let mut dir = path.parent();
     while let Some(current) = dir {
-        if current == out || !under_managed(current, roots, out) {
+        if current == out || declaring_root(out, current, cache).is_none() {
             break;
         }
         let empty = std::fs::read_dir(current).is_ok_and(|mut entries| entries.next().is_none());
-        if empty {
-            if std::fs::remove_dir(current).is_err() {
-                break;
-            }
-        } else {
+        if !empty || std::fs::remove_dir(current).is_err() {
             break;
         }
         dir = current.parent();
