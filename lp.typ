@@ -5270,6 +5270,16 @@ cargo test --manifest-path tangled/Cargo.toml
 A clone is enough; there is no second remote to fetch from. `origin/tangled` is the fallback for the
 case where the clone knows the branch only by that name.
 
+The gates script is not in this tree — it lives with the notes, on their branch, because it belongs to
+the working habits and not to the document. Take a worktree of that branch and call it from there; it
+acts on this tree by itself, and says so when it does:
+
+```sh
+git branch agent-notes origin/agent-notes     # a clone knows the branch only by that name
+git worktree add ../notes agent-notes
+../notes/agent-notes/dev.sh gates
+```
+
 These commands assume `typst` and `cargo` are on the path. This repository does not carry an
 environment of its own: a flake in it would be a tracked file that the document could not produce,
 since nix will not evaluate a flake whose files are not in git. Borrowing the tools for one command
