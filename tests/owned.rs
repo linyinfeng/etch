@@ -220,6 +220,21 @@ fn without_a_declaration_nothing_is_ever_removed() {
 }
 
 #[test]
+fn a_missing_output_directory_is_not_an_io_error() {
+    // `lp tangle --check` on a fresh checkout: the outputs are missing, which is
+    // drift, and that is what it should say.
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
+    let path = dir.path().to_path_buf();
+
+    let output = lp(&path, &["tangle", "doc.typ", "--out", "out", "--check"]);
+    assert!(!output.status.success());
+    let report = stderr(&output);
+    assert!(report.contains("STALE  a.py (file missing)"), "{report}");
+    assert!(!path.join("out").exists(), "--check writes nothing at all");
+}
+
+#[test]
 fn check_is_a_dry_run_for_the_sweep() {
     let (_guard, dir) = managed(IGNORES, &[]);
     std::fs::write(dir.join("out/leftover.py"), "stale").expect("stray");

@@ -48,6 +48,12 @@ pub fn run(out: &Path, produced: &BTreeSet<String>, delete: bool) -> Result<Swee
         removed: Vec::new(),
         roots: Vec::new(),
     };
+    // A fresh checkout has no output directory: nothing was ever produced, so
+    // there is nothing to sweep. Reporting an IO error here would bury the real
+    // finding (`--check` should say which outputs are missing).
+    if !out.exists() {
+        return Ok(sweep);
+    }
     let mut roots: BTreeSet<PathBuf> = BTreeSet::new();
     let mut declared: BTreeMap<PathBuf, bool> = BTreeMap::new();
     let mut candidates: Vec<PathBuf> = Vec::new();
