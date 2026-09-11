@@ -30,14 +30,14 @@
 - `research/2026-09-11-source-positions.md` — **Typst 能不能给出源码行号**：脚本层/插件层**不能**（元素无 span、`location` 只有排版坐标、插件协议只传字节），只有编译器层能（`typst-syntax` 的 span，对外只经诊断）；并实测出"字符串搜索声明 token"在 demo 上会命中**散文**（第 61 行 vs 声明的第 64 行）。含四条路（不做行号 / parser 当 span 查询器 / 作者写行号 / 继续搜索）的代价表与推荐。
 - `research/2026-09-11-typst-structure-and-include.md` — 实测 Typst 文档自身的结构（heading 一等元素 + 字段）与 include 语义（内容级合并、label 全局），以及 `lp` 的两个缺口（不跟随 include、跨文档引用不成立）与补齐顺序。
 - `research/2026-09-11-rearranging-the-document.md` — **把 `lp.typ` 从"能自举"重排成"值得读"：过程与教训**。可复用配方（留"之前"的副本、从纯净副本抽片段、一章一提交、四道闸门、收尾通读 + 独立读者）、两个层面的教训（工具的语义如何变成写作约束；以及工作方式上的六条，含"没有断言的替换脚本会静默撒谎"），附证据命令与代价（37 分钟 / 1.5M tokens / 244 片段）。
-- `research/2026-09-11-literate-programming-thinking.md` — **LP 的思想与各方立场**（结论在前）：Knuth 的四条可分开表态的主张、noweb 的语言无关路线、notebook 的分界、文档生成派的胜利、Nørmark 的第三条路、"LP 已死/被吸收"、AI 时代的两面论证；附证据强度表（哪些是实测、哪些只是证词、哪些没找到证据）。配套的 agent skill 在 `../.agents/skills/literate-programming/`。
+- `research/2026-09-11-literate-programming-thinking.md` — **LP 的思想与各方立场**（结论在前）：Knuth 的四条可分开表态的主张、noweb 的语言无关路线、notebook 的分界、文档生成派的胜利、Nørmark 的第三条路、"LP 已死/被吸收"、AI 时代的两面论证；附证据强度表（哪些是实测、哪些只是证词、哪些没找到证据）。**四条主张与反方论证已折进 `lp.typ` 开头**（skill 已于 D21 移除：读这本书就能写出 skill）。
 - `decisions/2026-09-11-no-positions.md` — **D14 行号映射不做了**（用户规矩："活不能优雅地做 → 不做"）：Typst 脚本层拿不到源位置，要行号只能搜索源码或重新解析 Typst；改成 **chunk 级出处**（chunk 区间），删掉 `locate.rs`/`source.rs` 与 span 报错。
 - `decisions/2026-09-11-self-hosting-layout.md` — **D15 自举布局（Stage 1 已落地）**：crate 留在仓库根、根就是 `--out`、`seed/` 是冻结种子；达成标准（`--check` 等于冻结前手写源码）与永久不变量（自己构的二进制 `--check` 绿，`tests/self.rs`）分开；`<<name>>` 独占一行的撞车改我们的夹具（`concat!`）而不加转义语法。
 - `decisions/2026-09-11-document-invariants.md` — ~~D16 结构不变量（硬错误）：先命名后展开 + lang 一致~~ → **已被 D18 推翻**（两条检查都从代码里撤了）；保留的价值是里面的边界划分（工具只能强制机制）与“为什么推错”。
-- `decisions/2026-09-11-order-is-free.md` — **D18 顺序自由**：声明顺序完全自由（骨架在前 / 碎片在前最后组装都正当），`lang` 只是数据不检查；工具只管引用可解析/无环/非空/`--check`/所有权，**重思路与语义自洽全部落在 skill（写作者）**。教训：别把不可判定的性质换成可判定的代理。- `decisions/2026-09-11-order-is-free.md` — **D18 顺序自由**：声明顺序完全自由（骨架在前 / 碎片在前最后组装都正当），`lang` 只是数据不检查；工具只管引用可解析/无环/非空/`--check`/所有权，**重思路与语义自洽全部落在 skill（写作者）**。教训：别把不可判定的性质换成可判定的代理。
+- `decisions/2026-09-11-order-is-free.md` — **D18 顺序自由**：声明顺序完全自由（骨架在前 / 碎片在前最后组装都正当），`lang` 只是数据不检查；工具只管引用可解析/无环/非空/`--check`/所有权，**重思路与语义自洽全部落在写作者**（当时写成 skill；D21 移除后改为本书自身的论证）。教训：别把不可判定的性质换成可判定的代理。
 - `decisions/2026-09-11-final-shape.md` — **D19 最终形态**：tracked 只有五样（两个一行指针 + `lp.typ` + `seed/` + `agent-notes/`），其余一切是产物；含五个决定的答案与执行中撞到的四个真问题。
 - `decisions/2026-09-11-ownership-check-order.md` — **D20 所有权检查移到写盘之后**：控制文件也是产物，fresh clone 里还没有它；代价是"树不合法也先刷新声明过的文件"。
-- `decisions/2026-09-11-reference-escape.md` — **D17 引用转义**：`@<<name>>` 输出字面量 `<<name>>`（tangle 去 `@`、weave 当文本、不计入引用图）。触发原因：skill 自己进了文档，而它必须原样展示 `<<name>>` 独占一行的样子。
+- `decisions/2026-09-11-reference-escape.md` — **D17 引用转义**：`@<<name>>` 输出字面量 `<<name>>`（tangle 去 `@`、weave 当文本、不计入引用图）。触发原因：文档里有东西要原样展示 `<<name>>` 独占一行的样子（当时是 skill，现在是引用语法的地方自己）。
 - `decisions/2026-09-11-declared-chunks.md` — **D13 声明式 chunk（取代 D8 的 label 命名与 D12 的四层搜索）**：文档 import `lit/lp.typ` 并用 `#chunk`/`#file` 声明；工具只读声明流，位置靠精确 token 查找。
 - `decisions/2026-09-11-typst-is-the-authority.md` — **D12 架构定案**：chunk 集合/顺序/文本由 **Typst 求值**给出（wrapper 埋点 + `typst eval`，不改用户文档），源位置由**四层纯搜索定位器**给出（Literal / Template / Generated / Nowhere）；静态分析被否决（图灵完备面前构造上就是错的）。含实测的两个决定性 case 与代价（typst 成为硬依赖、文档必须能求值）。
 - `research/2026-09-11-lazy-tangle.md` — 实时 / lazy tangle 的实测：全量重算只要 3–7ms，真瓶颈是写入抖动；`lp watch` 实现要点、FUSE/LSP 投影的天花板、复现命令。
@@ -46,10 +46,10 @@
 
 ## 当前状态（截至 2026-09-11，重排完成）
 
-`lp.typ` 已经是一篇**按论证顺序排列的文档**：开头是"literate 的四条可分别表态的主张"（这是它第一次被明确写出来，之前只在调研笔记里），然后是包、错误类型、问文档（metadata）、一趟 pass（tangle）、回译（explain）、出处（map）、所有权（status）、实时回路（watch）、命令面（main）、测试怎么写、构建环境与仓库文件、自举/换种子/规则、例子、写作者那半边（skill）。
+`lp.typ` 已经是一篇**按论证顺序排列的文档**：开头是"literate 的四条可分别表态的主张"（这是它第一次被明确写出来，之前只在调研笔记里），然后是包、错误类型、问文档（metadata）、一趟 pass（tangle）、回译（explain）、出处（map）、所有权（status）、实时回路（watch）、命令面（main）、测试怎么写、构建环境与仓库文件、自举/换种子/规则、例子。（skill 与 flake 已于 D21 移除，回到 tracked 只有五样的状态。）
 
 - **结构**：十五个生成文件全是"骨架 + 命名片段"——根声明正文只剩真实行与 `<<步骤>>`，每个片段都定义在解释它的那一节里。`Not yet arranged` 与两个 `Appendix` 都不存在了。
 - **重排的可信度**：每一个文件都拿"重排前的纯净副本"逐字节 diff 过（`--check` 只能证明文档与磁盘一致，证不了重排没改写代码）；十四次提交，每次四道闸门全绿（`--check`、49 测试、`examples/demo/run.sh`、weave 0 警告）。
 - **重排期间撞到并写进文档的规矩**：chunk 名全局（同名拼接）、缩进片段里不许有空行、片段不含所在框架的收尾 `}`；抽取永远从 `/tmp` 纯净副本开始。
-- **契约不变**：工具只管机制（引用可解析/无环/非空/`--check`/所有权）；顺序自由、`lang` 不查（D18）；语义自洽归写作者，skill 是那半边的成文。
+- **契约不变**：工具只管机制（引用可解析/无环/非空/`--check`/所有权）；顺序自由、`lang` 不查（D18）；语义自洽归写作者——本书自身就是那半边的成文。
 - 下一步候选见 `handoff.md`（`explain --format cargo`、把包发到 `@preview`）。

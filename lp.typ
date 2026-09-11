@@ -1,8 +1,8 @@
 // lp, described by itself.
 //
-// Nothing here is documentation *about* the tool: this file is the tool. Tangling it produces
-// the crate, the package, the example, the agent skill and the control files; compiling it
-// produces the document you are reading.
+// Nothing here is documentation *about* the tool: this file is the tool. Tangling it produces the
+// crate, the package, the example and the control files; compiling it produces the document you
+// are reading.
 //
 // The document is arranged as an argument — from what a declaration is, through what a pass
 // does with it, to the pieces that read the result back — and the tests are the gate for every
@@ -17,11 +17,9 @@
 
 = The tool, in its own words
 
-This is the whole of `lp`: the program, the package it is written with, the example it
-ships, the skill that tells an agent how to write in it, and the environment it is built
-in. There is no second source — the crate, the package, the example and the skill in this
-repository are the output of tangling this file, and `typst compile lp.typ` renders what
-you are reading.
+This is the whole of `lp`: the program, the package it is written with, and the example it ships.
+There is no second source — the crate, the package and the example in this repository are the
+output of tangling this file, and `typst compile lp.typ` renders what you are reading.
 
 It is a literate program, and that is not a remark about its formatting. The document is
 where the thinking lives; the code is quoted into it as the evidence that makes the
@@ -1085,8 +1083,8 @@ it is not a reference for the purposes of the unused-chunk warning either (D17).
 
 #chunk("tangle: how to write one without it being one", ````rust
 /// A line that reads as a reference but has to stay literal: `@<<name>>` comes out
-/// as `<<name>>`. A document quoting the syntax itself — this project's own skill,
-/// for one — needs it (ADR D17).
+/// as `<<name>>`. A document quoting the syntax itself — this one, for example —
+/// needs it (D17).
 fn escaped_ref(line: &str) -> Option<String> {
     let indent = &line[..line.len() - line.trim_start().len()];
     let rest = line.trim().strip_prefix('@')?;
@@ -5295,7 +5293,7 @@ inside the output directory with the environment it needs is what `lp execute` i
 (D21).
 
 The third command is the interesting one: the older lp reads the declarations here and
-writes this generation over itself — crate, package, example, skill, control files. The
+writes this generation over itself — crate, package, example, control files. The
 seed is then just a directory again, and it stays untouched until someone decides the
 current generation should become the next seed.
 
@@ -5358,7 +5356,7 @@ These are not style preferences; each one was paid for. The decisions behind the
   The previous good output stays until the document is valid again.
 - *The order is free and the language tag is data* (D18). Thought-first, progressive
   disclosure and logical consistency cannot be checked by a tool, so they are the
-  writer's job — the skill this document also produces is the attempt to keep that promise.
+  writer's job: this book argues for them, and no check can do it instead.
 - *Dependencies are chosen from mature crates* (D7); every new one gets a line saying
   why. `typst` is a hard dependency of tangling (`LP_TYPST`, then `PATH`).
 
