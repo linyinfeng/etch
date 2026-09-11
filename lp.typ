@@ -263,6 +263,9 @@ impl LpError {
 
 == The error, and why it holds no positions
 
+The file needs one import, and the error itself is two fields — a message and an optional
+help. The reason there is no third field for a position is the subject of this section.
+
 #chunk("diag: the imports", ````
 use std::fmt;
 ````)
@@ -528,6 +531,9 @@ pub fn binary() -> Result<PathBuf, LpError> {
 ````)
 
 == Asking the question
+
+Four fragments, and together they are the whole interaction with the outside world: make the
+paths absolute, decide where the wrapper lives, run Typst, and report what came back.
 
 #chunk("metadata: absolute documents, and where we are", ````
 let cwd = std::env::current_dir()
@@ -1066,6 +1072,9 @@ fn push(&mut self, chunk: &str, indent: &str, line: &str) {
 ````)
 
 == Expanding a root, and the three ways it can fail
+
+Three fragments: the entry point, the cycle check that turns a loop into a named chain, and the
+inner loop that does the substitution.
 
 #chunk("tangle: expanding a root", ````rust
 pub fn expand(set: &ChunkSet, root: &str) -> Result<Tangled, LpError> {
@@ -1749,6 +1758,9 @@ pub struct Run {
 
 == A new map is empty, and says which version it is
 
+A `Default` implementation, and the only thing in it worth reading is the version: a map that
+was constructed rather than read still says which schema it is.
+
 #chunk("map: a fresh map", ````rust
 impl Default for LpMap {
     fn default() -> Self {
@@ -2132,6 +2144,9 @@ pub struct Unaccounted {
 
 == Walking the tree, and what survives it
 
+The walk and the filter are separate fragments because they answer different questions: what is
+under the output directory, and which of those files nothing accounts for.
+
 #chunk("status: nothing to report", ````rust
 if produced.is_empty() || !out.exists() {
     return Ok(Vec::new());
@@ -2221,6 +2236,9 @@ fn is_control_file(path: &Path) -> bool {
 
 == A build directory is one line
 
+One constant, and its value is a judgement: eight entries is where a list stops being readable
+and naming the directory starts being more useful.
+
 #chunk("status: when a subtree is too big to list", ````rust
 /// Beyond this many entries a subtree stops being listed file by file and is
 /// named as a directory instead: a build directory is one line, not thousands.
@@ -2276,6 +2294,9 @@ fn subdirectories(dir: &str, files: &BTreeSet<String>) -> BTreeSet<String> {
 ````)
 
 == Removing, when the user asks for it
+
+The only code in the program that removes anything, and the walk that tidies up the directories
+it leaves empty behind it.
 
 #chunk("status: delete, on request", ````rust
 /// Delete everything nothing accounts for.
@@ -2643,6 +2664,9 @@ pub struct Options {
 
 == Starting up, and what to watch
 
+Three fragments: the debouncer and its channel, the directories to watch, and the line that says
+what is being watched.
+
 #chunk("watch: one debouncer, one channel", ````
 let (tx, rx) = mpsc::channel();
 let mut debouncer = new_debouncer(
@@ -2703,6 +2727,9 @@ while rx.recv().is_ok() {
 ````)
 
 == One pass
+
+A pass is four decisions in a row: drop the events our own writes caused, tangle, decide what to
+report, and run the check command only if something actually moved.
 
 #chunk("watch: the events our own writes caused", ````
 // Drop events queued while we were working (our own writes included) so a
@@ -2811,6 +2838,10 @@ let _ = crate::explain::run(&options.out, "generic", &text);
 ````)
 
 == The last resort
+
+Three lines, and the point of them is that they are not a special case: printing an error with
+the renderer installed in `main` and staying alive is what a watcher has to do with every failure
+that is not the user's syntax error.
 
 #chunk("watch: the last resort", ````
 fn report(err: LpError) {
@@ -5185,7 +5216,7 @@ These are not style preferences; each one was paid for. The decisions behind the
   The previous good output stays until the document is valid again.
 - *The order is free and the language tag is data* (D18). Thought-first, progressive
   disclosure and logical consistency cannot be checked by a tool, so they are the
-  writer's job — the skill in the appendix above is the attempt to keep that promise.
+  writer's job — the skill this document also produces is the attempt to keep that promise.
 - *Dependencies are chosen from mature crates* (D7); every new one gets a line saying
   why. `typst` is a hard dependency of tangling (`LP_TYPST`, then `PATH`).
 
@@ -5198,7 +5229,7 @@ fails when the tool stops working, and it runs with the tests.
 
 It is also the best answer to the question this document keeps asking itself. The example *is* a
 literate program, and it is a separate one: its own document, its own sections, its own
-bibliography of decisions. So its sections are fragments of this document in exactly the same way
+record of decisions. So its sections are fragments of this document in exactly the same way
 the chapters above are — which is the point being made, made twice.
 
 #file("examples/demo/literate.typ", ````typst

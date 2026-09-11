@@ -52,15 +52,15 @@
 
 ## 教学清单（目标判据的可核对位置）
 
-| 要教的 | 在文档哪里 |
-| --- | --- |
-| (a) literate 的四条可分别表态的主张 | 开头 "What literate programming is, in four claims"；反方论证在 skill 的 `thinking.md`（"The case against"） |
-| (b) tangle / weave 的分工 | 开头 + "The package"（渲染与声明为什么在同一个函数里）+ 每章的运行方式 |
-| (c) 名字即接口、顺序自由 | "The package"、"What a pass does with the declarations"（展开即递归替换）、"The rules"（顺序自由，D18） |
-| (d) 转义 `@<<name>>` 为什么存在 | "The package"（第二个 pattern）+ "What a reference is / how to write one without it being one" |
-| (e) 没有行号、出处到 chunk 级 | "Reading a diagnostic back to the declaration"（为什么拒绝 `#line`）+ "Where each generated line came from" |
-| (f) 所有权的三组与 `--check` | "Who owns the output directory" + "What this repository carries" |
-| (g) 自举：种子、`cp -r seed/. .`、自复现 | "Starting from nothing"、"Replacing the seed"、"How the tests are written"（`tests/self.rs`） |
+| 要教的 | 在文档哪里 | 怎么自己验 |
+| --- | --- | --- |
+| (a) literate 的四条可分别表态的主张 | 开头 "What literate programming is, in four claims"；反方论证在 skill 的 `thinking.md`（"The case against"） | `rg -n 'four claims' -A 14 lp.typ`（然后 `typst compile lp.typ` 读第一页） |
+| (b) tangle / weave 的分工 | 开头 + "The package"（渲染与声明为什么在同一个函数里） | `lp tangle lp.typ --out /tmp/x && ls /tmp/x/src \| head` 与 `typst compile lp.typ /tmp/lp.pdf` |
+| (c) 名字即接口、顺序自由 | "The package"、"What a pass does with the declarations"（展开即递归替换）、"The rules"（D18） | `lp list lp.typ \| head`（看 frag/file 与顺序）；`lp metadata lp.typ \| head`（声明流即阅读顺序） |
+| (d) 转义 `@<<name>>` 为什么存在 | "The package"（第二个 pattern）+ "how to write one without it being one" | `rg -n '@<<' lp.typ \| head`；`rg -c '^@<<' .agents/skills/literate-programming/SKILL.md`（生成物里 `@` 已被去掉，应为 0） |
+| (e) 没有行号、出处到 chunk 级 | "Reading a diagnostic back to the declaration" + "Where each generated line came from" | `lp map --out . --file src/diag.rs --line 5`；`echo 'src/diag.rs:5:1: boom' \| lp explain --out .` |
+| (f) 所有权的三组与 `--check` | "Who owns the output directory" + "What this repository carries" | `lp unaccounted lp.typ --out .`；`touch /tmp/stray && lp tangle lp.typ --out . --check` |
+| (g) 自举：种子、`cp -r seed/. .`、自复现 | "Starting from nothing"、"Replacing the seed"、"How the tests are written" | 文档里那四行 bootstrap 命令；`cargo test --test self` |
 
 ## 下一步候选
 
