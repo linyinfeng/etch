@@ -138,7 +138,7 @@ fn indentation_follows_the_reference_site() {
 
 #[test]
 fn a_chunk_written_indented_in_the_document_is_still_dedented() {
-    let body = "- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n\n#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n";
+    let body = "#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n\n- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n";
     let (_guard, dir, _) = project(body);
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
@@ -366,7 +366,7 @@ fn dangling_reference_quotes_the_line() {
 
 #[test]
 fn cycle_is_reported() {
-    let body = "#file(\"main.py\", ```py\n<<b>>\n```)\n\n#chunk(\"a\", ```py\n<<b>>\n```)\n\n#chunk(\"b\", ```py\n<<a>>\n```)\n";
+    let body = "#file(\"main.py\", ```py\n<<a>>\n```)\n\n#chunk(\"a\", ```py\n<<b>>\n```)\n\n#chunk(\"b\", ```py\n<<a>>\n```)\n";
     let (_guard, dir, _) = project(body);
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(!output.status.success());

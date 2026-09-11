@@ -127,7 +127,7 @@ fn the_document_reports_chunks_no_parser_could_find() {
     write(
         dir.path(),
         "dynamic.typ",
-        "#for i in range(2) [\n  #chunk(\"part-\" + str(i), ```py\n  print(#i)\n  ```)\n]\n\n#file(\"src/main.py\", ```py\n<<part-0>>\n```)\n",
+        "#file(\"src/main.py\", ```py\n<<part-0>>\n```)\n\n#for i in range(2) [\n  #chunk(\"part-\" + str(i), ```py\n  print(#i)\n  ```)\n]\n",
     );
     let path = dir.path().to_path_buf();
 

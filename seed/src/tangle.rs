@@ -107,6 +107,19 @@ fn ref_target(line: &str) -> Option<(&str, &str)> {
     Some((inner, &line[..line.len() - line.trim_start().len()]))
 }
 
+/// A line that reads as a reference but has to stay literal: `@<<name>>` comes out
+/// as `<<name>>`. A document quoting the syntax itself — this project's own skill,
+/// for one — needs it (ADR D17).
+fn escaped_ref(line: &str) -> Option<String> {
+    let indent = &line[..line.len() - line.trim_start().len()];
+    let rest = line.trim().strip_prefix('@')?;
+    let inner = rest.strip_prefix("<<")?.strip_suffix(">>")?;
+    if inner.is_empty() || inner.contains('<') || inner.contains('>') {
+        return None;
+    }
+    Some(format!("{indent}<<{inner}>>"))
+}
+
 pub struct Tangled {
     /// File contents, always ending in a newline.
     pub text: String,
@@ -171,6 +184,10 @@ fn expand_chunk(
         }
 
         for (index, line) in block.text.lines().enumerate() {
+            if let Some(literal) = escaped_ref(line) {
+                out.push(name, indent, &literal);
+                continue;
+            }
             match ref_target(line) {
                 None => out.push(name, indent, line),
                 Some((target, local_indent)) => {
@@ -317,33 +334,6 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError
         ..Outcome::default()
     };
 
-    // Everything under the output directory must be accounted for: produced by a
-    // chunk, or declared in a `.lpignore`. Anything else is an error rather than
-    // something to quietly remove — deleting a root chunk strands a file, and the
-    // user decides whether to declare it or delete it.
-    outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
-    if !outcome.unaccounted.is_empty() {
-        let listed = outcome
-            .unaccounted
-            .iter()
-            .flat_map(|group| {
-                let label = if group.dir.is_empty() {
-                    ".".to_string()
-                } else {
-                    group.dir.clone()
-                };
-                group
-                    .entries
-                    .iter()
-                    .map(move |entry| format!("  {label}/{entry}"))
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        return Err(LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
-            "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
-        ));
-    }
-
     for (root, text) in &plan.texts {
         let (dir, name) = split(root);
         let entry = &plan.maps[Path::new(dir)].files[name];
@@ -375,6 +365,34 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError
     // content rather than the output files'. Maps for directories that stopped
     // producing anything are removed with the directories themselves: the map
     // travels with the files it explains.
+    //
+    // The ownership check comes first: it runs before any map is written, but *after*
+    // the files above, because `.lpignore` is one of the things a document can produce.
+    // A fresh repository has no control file yet, and the pass that writes it is the
+    // pass that makes the tree consistent (ADR D20).
+    outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
+    if !outcome.unaccounted.is_empty() {
+        let listed = outcome
+            .unaccounted
+            .iter()
+            .flat_map(|group| {
+                let label = if group.dir.is_empty() {
+                    ".".to_string()
+                } else {
+                    group.dir.clone()
+                };
+                group
+                    .entries
+                    .iter()
+                    .map(move |entry| format!("  {label}/{entry}"))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
+            "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
+        ));
+    }
+
     if !check {
         let mut live: BTreeSet<String> = BTreeSet::new();
         for (dir, mut map) in plan.maps {
@@ -434,7 +452,7 @@ fn drift_report(root: &str, existing: Option<&str>, runs: &[Run], text: &str) ->
 
 #[cfg(test)]
 mod tests {
-    use super::ref_target;
+    use super::{escaped_ref, ref_target};
 
     #[test]
     fn only_a_whole_line_reference_counts() {
@@ -444,5 +462,14 @@ mod tests {
         assert_eq!(ref_target("std::cout << x << std::endl;"), None);
         assert_eq!(ref_target("<<a>><<b>>"), None);
         assert_eq!(ref_target("auto y = <<x>>;"), None);
+    }
+
+    #[test]
+    fn an_escaped_reference_comes_out_without_the_escape() {
+        assert_eq!(escaped_ref("@<<body>>").as_deref(), Some("<<body>>"));
+        assert_eq!(escaped_ref("  @<<body>>").as_deref(), Some("  <<body>>"));
+        assert_eq!(escaped_ref("<<body>>"), None);
+        assert_eq!(escaped_ref("@<<a>><<b>>"), None);
+        assert_eq!(escaped_ref("@@<<body>>"), None);
     }
 }

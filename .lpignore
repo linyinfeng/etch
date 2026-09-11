@@ -1,24 +1,23 @@
 # What the working tree carries besides the document's output.
 #
-# Matching here means *protect*: every file under --out must be produced by a
-# #file declaration or listed in a .lpignore, and this file lists what lp does
-# not manage (ADR D10). The repository root is the output directory, so this is
-# the list of the repository's handwritten assets.
+# Matching here means *protect* (ADR D10): every file under the output directory is
+# either produced by a #file declaration or listed here, and this lists what the
+# document does not produce. The output directory is the repository root.
+
+# The example writes here: `examples/demo/literate.typ` produces Cargo.toml and src/,
+# and its own .lpignore governs everything else in the directory. This pass does not
+# manage that tree — a nested document's output is not this document's business.
+/examples/demo/build
 
 /.git
-/.gitignore
-/.lpmap.json
+/.direnv
 /.pi
 /AGENTS.md
 /Cargo.lock
 /README.md
 /agent-notes
-/bootstrap
-/examples
-/experiments
 /flake.lock
-/flake.nix
-/lit
+/lp.typ
 /result
-/self.typ
+/seed
 /target

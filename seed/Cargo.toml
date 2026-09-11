@@ -5,8 +5,10 @@ edition = "2024"
 publish = false
 description = "Typst-based literate programming: tangle source files out of a .typ document"
 
+# The seed and the old probes are their own little worlds: nothing here depends on
+# them, and saying so keeps the resolver out of their manifests.
 [workspace]
-exclude = ["experiments/*"]
+exclude = ["seed", "agent-notes/experiments/*"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }

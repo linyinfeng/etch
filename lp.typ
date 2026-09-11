@@ -1,8 +1,8 @@
 // The lp tool describing itself: the crate and the skill it ships, as declarations.
 //
-// `lp tangle self.typ --out .` regenerates Cargo.toml, src/, tests/ and the skill;
+// `lp tangle lp.typ --out .` regenerates Cargo.toml, src/, tests/ and the skill;
 // the repository is its own output (ADR D15). The declarations are a faithful
-// transliteration of the frozen seed in bootstrap/ — chunks are not shared here yet,
+// transliteration of the frozen seed in seed/ — chunks are not shared here yet,
 // and nothing is inlined, so the tangled files are byte-identical to the seed.
 //
 // Lines that look like references are escaped with `@` in the text below, because a
@@ -11,8 +11,8 @@
 //
 // The seed, not this document, is what a broken toolchain falls back on:
 //
-//   nix develop -c cargo build --manifest-path bootstrap/Cargo.toml
-//   nix develop -c ./bootstrap/target/debug/lp tangle self.typ --out .
+//   nix develop -c cargo build --manifest-path seed/Cargo.toml
+//   nix develop -c ./seed/target/debug/lp tangle lp.typ --out .
 //
 // Editing this file by hand is fine; running this script is not. It exists to record
 // how Stage 1 was cut, not to be re-run over an edited document.
@@ -22,7 +22,7 @@
 
 = The tool, in its own words
 
-Every file below is a root chunk. `bootstrap/` holds the same bytes, frozen: the seed has
+Every file below is a root chunk. `seed/` holds the same bytes, frozen: the seed has
 to stay compilable without the tool it ships.
 
 #file("Cargo.toml", ````toml
@@ -33,8 +33,10 @@ edition = "2024"
 publish = false
 description = "Typst-based literate programming: tangle source files out of a .typ document"
 
+# The seed and the old probes are their own little worlds: nothing here depends on
+# them, and saying so keeps the resolver out of their manifests.
 [workspace]
-exclude = ["experiments/*"]
+exclude = ["seed", "agent-notes/experiments/*"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -1594,33 +1596,6 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError
         ..Outcome::default()
     };
 
-    // Everything under the output directory must be accounted for: produced by a
-    // chunk, or declared in a `.lpignore`. Anything else is an error rather than
-    // something to quietly remove — deleting a root chunk strands a file, and the
-    // user decides whether to declare it or delete it.
-    outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
-    if !outcome.unaccounted.is_empty() {
-        let listed = outcome
-            .unaccounted
-            .iter()
-            .flat_map(|group| {
-                let label = if group.dir.is_empty() {
-                    ".".to_string()
-                } else {
-                    group.dir.clone()
-                };
-                group
-                    .entries
-                    .iter()
-                    .map(move |entry| format!("  {label}/{entry}"))
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        return Err(LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
-            "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
-        ));
-    }
-
     for (root, text) in &plan.texts {
         let (dir, name) = split(root);
         let entry = &plan.maps[Path::new(dir)].files[name];
@@ -1652,6 +1627,34 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError
     // content rather than the output files'. Maps for directories that stopped
     // producing anything are removed with the directories themselves: the map
     // travels with the files it explains.
+    //
+    // The ownership check comes first: it runs before any map is written, but *after*
+    // the files above, because `.lpignore` is one of the things a document can produce.
+    // A fresh repository has no control file yet, and the pass that writes it is the
+    // pass that makes the tree consistent (ADR D20).
+    outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
+    if !outcome.unaccounted.is_empty() {
+        let listed = outcome
+            .unaccounted
+            .iter()
+            .flat_map(|group| {
+                let label = if group.dir.is_empty() {
+                    ".".to_string()
+                } else {
+                    group.dir.clone()
+                };
+                group
+                    .entries
+                    .iter()
+                    .map(move |entry| format!("  {label}/{entry}"))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
+            "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
+        ));
+    }
+
     if !check {
         let mut live: BTreeSet<String> = BTreeSet::new();
         for (dir, mut map) in plan.maps {
@@ -3264,20 +3267,20 @@ use std::process::Command;
 
 /// The document is the source of the files that are compiled, so `--check` in the
 /// crate root has to be clean. This is the permanent half of the fixed point:
-/// Stage 1 also required the output to equal the frozen seed in `bootstrap/`,
+/// Stage 1 also required the output to equal the frozen seed in `seed/`,
 /// which stopped being true the moment the document was refactored (ADR D15).
 #[test]
 fn the_document_regenerates_the_sources_we_are_running() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let output = Command::new(env!("CARGO_BIN_EXE_lp"))
-        .args(["tangle", "self.typ", "--out", ".", "--check"])
+        .args(["tangle", "lp.typ", "--out", ".", "--check"])
         .current_dir(root)
         .output()
         .expect("run lp");
 
     assert!(
         output.status.success(),
-        "--check reported drift between self.typ and the sources it generated:\n{}{}",
+        "--check reported drift between lp.typ and the sources it generated:\n{}{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -3287,7 +3290,7 @@ fn the_document_regenerates_the_sources_we_are_running() {
 #file(".agents/skills/literate-programming/SKILL.md", `````markdown
 ---
 name: literate-programming
-description: Write a program as an exposition - one Typst document whose subject is the thinking (the problem, the alternatives, the choice and why), with the code quoted in as the evidence that makes it checkable and tangled out of it into real source files and a woven PDF. Use when writing or editing any program lp carries (including this repository's own self.typ), adding or reorganising chunks, or asked to write a literate document. Reading front to back has to go from idea to detail; the tool checks only the mechanism, so the thinking is the writer's job.
+description: Write a program as an exposition - one Typst document whose subject is the thinking (the problem, the alternatives, the choice and why), with the code quoted in as the evidence that makes it checkable and tangled out of it into real source files and a woven PDF. Use when writing or editing any program lp carries (including this repository's own lp.typ), adding or reorganising chunks, or asked to write a literate document. Reading front to back has to go from idea to detail; the tool checks only the mechanism, so the thinking is the writer's job.
 ---
 
 # Literate programming
@@ -3372,7 +3375,7 @@ Neither is more literate than the other. What is *not* a matter of taste is that
 - **Indentation comes from the reference line**, not the chunk's own text: write chunk bodies flush left and let the reference place them. Nested references compose, so a body pulled in at four spaces and pulled in again at four more lands at eight.
 - A repeated name **concatenates in document order** — a file can be introduced where its interface belongs and finished where its behaviour belongs. Nothing is inherited between the pieces: blank lines at the top of a later piece are part of what it contributes.
 - The fence's language tag is data (the tangled file's language, and the input to the language check). Nothing in `lp` parses it.
-- **To quote the syntax itself, escape it**: a line `@<<name>>` tangles out as `<<name>>` — the `@` is dropped and the line is never expanded, never counted as a reference. That is how a document can show what a reference looks like (this file is carried by `self.typ` and does exactly that).
+- **To quote the syntax itself, escape it**: a line `@<<name>>` tangles out as `<<name>>` — the `@` is dropped and the line is never expanded, never counted as a reference. That is how a document can show what a reference looks like (this file is carried by `lp.typ` and does exactly that).
 - Block content is verbatim: keep it flush left, and **use four backticks as the fence** whenever the code contains three (Typst fixtures, Markdown fences, heredocs).
 - Keep the document evaluable at every save; a document Typst cannot evaluate tangles nothing, and `lp watch` keeps the last good output instead of half of a new one.
 
@@ -3419,15 +3422,15 @@ Provenance is chunk-level on purpose — which declaration, and which line insid
 
 ## In this repository (`lp` is self-hosted)
 
-`self.typ` is the source of the tool: it declares `Cargo.toml`, `src/*.rs`, `tests/*.rs` and this skill, all of which are generated (gitignored). Change the tool by changing `self.typ`:
+`lp.typ` is the source of the tool: it declares `Cargo.toml`, `src/*.rs`, `tests/*.rs` and this skill, all of which are generated (gitignored). Change the tool by changing `lp.typ`:
 
 ```sh
-nix develop -c ./target/debug/lp tangle self.typ --out . --check   # the gate
-nix develop -c ./target/debug/lp watch self.typ --out . --check-cmd 'cargo build --message-format=short'
+nix develop -c ./target/debug/lp tangle lp.typ --out . --check   # the gate
+nix develop -c ./target/debug/lp watch lp.typ --out . --check-cmd 'cargo build --message-format=short'
 nix develop -c cargo test                                          # 49 tests, includes self-reproduction
 ```
 
-A fresh clone has no `src/`: build the frozen seed in `bootstrap/`, then tangle (see `README.md` §自举). `tests/self.rs` fails if the files on disk stop matching the document, so hand-editing `src/` cannot survive. Adding a top-level directory means adding one line to the root `.lpignore`.
+A fresh clone has no `src/`: build the frozen seed in `seed/`, then tangle (see `README.md` §自举). `tests/self.rs` fails if the files on disk stop matching the document, so hand-editing `src/` cannot survive. Adding a top-level directory means adding one line to the root `.lpignore`.
 
 ## References
 
@@ -3788,3 +3791,422 @@ Keep these; they are the reasons this stance has to be argued rather than assume
 - "A Literate Programming Environment for Human and Machine Agents" (arXiv 2608.24644): <https://arxiv.org/pdf/2608.24644>
 ````)
 
+
+
+= Appendix: what else the document produces
+
+== The package
+
+Everything above is written with `chunk`, `file` and `rule`. They are not built into the
+tool: the package that defines them is produced by this document, because the document
+has to be *evaluable*, not merely printable — `typst compile` reads the same
+declarations the tool reads. The consequence is an order: the document cannot be
+evaluated before the package exists on disk, and that is what the seed is for. A fresh
+clone runs the seed once, and needs it again only when the tool stops working.
+
+#file("lit/lp.typ", ````typst
+// lp.typ — declare chunks for the `lp` tool.
+//
+// A chunk is written by calling `chunk` (a fragment, referenced as <<name>>) or
+// `file` (a chunk whose name is the output path, i.e. a root). The code block is
+// passed as the argument, so the declaration carries everything the tool needs —
+// name, language, text — and the tool never has to read the source to find out
+// what a chunk is.
+//
+//   #import "lp.typ": chunk, file
+//
+//   #chunk("imports", ```rust
+//   use std::fmt;
+//   ```)
+//
+//   #file("src/main.rs", ```rust
+//   <<imports>>
+//   ```)
+//
+// Rendering lives here too, so the document does not need show rules: a chunk
+// shows up as a titled block with its references marked.
+
+// A reference line is indentation + <<name>>. The indentation is part of what a
+// reference *means*: it decides how the expanded chunk is laid out when tangled,
+// so the woven page has to show it — otherwise the document lies about the code.
+#let ref-re = regex("^(\\s*)<<([^<>]+)>>\\s*$")
+
+// The escape: a line that starts with `@` is a reference only to the eye. Tangling
+// writes it out as `<<name>>`, so a document can quote the syntax it is written in
+// (ADR D17).
+#let esc-re = regex("^(\\s*)@<<([^<>]+)>>\\s*$")
+
+/// The indentation a reference line contributes to the expanded chunk, or "" when
+/// the line is not a reference. The renderer below uses it too, so this is the
+/// implementation rather than a helper kept alive for a test.
+#let ref-indent(line) = {
+  let m = line.match(ref-re)
+  if m == none { "" } else { m.captures.at(0) }
+}
+
+/// Ref marking is cosmetics, so a show rule is fine here — the *declarations*
+/// below carry the semantics, and they do not depend on any show rule running.
+#let rule(body) = {
+  show raw.where(block: true): it => {
+    let out = none
+    for line in it.lines {
+      let escaped = line.text.match(esc-re)
+      let m = line.text.match(ref-re)
+      let piece = if escaped != none {
+        raw(escaped.captures.at(0) + "<<" + escaped.captures.at(1) + ">>")
+      } else if m == none {
+        line.body
+      } else {
+        raw(ref-indent(line.text)) + text(fill: rgb("#0a6"))[⟪#m.captures.at(1)⟫]
+      }
+      out = if out == none { piece + linebreak() } else { out + piece + linebreak() }
+    }
+    out
+  }
+  body
+}
+
+#let tile(name, lang, code) = block(
+  breakable: true,
+  width: 100%,
+  inset: 8pt,
+  radius: 3pt,
+  fill: luma(238),
+)[
+  #text(size: 0.85em, weight: "bold", fill: luma(60))[⟪#name⟫]
+  #h(0.6em)
+  #text(size: 0.7em, fill: luma(120))[#if lang != none { lang }]
+  #v(4pt)
+  #code
+]
+
+// A fence without an info string has no `lang` field at all. The tag is data rather than
+// a promise (ADR D18): missing means "not declared", and the tool records nothing.
+#let lang-of(code) = code.at("lang", default: none)
+
+/// A named fragment: referenced as `<<name>>`, written nowhere on its own.
+#let chunk(name, code) = {
+  [#metadata((lp: "chunk", name: name, lang: lang-of(code), text: code.text))<lp-decl>]
+  tile(name, lang-of(code), code)
+}
+
+/// A root chunk: the name is the path it is tangled to.
+#let file(path, code) = {
+  [#metadata((lp: "file", name: path, lang: lang-of(code), text: code.text))<lp-decl>]
+  tile(path, lang-of(code), code)
+}
+````)
+
+== The build environment
+
+The toolchain belongs to the program: without typst there are no declarations to read,
+and without cargo there is no binary. It sits in an appendix rather than at the opening
+because nothing in the design depends on it, but it is *in* the document rather than
+beside it — the environment is a decision like any other, and it changes when a
+dependency changes.
+
+#file("flake.nix", ````nix
+{
+  description = "literate — Typst-based literate programming for arbitrary target languages";
+
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }:
+    let
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+      forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+    in {
+      devShells = forAll (pkgs: {
+        default = pkgs.mkShell {
+          # typst: weave + the tangle front end (`typst eval`)
+          # python3: the throwaway spike in experiments/, not the product
+          packages = with pkgs; [ cargo rustc rustfmt clippy typst python3 ];
+        };
+      });
+    };
+}
+````)
+
+== What this repository carries
+
+`lp` treats its output directory as its own and refuses to guess: every file under it
+is produced by a declaration or listed in the `.lpignore` of its directory. Here the
+output directory is the repository root, so the list of what this document does not
+produce is short — the document itself, the seed, the notes, the two one-line files
+that point at the document, and the lock files cargo and nix maintain.
+
+#file(".lpignore", ````
+# What the working tree carries besides the document's output.
+#
+# Matching here means *protect* (ADR D10): every file under the output directory is
+# either produced by a #file declaration or listed here, and this lists what the
+# document does not produce. The output directory is the repository root.
+
+# The example writes here: `examples/demo/literate.typ` produces Cargo.toml and src/,
+# and its own .lpignore governs everything else in the directory. This pass does not
+# manage that tree — a nested document's output is not this document's business.
+/examples/demo/build
+
+/.git
+/.direnv
+/.pi
+/AGENTS.md
+/Cargo.lock
+/README.md
+/agent-notes
+/flake.lock
+/lp.typ
+/result
+/seed
+/target
+````)
+
+== What git is asked to ignore
+
+The crate, the package, the example and the two control files above are all generated,
+so none of them is tracked. What remains in git is the document, the seed, the notes,
+and the two pointers.
+
+#file(".gitignore", ````
+# Everything here is generated from lp.typ by `lp tangle lp.typ --out .`.
+# Tracked: README.md, AGENTS.md, lp.typ, seed/, agent-notes/.
+
+/Cargo.toml
+/Cargo.lock
+/src/
+/tests/
+/lit/
+/flake.nix
+/flake.lock
+/examples/
+/.gitignore
+/.lpignore
+.lpmap.json
+target/
+result
+.direnv/
+
+# Artifacts of the archived experiments in agent-notes/experiments: they are runs,
+# not evidence.
+*.pdf
+*.png
+out/
+````)
+
+== The example
+
+`examples/demo/` is this tool used on a small crate: one fragment shared by two files,
+three tangled files, a woven PDF, and a real rustc error translated back to the chunk
+it came from. It is part of the document because it is the loud half of the claim:
+`run.sh` fails when the tool stops working, and it runs alongside the tests.
+
+#file("examples/demo/literate.typ", ````typst
+#import "../../lit/lp.typ": chunk, file, rule
+#show: rule
+
+#set page(width: 15cm, height: auto, margin: 2cm)
+#set text(size: 10pt)
+
+= A multi-file crate, written as one document
+
+This document is a normal Typst file — `typst compile examples/demo/literate.typ`
+renders it. It is also the only source of a small Rust crate: every `#file(...)`
+declaration names a real file to write when you run
+
+```sh
+lp tangle examples/demo/literate.typ --out examples/demo/build
+```
+
+Text like this never reaches the generated code. `#chunk("name", …)` declares a
+fragment and chunks pull each other in with `<<name>>`. The order below is a
+choice: the three files first, as skeletons that name what they need, then each
+piece in the section that explains it. Pieces first and assembly last would be
+just as legitimate — the argument decides, not the tool — and this document says
+so in its first paragraph because a reader should know which shape they are in.
+
+== The manifest
+
+The crate is its own workspace so the surrounding repository's `Cargo.toml`
+does not claim it.
+
+#file("Cargo.toml", ```toml
+[package]
+name = "lp-demo"
+version = "0.0.0"
+edition = "2024"
+
+# `lp` output is standalone; keep it out of the parent workspace.
+[workspace]
+```)
+
+== The library
+
+Two thirds of the crate: a banner comment it shares with the binary, and one
+module. Neither is spelled out here — the sections below do that, in the order a
+reader wants them.
+
+`` `<<math-items>>` `` sits inside a module, so its two chunks are indented by four
+spaces on the way out:
+
+#file("src/lib.rs", ```rust
+@<<crate-preamble>>
+
+pub mod math {
+    @<<math-items>>
+}
+```)
+
+== The binary
+
+The entry point: the same banner, the library's module, and whatever `main`
+prints.
+
+#file("src/main.rs", ```rust
+@<<crate-preamble>>
+
+use lp_demo::math;
+
+fn main() {
+    @<<print-results>>
+}
+```)
+
+== The shared preamble
+
+Both crate roots want the same banner comment at the top. It is not something
+`lp` injects: the tool writes exactly the chunks you give it, nothing else. This
+is just a chunk that two different root chunks happen to pull in — the same text
+in two files, written once:
+
+#chunk("crate-preamble", ```rust
+//! generated by lp from literate.typ — edit the document, not this file
+```)
+
+== The module body
+
+The module has two functions, declared as two separate `#chunk("math-items", …)`
+blocks. Tangling concatenates declarations sharing a name, in document order, the
+way noweb and org-babel do. The first one:
+
+#chunk("math-items", ```rust
+pub fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+```)
+
+and the second one, which the reader meets right where it belongs:
+
+#chunk("math-items", ```rust
+pub fn square(x: i32) -> i32 {
+    x * x
+}
+```)
+
+== What `main` prints
+
+#chunk("print-results", ```rust
+println!("add(2, 3) = {}", math::add(2, 3));
+println!("square(5) = {}", math::square(5));
+```)
+
+== Running the result
+
+```sh
+lp tangle examples/demo/literate.typ --out examples/demo/build
+cargo run --quiet --manifest-path examples/demo/build/Cargo.toml
+```
+
+```
+add(2, 3) = 5
+square(5) = 25
+```
+
+== Who owns that directory
+
+`examples/demo/build/.lpignore` declares it as ours: every file in there that no
+chunk produces gets removed, and the ones listed in the file are left alone —
+cargo's `target/` and `Cargo.lock`, the woven PDF, the PNGs. Delete a root chunk
+here and its file follows, instead of lingering for `cargo` to compile.
+
+The rule is simple: point `--out` at a directory and that whole directory is
+`lp`'s. Every file in it must be either produced by a chunk or declared in an
+`.lpignore`. Anything else is an error — `lp tangle` fails and names it — and the
+two ways out are to declare it, or to delete it on purpose with
+`lp unaccounted --delete`. `lp` never removes anything by itself.
+
+== When it breaks
+
+If that binary stops compiling, the error is reported against the *generated*
+file — `src/main.rs:6:5: cannot find function ...`. `lp` records which chunk
+produced every generated line, so the diagnostic can be translated back:
+
+```sh
+cargo build --manifest-path examples/demo/build/Cargo.toml --message-format=short 2>&1 \
+  | lp explain --out examples/demo/build
+```
+
+That is the difference between this and a preprocessor that only knows how to
+dump text: the generated code stays accountable to the prose it came from.
+````)
+
+#file("examples/demo/run.sh", ````bash
+#!/usr/bin/env bash
+# The whole flow: tangle, build and run the result, weave, drift check, and
+# translating a real rustc error back into the document.
+# Run with: nix develop -c examples/demo/run.sh
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+LP=(cargo run --quiet --)
+DOC=examples/demo/literate.typ
+OUT=examples/demo/build
+
+echo "== tangle =="
+"${LP[@]}" tangle "$DOC" --out "$OUT"
+
+echo "== run the tangled crate =="
+cargo run --quiet --manifest-path "$OUT/Cargo.toml" > "$OUT/run.txt"
+diff -u examples/demo/expected.txt "$OUT/run.txt" && echo "output matches the document"
+
+echo "== weave (PDF in $OUT) =="
+typst compile --root . "$DOC" "$OUT/demo.pdf"
+
+# A reference line's indentation decides the indentation of the expanded chunk, so
+# the woven document has to show it (regression: it used to render flush left).
+echo "== weave: references keep their indentation =="
+indent=$(typst eval '{ import "lit/lp.typ": ref-indent; ref-indent("    <<print-results>>") }')
+if [ "$indent" != '"    "' ]; then
+    echo "FAIL: reference indentation is lost when weaving (got $indent)" >&2
+    exit 1
+fi
+echo "reference indent survives: $indent"
+
+echo "== drift check =="
+"${LP[@]}" tangle "$DOC" --out "$OUT" --check
+
+echo "== which chunk produced src/main.rs:6 =="
+"${LP[@]}" map --file src/main.rs --line 6 --out "$OUT"
+
+echo "== translate a real rustc error =="
+sed -i 's/math::add(2, 3)/math::ad(2, 3)/' "$OUT/src/main.rs"
+cargo build --manifest-path "$OUT/Cargo.toml" --message-format=short 2>&1 | "${LP[@]}" explain --out "$OUT" || true
+
+echo "== restore =="
+"${LP[@]}" tangle "$DOC" --out "$OUT" > /dev/null
+"${LP[@]}" tangle "$DOC" --out "$OUT" --check && echo "document and generated code agree"
+````)
+
+#file("examples/demo/expected.txt", ````
+add(2, 3) = 5
+square(5) = 25
+````)
+
+#file("examples/demo/build/.lpignore", ````
+# This directory belongs to lp: a file here that no chunk produces is removed.
+# These are the ones other tools own, plus the weave output.
+Cargo.lock
+target/
+*.pdf
+*.png
+run.txt
+````)
