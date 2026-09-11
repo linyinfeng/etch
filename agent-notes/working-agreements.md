@@ -23,9 +23,11 @@
 
 ## 工具链（NixOS）
 
-- 一律 `nix develop -c <cmd>`（需要 typst/cargo/rustfmt/clippy/python3）；临时单跑用 `nix shell nixpkgs#<pkg> -c ...`。
+- **环境不在仓库里**（2026-09-11：flake 已去掉，仓库不带 devshell）。要什么工具就借什么：
+  `nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc nixpkgs#rustfmt nixpkgs#clippy -c <cmd>`。
+  Rust 侧需要**含链接器**的完整工具链（只给 cargo 会失败在 `linker cc not found`）；typst 是 tangle 与 `cargo test` 的硬依赖。
 - 不用非 Nix 的包管理器，不用 `make install`、`curl | sh`。
-- **flake 只看 git 已跟踪的文件**：新建/改 `flake.nix` 后先 `git add`，否则 `nix develop` 报 `not tracked by Git`。注意 `flake.nix` 现在是 `lp.typ` 的产物，所以要改 devshell 就改文档。
+- **flake 已从仓库移除**（D21）：它曾被这条规则困住（nix 只认 git 里 tracked 的 flake 文件），于是「环境由文档产出」走不通。将来 `lp execute` 负责在输出目录里带着环境跑命令；在那之前，工具链是使用者的前提。
 
 ## 语言与注释
 
