@@ -38,16 +38,31 @@ clippy) run cargo clippy --manifest-path tangled/Cargo.toml --all-targets ;;
 tangle) run ./tangled/target/debug/lp tangle lp.typ ;;
 check) run ./tangled/target/debug/lp tangle lp.typ --check ;;
 seed)
-	# write the current generation into the `seed` branch: temporary index, temporary work tree,
-	# this one never touches the working tree of main
+	# Write the current generation into the `seed` branch. A temporary index and a temporary work
+	# tree, built from the tree's own repository: `git add tangled` cannot work, because a
+	# directory holding a .git is a repository and git will not add what is inside one.
 	root=$PWD
 	run ./tangled/target/debug/lp tangle lp.typ
 	tmp=$(mktemp -d)
 	idx=$(mktemp)
 	rm -f "$idx"
-	git -C tangled archive HEAD | tar -x -C "$tmp"
+	if git -C tangled rev-parse --verify --quiet HEAD >/dev/null; then
+		git -C tangled archive HEAD | tar -x -C "$tmp"
+	else
+		echo "seed   $(git rev-parse --short refs/heads/seed)  unchanged (tangled/ has no history yet)"
+		rm -rf "$tmp" "$idx"
+		exit 0
+	fi
 	(cd "$tmp" && GIT_DIR="$root/.git" GIT_WORK_TREE="$tmp" GIT_INDEX_FILE="$idx" git add -A .)
 	tree=$(GIT_DIR="$root/.git" GIT_INDEX_FILE="$idx" git write-tree)
+	rm -rf "$tmp" "$idx"
+	current=$(git rev-parse --verify --quiet "refs/heads/seed^{tree}" || true)
+	if [ "$current" = "$tree" ]; then
+		echo "seed   $(git rev-parse --short refs/heads/seed)  unchanged  tree ${tree:0:7}"
+		exit 0
+	fi
+	inner=$(git -C tangled rev-parse "HEAD^{tree}")
+	[ "$inner" = "$tree" ] || { echo "seed   MISMATCH with tangled/ ($tree vs $inner)" >&2; exit 1; }
 	parent=$(git rev-parse --verify --quiet refs/heads/seed || true)
 	if [ -n "$parent" ]; then
 		commit=$(git commit-tree "$tree" -p "$parent" -m "The generation this document writes")
@@ -55,10 +70,6 @@ seed)
 		commit=$(git commit-tree "$tree" -m "The generation this document writes")
 	fi
 	git update-ref refs/heads/seed "$commit"
-	rm -rf "$tmp" "$idx"
-	# the branch is the generation, byte for byte: same tree hash as the tree's own repository
-	inner=$(git -C tangled rev-parse "HEAD^{tree}")
-	[ "$inner" = "$tree" ] || { echo "seed   MISMATCH with tangled/ ($tree vs $inner)" >&2; exit 1; }
 	echo "seed   $(git rev-parse --short refs/heads/seed)  $(git ls-tree -r refs/heads/seed --name-only | wc -l) files  tree ${tree:0:7}"
 	;;
 list) run ./tangled/target/debug/lp list lp.typ ;;
