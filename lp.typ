@@ -4224,15 +4224,22 @@ A fresh clone holds five things: this document, the seed, the notes, the two one
 files that point here — and `flake.nix` with its lock, which nix insists on finding in git
 before it will evaluate anything. Everything else is produced by tangling:
 
+The seed is a whole older generation — a built crate, the package it was written with,
+and its devshell — so the first move is to lay it down. It covers the one thing this
+document cannot produce for itself: the package has to exist on disk before the document
+can be evaluated at all, because the document imports it.
+
 ```sh
-nix develop -c cargo build --manifest-path seed/Cargo.toml
-nix develop -c ./seed/target/debug/lp tangle lp.typ --out .
+cp -r seed/. .
+nix develop -c cargo build
+nix develop -c ./target/debug/lp tangle lp.typ --out .
 nix develop -c cargo test
 ```
 
-The seed also carries its own copy of the devshell (`seed/flake.nix`, frozen with it) for
-the case where the tree has no flake at all — a tarball, an old commit, a toolchain that
-stopped working.
+The third command is the interesting one: the older lp reads the declarations here and
+writes this generation over itself — crate, package, example, skill, control files. The
+seed is then just a directory again, and it stays untouched until someone decides the
+current generation should become the next seed.
 
 After that the loop is the ordinary one: edit this document, tangle, test. While writing,
 
