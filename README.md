@@ -139,11 +139,12 @@ $ echo 'src/main.rs:6:38: error: …' | lp explain
 
 ## 状态
 
-原型可用（M1 + `lp explain` 的通用后端）；详见 [`agent-notes/`](agent-notes/README.md)：
+原型可用：M1 + M2（`lp watch`、输出目录所有权、chunk 级出处）。详见 [`agent-notes/`](agent-notes/README.md)：
 
+- [`agent-notes/handoff.md`](agent-notes/handoff.md) — **接手先读这份**：行为契约、铁规矩、已知脏点、下一步候选
 - [`agent-notes/plan.md`](agent-notes/plan.md) — M0–M3 计划与已完成范围
-- [`agent-notes/decisions/`](agent-notes/decisions/) — 已拍板的 ADR（架构、引擎、依赖、chunk 命名）
+- [`agent-notes/decisions/`](agent-notes/decisions/) — 已拍板的 ADR（架构、chunk 声明、输出所有权、watch 契约、无行号）
 - [`agent-notes/research/`](agent-notes/research/) — 现有工具盘点、Typst 实测事实、设计空间
 - [`experiments/`](experiments/) — 两个丢弃型验证（Python 端到端 spike、`typst-syntax` span probe）
 
-下一步：`lp watch`（notify）、`lp explain --format cargo`（cargo JSON）、列位置精确到诊断坐标、以及自举（工具自身源码改写成 literate `.typ`）。
+未做：`lp explain --format cargo`（cargo JSON）、`ci.sh`、M3 自举（工具自身源码改写成 literate `.typ`）——候选与代价见 handoff §6。

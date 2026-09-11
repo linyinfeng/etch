@@ -1,6 +1,7 @@
 # 实施计划（M0–M3）
 
-- 日期：2026-09-11（v2：按 ADR D6/D7 修正引擎与依赖）
+- 日期：2026-09-11（v3：D13/D14 之后——**工具不再解析 Typst**，chunk 由声明给出（`#chunk`/`#file`），行号映射删除；下文的 M1 段落保留为历史）
+- v2：按 ADR D6/D7 修正引擎与依赖（D6 的解析引擎部分后来被 D13/D14 取代）
 - 前置：`decisions/2026-09-11-mvp-decisions.md`（场景=多文件工程，形态=纯 `.typ`，实现=Rust→自举，生成物不入库，错误定位=D1）、`decisions/2026-09-11-engine-and-deps.md`（D6 引擎、D7 依赖策略）
 - 原则：tangle 的语义与报错精度是产品本体；CLI/watch/诊断渲染用成熟库，不手写已被解决的问题。
 
@@ -12,15 +13,15 @@
 
 ### M1 — 原型 tangle + check + map（已完成，2026-09-11）
 
-实现：`src/{main,parse,tangle,map,explain,diag}.rs`（~600 行）+ `lit/lit.typ` + `tests/flow.rs`（11 个端到端用例 + 5 个单元用例）。
+实现（历史，见 v3 修正）：当时是 `src/{main,parse,tangle,map,explain,diag}.rs` + `lit/lit.typ` + `tests/flow.rs`。现在 `parse.rs` 已删，代码是 `src/{main,tangle,status,map,watch,metadata,explain,diag}.rs`（~1.8k 行），`lit/lp.typ` 是包（渲染 + `#chunk`/`#file` 声明）。
 
 - ✅ `lp tangle <doc.typ>... [--out DIR] [--check]`
-- ✅ 解析：`typst-syntax` 递归遍历 CST；接受两种 label 写法（`<name>` 与 `#label("path")`，见 ADR D8）；`raw.lines()` 取正文；`Source::lines().byte_to_line()` 得行号
+- ~~解析：`typst-syntax` 递归遍历 CST；接受两种 label 写法~~ → **D13 取代**：chunk 由 `lit/lp.typ` 的 `#chunk`/`#file` 声明给出，工具只读 `typst eval 'query(<lp-decl>)'`
 - ✅ 严格报错（`miette` 渲染，指向 `.typ` 源 span）：悬空引用、引用环、空 chunk、不安全输出路径
 - ✅ 同名 label 多块按文档顺序拼接；缩进按引用点传递（`tests/flow.rs` 覆盖）
-- ✅ `lp map` + `.lpmap.json`（`[生成行, .typ 行]`，指向定义处）+ `lp list`
+- ✅ `lp map`（当时 `[生成行, .typ 行]`；D14 后改为 chunk 区间，见下）+ `lp list`
 - ✅ `lp explain` 的**通用后端**（`file:line:col:` → `.typ` 源片段）；未引用 chunk 告警
-- ⏳ 留到下一轮：`lp watch`（`notify`）、`lp explain --format cargo`（`cargo_metadata`）、诊断列位置精确到 span（现在高亮整行）、“同一 chunk 被多个根复用”与多文档合并的边界测试
+- ⏳ 当时留到下一轮：`lp watch`（`notify`）✅ 已完成、`lp explain --format cargo`（`cargo_metadata`）⏳ 仍未做、~~诊断列位置精确到 span~~（D14 已删掉 span 报错，出处只在 chunk 级）、“同一 chunk 被多个根复用”与多文档合并的边界测试
 
 **下一步起点**：`src/` 是普通 Rust 工程（`cargo test` 全绿）；演示与回归入口是 `examples/demo/run.sh`（tangle → 构建运行 → weave → `--check` → map → explain 回译 → 复原）。
 
@@ -32,7 +33,7 @@
 - ✅ **D13 已落地**：chunk 由**声明**给出（`lit/lp.typ` 的 `#chunk`/`#file`），工具只读 `query(<lp-decl>)`；`typst-syntax` 已删除。
 - ✅ **D14 已落地**：**行号映射删除**（`locate.rs`/`source.rs` 删除，schema v5 改为 chunk 区间）。Typst 脚本层拿不到源位置，要行号就得脏做，按规矩不做。
 - ⏳ 多章文档（超出现计划）：跨文档 ChunkSet → 映射 schema v3（per-line 源文件）→ 跟随 `#include`，见 `research/2026-09-11-typst-structure-and-include.md` 的缺口表。
-- ⏳ 剩下：`lp explain --format cargo`（`cargo_metadata` 解析 `--message-format=json`，自举时天天用）、诊断列位置精确到 span（现在高亮整行）、`ci.sh`（typst compile + cargo test + `tangle --check`）。
+- ⏳ 剩下：`lp explain --format cargo`（`cargo_metadata` 解析 `--message-format=json`，自举时天天用）、`ci.sh`（typst compile + cargo test + `tangle --check`）。~~诊断列位置精确到 span~~ → D14 已删掉 span 报错，出处只在 chunk 级。
 - ✅ 删除语义（超出原计划）：删根 chunk 不再留孤儿——`.lpignore` 目录声明 + `ignore` crate 的 gitignore 语义 + `--check` 干跑，见 ADR D10，回归在 `tests/owned.rs`。
 
 ### M3 — 自举（bootstrap → self-host）
@@ -45,16 +46,18 @@
 
 ```
 lp tangle <doc.typ>... [--out DIR] [--check]
-lp map    --file <generated> --line N [--col C]
-lp explain [--format cargo|generic] [<diag-file>]
-lp watch  <doc.typ> [--out DIR]
-lp list   <doc.typ>            # 调试/agent 检索：chunk 名、根、引用图、源位置
+lp map    --file <generated> --line N | --typ <chunk> [--out DIR]
+lp explain [--out DIR] [--format generic]     # 读 stdin；--format cargo 尚未实现
+lp watch  <doc.typ>... [--out DIR] [--debounce MS] [--check-cmd CMD]
+lp list   <doc.typ>            # 调试/agent 检索：chunk 名、根、引用图
+lp metadata <doc.typ>...       # 让 Typst 求值并打印有序声明流（调试用）
+lp unaccounted <doc.typ>... [--out DIR] [--delete]
 ```
 - 退出码：0 成功；1 语义错误（悬空引用/环/漂移）；2 用法或环境错误。
-- `typst` 二进制：**只在 weave 和 oracle 测试里需要**（tangle 走 `typst-syntax`）；定位顺序 `--typst` > `LP_TYPST` > `PATH`。
+- `typst` 二进制：**tangle 的硬依赖**（D13 起靠 `typst eval` 读声明）+ weave + `cargo test`；定位顺序 `LP_TYPST` > `PATH`。
 
 ## 依赖（D7：成熟库优先）
-见 ADR D7 的表格。首版新增依赖前必须在表里补一行"为什么是它"。当前：`typst-syntax`、`clap`、`serde`/`serde_json`、`thiserror`+`miette`、`notify`+`notify-debouncer-full`、`regex`、`cargo_metadata`、（dev）`tempfile`。
+见 ADR D7 的表格。首版新增依赖前必须在表里补一行"为什么是它"。当前：`clap`、`serde`/`serde_json`、`thiserror`+`miette`、`notify`+`notify-debouncer-full`、`ignore`、`regex`、（dev）`tempfile`。已移除：`typst-syntax`（D13）。尚未引入：`cargo_metadata`。
 
 ## 测试策略（ponytail：能失败的最小检查）
 - `cargo test`：tangle 语义 fixture（拼接/缩进/嵌套块/悬空/环/重复 label）、oracle 一致性、固定点（M3）。
