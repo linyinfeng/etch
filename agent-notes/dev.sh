@@ -4,7 +4,8 @@
 # Delete it whenever the environment has somewhere better to live.
 #
 #   agent-notes/dev.sh gates        # everything: tangle, tests, fmt, clippy, check, weave, demo
-#   agent-notes/dev.sh test|fmt|clippy|tangle|check|demo|weave
+#   agent-notes/dev.sh test|fmt|clippy|tangle|check|demo|weave|repo
+#   agent-notes/dev.sh bootstrap|seed          # what a clone does; refresh the seed branch
 #   agent-notes/dev.sh <any command>            # run it with the toolchain on PATH
 #   agent-notes/dev.sh shell                    # just give me the toolchain and a shell
 #
