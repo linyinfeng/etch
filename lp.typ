@@ -19,9 +19,8 @@
 
 This is the whole of `lp`: the program, the package it is written with, and the example it ships.
 There is no second source — the crate, the package and the example in this repository are the
-output of tangling this file, and `typst compile lp.typ` renders what you are reading — with the
-package path the tangle unpacked next to it in scope (`TYPST_PACKAGE_PATH=.lp`; the example chapter
-shows the same line for its own weave).
+output of tangling this file, and `lp weave lp.typ lp.pdf` renders what you are reading — which is
+`typst compile` with the package this tool unpacks already in scope.
 
 It is a literate program, and that is not a remark about its formatting. The document is
 where the thinking lives; the code is quoted into it as the evidence that makes the
@@ -41,8 +40,8 @@ of them without the others.
    machine runs it.
 3. *A program is written as literature.* Prose is not a comment on the code; it is where the
    thinking lives, and the code is the evidence that the thinking is real.
-4. *The woven document is worth having on its own.* Here that is `typst compile lp.typ`: the same
-   declarations, rendered as the page you are reading, once the package path is in scope.
+4. *The woven document is worth having on its own.* Here that is `lp weave lp.typ lp.pdf`: the same
+   declarations, rendered as the page you are reading.
 
 This document takes the first claim literally and argues for the other three by being an example
 of them. The case against all four is worth stating at its strongest, because most of it is
@@ -556,7 +555,7 @@ const PACKAGE_DIR: &str = "local/lp/0.1.0";
 /// Write the embedded package to `<root>/.lp/…` so Typst can resolve what the document imports,
 /// and hand back the directory to point `--package-path` at. Only changed bytes are written, so
 /// a pass in a loop does not touch the disk.
-fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
+pub fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
     let packages = root.join(PACKAGE_ROOT);
     let dir = packages.join(PACKAGE_DIR);
     std::fs::create_dir_all(&dir).map_err(|err| LpError::io(&dir, err))?;
@@ -728,7 +727,7 @@ this function.
 
 #chunk("metadata: the deepest directory that contains every document", ````rust
 /// The deepest directory that contains every document.
-fn common_ancestor(docs: &[PathBuf]) -> PathBuf {
+pub fn common_ancestor(docs: &[PathBuf]) -> PathBuf {
     let mut root = docs
         .first()
         .and_then(|doc| doc.parent())
@@ -1561,6 +1560,100 @@ mod tests {
     }
 }
 ````)
+= Weaving the document
+
+Tangling writes the program; weaving renders the document you are reading. The second is Typst's job,
+and it is already done — `typst compile` renders a document. A second renderer inside this tool would be
+a second thing to keep in step with the compiler, which is the kind of duplication this document keeps
+refusing.
+
+What the tool does have, and a writer should not have to remember, is where the package went. The
+document imports `@local/lp:0.1.0`, and Typst resolves that through a package path: the directory the
+tangle unpacked next to the document. `lp weave` is `typst compile` with that path filled in, a root
+that covers the document, and every other argument passed through untouched:
+
+```sh
+lp weave lp.typ lp.pdf                          # the book, as Typst renders it
+lp weave report.typ report.pdf --input who=me   # ... with Typst's own flags
+```
+
+The package is the copy embedded in this binary, unpacked fresh, so weaving needs no tangle before it:
+the document is the source of both. And the document stays a normal Typst file — an editor rendering it
+without the tool sets `TYPST_PACKAGE_PATH` itself, to the same path this command passes. That is the one
+place the unpacking is visible from outside, and this command exists so that nobody has to type it.
+
+#file("src/weave.rs", ````rust
+<<weave: the module note>>
+
+<<weave: the imports>>
+
+<<weave: the command>>
+
+<<weave: the status>>
+````)
+
+== What the tool has to say, and what it does not
+
+Two facts, and both are things the tool already knows from tangling:
+
+- the package path, because it unpacked the package itself;
+- a root that covers the document *and* the working directory, because Typst refuses to read outside
+  its root and an import that resolves through a relative path has to stay inside it.
+
+Everything else is Typst's, and is passed on as it came. That is why the arguments are trailing: after
+the document and the output, nothing is ours to interpret.
+
+#chunk("weave: the module note", ````rust
+//! Rendering the document: `typst compile`, with the two facts this tool knows.
+//!
+//! The package this tool unpacks has to be in scope, and Typst's root has to cover the document and
+//! the working directory. Everything else about rendering belongs to the compiler, so the command is
+//! thin on purpose.
+````)
+
+#chunk("weave: the imports", ````rust
+use std::path::Path;
+use std::process::Command;
+
+use crate::diag::LpError;
+use crate::metadata::{binary, common_ancestor, unpack_package};
+````)
+
+#chunk("weave: the command", ````rust
+pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, LpError> {
+    let typst = binary()?;
+    let cwd = std::env::current_dir()
+        .map_err(|err| LpError::plain(format!("cannot read the working directory: {err}")))?;
+    // The document as the writer named it goes to Typst; the absolute one decides where the package
+    // is and how far up the root has to reach, because `common_ancestor` starts from a parent.
+    let anchor = doc.canonicalize().map_err(|err| LpError::io(doc, err))?;
+    let docs = vec![anchor];
+    let packages = unpack_package(&common_ancestor(&docs))?;
+    let mut root = docs;
+    root.push(cwd);
+
+    let mut command = Command::new(typst);
+    command
+        .arg("compile")
+        .arg(doc)
+        .arg("--root")
+        .arg(common_ancestor(&root))
+        .arg("--package-path")
+        .arg(&packages);
+    if let Some(output) = output {
+        command.arg(output);
+    }
+    command.args(extra);
+````)
+
+#chunk("weave: the status", ````rust
+    let status = command
+        .status()
+        .map_err(|err| LpError::plain(format!("cannot run Typst: {err}")))?;
+    Ok(status.code().unwrap_or(1))
+}
+````)
+
 = Reading a diagnostic back to the declaration
 
 The compiler knows nothing about this document. It knows `src/main.rs`, and it will report
@@ -2949,6 +3042,7 @@ reader finds out what the tool can do without reading the tool.
 
 #[derive(Subcommand)]
 enum Command {
+    <<main: weave>>
     <<main: tangle>>
     <<main: map>>
     <<main: explain>>
@@ -3019,6 +3113,7 @@ mod metadata;
 mod status;
 mod tangle;
 mod watch;
+mod weave;
 
 use std::collections::BTreeSet;
 use std::io::Read;
@@ -3036,6 +3131,19 @@ struct Cli {
     #[command(subcommand)]
     command: Command,
 }
+````)
+
+#chunk("main: weave", ````rust
+/// Render a document, with the package this tool unpacks in scope
+Weave {
+    /// The document to render
+    doc: PathBuf,
+    /// Where to write it (Typst reads the format off the extension)
+    output: Option<PathBuf>,
+    /// Arguments passed on to `typst compile`, untouched
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    extra: Vec<String>,
+},
 ````)
 
 #chunk("main: tangle", ````rust
@@ -3161,6 +3269,7 @@ a decision, that decision belongs in the module it calls, and the arm gets thinn
 module gets a new function.
 
 #chunk("main: tangle, and what it reports", ````rust
+Command::Weave { doc, output, extra } => weave::run(&doc, output.as_deref(), &extra),
 Command::Tangle { docs, out, check } => {
     let out = out_dir(out, &docs);
     let outcome = tangle::run(&docs, &out, check)?;
@@ -3443,6 +3552,8 @@ what the *same* document produces in different situations.
 
 <<flow: unsafe_paths_are_rejected>>
 
+<<flow: weave_renders_a_document_that_imports_the_package>>
+
 <<flow: map_names_the_chunk_a_generated_line_came_from>>
 
 <<flow: explain_rewrites_diagnostics_to_the_chunk>>
@@ -3474,6 +3585,7 @@ The cases, in the order they appear:
 - `map_names_the_chunk_a_generated_line_came_from` — `lp map --file --line` answers with the chunk and how far into it the line is
 - `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
+- `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `a_chunk_built_by_code_is_attributed_to_itself` — roots declared by a loop are attributed to the declarations the loop produced
 - `the_declaration_is_where_the_line_lives` — the answer includes the `rg` command that finds the declaration
 
@@ -4004,6 +4116,27 @@ fn explain_rewrites_diagnostics_to_the_chunk() {
     assert!(stdout(&output).contains("out/main.py:3:1: boom"));
     let message = stderr(&output);
     assert!(message.contains("chunk ⟪body⟫, line 2 of it"), "{message}");
+}
+````)
+
+#chunk("flow: weave_renders_a_document_that_imports_the_package", ````rust
+#[test]
+fn weave_renders_a_document_that_imports_the_package() {
+    // No `lp.typ` next to it: the only way this document can be rendered is through the package
+    // this tool unpacks, which is exactly what `weave` passes on to Typst.
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(
+        dir.path().join("doc.typ"),
+        "#import \"@local/lp:0.1.0\": rule\n#show: rule\n= Woven\n",
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["weave", "doc.typ", "doc.pdf"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        dir.path().join("doc.pdf").exists(),
+        "no document was written"
+    );
 }
 ````)
 
@@ -5615,10 +5748,10 @@ The files in `tangled/examples/demo/build/` are the demonstration's own territor
 says which of them other tools own — cargo's directory and lock file, the PDF, the frames
 `run.sh` produces for the transcript.
 
-Two of its steps are plain `typst` rather than `lp`, and those need the package path that the
-tangle unpacked: `TYPST_PACKAGE_PATH` is set to it for the weave and for the probe of the
-renderer. That is the one place a user of this tool has to know about the unpacking at all, and
-it is the same line their editor would need.
+Two of its steps are plain `typst` rather than `lp`, on purpose: the example is also a demonstration
+that a woven document is an ordinary Typst file. Those steps need the package path the tangle unpacked,
+so `TYPST_PACKAGE_PATH` is set for them — the same line an editor needs, and the one `lp weave` exists
+to save everyone else from typing.
 
 One thing to know about tangled scripts: a file the tangle writes has ordinary permissions, so a
 shell script comes out readable and not executable. `bash run.sh` is the way in, and a project
