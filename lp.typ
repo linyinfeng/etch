@@ -1588,9 +1588,7 @@ Every line of this file is a name; the details come in the sections after it.
 
 <<explain: the imports>>
 
-pub fn run(out: &Path, format: &str, input: &str) -> Result<usize, LpError> {
-    <<the backend that is not written yet>>
-
+pub fn run(out: &Path, input: &str) -> Result<usize, LpError> {
     <<the diagnostic pattern>>
 
     let maps = LpMap::read_all(out);
@@ -1643,21 +1641,6 @@ use regex::Regex;
 
 use crate::diag::LpError;
 use crate::map::{LpMap, join, resolve_all};
-````)
-
-== The backend that is not written yet
-
-`--format cargo` exists on the command line and is refused here, with a pointer to the
-format that works today. A tool that says "not yet" is more useful than one that parses
-half of a JSON stream and prints something plausible.
-
-#chunk("the backend that is not written yet", ````rust
-if format == "cargo" {
-    return Err(
-        LpError::plain("--format cargo (JSON) is not implemented yet")
-            .with_help("pipe `cargo build --message-format=short` through lp explain instead"),
-    );
-}
 ````)
 
 == One pattern, and it is not language knowledge
@@ -2930,7 +2913,7 @@ wrong half the time.
 
 #chunk("watch: the same translation as lp explain", ````rust
 // Same translation as `lp explain`, reading the maps we just wrote.
-let _ = crate::explain::run(&options.out, "generic", &text);
+let _ = crate::explain::run(&options.out, &text);
 ````)
 
 == The last resort
@@ -3091,9 +3074,6 @@ Map {
 Explain {
     #[arg(long)]
     out: Option<PathBuf>,
-    /// Diagnostic format on stdin
-    #[arg(long, default_value = "generic", value_parser = ["generic", "cargo"])]
-    format: String,
 },
 ````)
 
@@ -3303,13 +3283,13 @@ refusal to guess) and then asks that map for the run covering the line.
 ````)
 
 #chunk("main: explain, a filter on stdin", ````rust
-Command::Explain { out, format } => {
+Command::Explain { out } => {
     let out = out_dir(out, &[]);
     let mut input = String::new();
     std::io::stdin()
         .read_to_string(&mut input)
         .map_err(|e| LpError::plain(e.to_string()))?;
-    let mapped = explain::run(&out, &format, &input)?;
+    let mapped = explain::run(&out, &input)?;
     if mapped == 0 {
         eprintln!("note: no diagnostic line matched any map");
     }

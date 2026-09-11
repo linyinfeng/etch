@@ -64,7 +64,7 @@
 ## 下一步候选
 
 - **脚本的可执行位**：tangle 写出的文件是 0644，所以脚本要 `bash run.sh`。要改就得给 `#file` 加一个声明式标志（`executable: true`），**不能**按名字猜。
-- `lp explain --format cargo`（`cargo_metadata` 解 `--message-format=json`）；命令面一章里就写着它是"not yet"。
+- `lp explain` 的 cargo JSON 后端（`cargo_metadata` 解 `--message-format=json`）。命令行上**没有** `--format` 占位——它此前只用来拒绝自己的第二个取值，现已删掉（`21e75d3` 之后的一轮）；加后端时它随代码一起回来，那时才谈得上取值该叫什么。
 - 把包发布到 `@preview`（包是文档产物，剩下的是流程问题）。
 - 文档再长时的退路：按章节拆成多个文档（工具已支持多文档、`#include` 也在求值层合并）。
 
