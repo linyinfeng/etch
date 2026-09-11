@@ -4220,16 +4220,19 @@ run.txt
 
 == Starting from nothing
 
-A fresh clone holds five things: this document, the seed, the notes, and the two
-one-line files that point here. Everything else — the crate, the package, the example,
-the devshell, the control files — is produced by tangling. The devshell is one of those,
-so the first pass uses the copy the seed was frozen with:
+A fresh clone holds five things: this document, the seed, the notes, the two one-line
+files that point here — and `flake.nix` with its lock, which nix insists on finding in git
+before it will evaluate anything. Everything else is produced by tangling:
 
 ```sh
-nix develop ./seed -c cargo build --manifest-path seed/Cargo.toml
-nix develop ./seed -c ./seed/target/debug/lp tangle lp.typ --out .
+nix develop -c cargo build --manifest-path seed/Cargo.toml
+nix develop -c ./seed/target/debug/lp tangle lp.typ --out .
 nix develop -c cargo test
 ```
+
+The seed also carries its own copy of the devshell (`seed/flake.nix`, frozen with it) for
+the case where the tree has no flake at all — a tarball, an old commit, a toolchain that
+stopped working.
 
 After that the loop is the ordinary one: edit this document, tangle, test. While writing,
 
