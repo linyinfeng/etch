@@ -258,29 +258,61 @@ fn a_map_goes_away_with_the_files_it_explained() {
 }
 
 #[test]
-fn declared_exceptions_are_visible() {
-    let (_guard, dir) = managed(IGNORES, &[("handwritten.txt", "kept")]);
-
-    // The declaration shows up in the normal flow …
-    let tangle = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
+fn files_nothing_accounts_for_are_named() {
+    // Where no declaration owns the directory nothing is removed, so a file that
+    // neither a chunk nor an ignore file explains is invisible — unless it is
+    // named. That is the case the report exists for.
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
+    let path = dir.path().to_path_buf();
     assert!(
-        stderr(&tangle).contains("out/.lpignore declares what lp does not manage"),
-        "{}",
+        lp(&path, &["tangle", "doc.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    std::fs::write(path.join("out/stray.txt"), "who put this here").expect("stray");
+
+    let tangle = lp(&path, &["tangle", "doc.typ", "--out", "out"]);
+    assert!(
+        stderr(&tangle).contains("nothing accounts for"),
+        "the normal flow should mention it: {}",
         stderr(&tangle)
     );
 
-    // … and on demand, with what each rule currently covers.
-    let output = lp(&dir, &["ignored", "--out", "out"]);
+    let output = lp(&path, &["unaccounted", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     let report = stdout(&output);
-    assert!(report.contains("handwritten.txt"), "{report}");
+    assert!(report.contains("stray.txt"), "{report}");
+    assert!(!report.contains("a.py"), "produced: {report}");
     assert!(
-        report.contains("kept by hand") || report.contains("1 file: handwritten.txt"),
-        "{report}"
+        !report.contains("src/"),
+        "a directory holding produced files: {report}"
     );
+
+    // It is a report, not an action: nothing removes files without a declaration.
+    assert!(path.join("out/stray.txt").exists());
+}
+
+#[test]
+fn a_carelessly_owned_directory_still_lets_the_sweep_act() {
+    // In a declared directory an undeclared file is the sweep's business, so it
+    // is removed rather than reported — that is what declaring the directory
+    // means.
+    let (_guard, dir) = managed(IGNORES, &[("handwritten.txt", "kept")]);
+    std::fs::write(dir.join("out/target-artifact"), "foreign").expect("file");
+
+    let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
     assert!(
-        report.contains("appendix chunk"),
-        "the nudge belongs there: {report}"
+        stdout(&output).contains("pruned target-artifact"),
+        "{}",
+        stdout(&output)
+    );
+    assert!(!dir.join("out/target-artifact").exists());
+    assert!(
+        dir.join("out/handwritten.txt").exists(),
+        "declared, so kept"
     );
 }
 

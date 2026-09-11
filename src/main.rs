@@ -1,8 +1,8 @@
 mod diag;
 mod explain;
-mod ignored;
 mod map;
 mod parse;
+mod status;
 mod sweep;
 mod tangle;
 mod watch;
@@ -75,8 +75,8 @@ enum Command {
     },
     /// List the chunks in a document, with their .typ lines
     List { doc: PathBuf },
-    /// Show what a directory declares it does not manage (.lpignore)
-    Ignored {
+    /// List files in a produced directory that nothing accounts for
+    Unaccounted {
         #[arg(long, default_value = "out")]
         out: PathBuf,
     },
@@ -130,14 +130,17 @@ fn run() -> Result<i32, LpError> {
             for warning in &outcome.warnings {
                 eprintln!("warning: {warning}");
             }
-            if !outcome.declared.is_empty() {
-                let files = outcome
-                    .declared
-                    .iter()
-                    .map(|dir| out.join(dir).join(sweep::IGNORE_FILE).display().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                eprintln!("note: {files} declares what lp does not manage (run `lp ignored`)");
+            for group in &outcome.unaccounted {
+                let label = if group.dir.is_empty() {
+                    "."
+                } else {
+                    group.dir.as_str()
+                };
+                eprintln!(
+                    "note: {} entr{} in {label}/ that nothing accounts for (run `lp unaccounted`)",
+                    group.entries.len(),
+                    if group.entries.len() == 1 { "y" } else { "ies" }
+                );
             }
             Ok(i32::from(!outcome.stale.is_empty()))
         }
@@ -226,7 +229,7 @@ fn run() -> Result<i32, LpError> {
             list(&doc)?;
             Ok(0)
         }
-        Command::Ignored { out } => ignored::run(&out),
+        Command::Unaccounted { out } => status::run(&out),
     }
 }
 

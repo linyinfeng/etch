@@ -171,8 +171,9 @@ pub struct Outcome {
     pub pruned: Vec<String>,
     /// Directories that declared ownership with a `.lpignore`.
     pub managed: Vec<String>,
-    /// `.lpignore` files the pass walked past, relative to the output directory.
-    pub declared: Vec<String>,
+    /// Files in produced directories that neither a chunk nor a declaration
+    /// accounts for.
+    pub unaccounted: Vec<crate::status::Unaccounted>,
     pub warnings: Vec<String>,
 }
 
@@ -279,7 +280,22 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
     // says so — and nowhere else.
     let sweep = sweep::run(out, &produced, !check)?;
     outcome.managed = sweep.roots.clone();
-    outcome.declared = sweep.declared.clone();
+    outcome.unaccounted = if check {
+        Vec::new()
+    } else {
+        crate::status::unaccounted(
+            out,
+            &maps
+                .iter()
+                .map(|(dir, map)| {
+                    (
+                        dir.to_string_lossy().replace('\\', "/"),
+                        map.files.keys().cloned().collect(),
+                    )
+                })
+                .collect(),
+        )?
+    };
     for rel in sweep.removed {
         if check {
             outcome

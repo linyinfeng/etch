@@ -45,7 +45,7 @@ lp map    --file src/main.rs --line 42         # 生成文件的第 42 行来自
 lp map    --typ doc.typ --line 92              # 反向：这一行 .typ 产生了哪些生成位置
 lp explain [--out DIR]                         # 把 file:line:col 诊断翻译回 .typ（读 stdin）
 lp list   <doc.typ>                            # 列出 chunk：根/片段、语言、源行号、是否被引用
-lp ignored [--out DIR]                          # 摊开 .lpignore 的每条声明，及它当前覆盖了什么
+lp unaccounted [--out DIR]                      # 列出既没有 chunk 产出、也没有被声明的文件
 ```
 
 退出码：0 成功，1 语义错误（悬空引用 / 引用环 / 空 chunk / 漂移），2 用法错误。
@@ -90,16 +90,24 @@ src/main.rs:6:38: error[E0425]: cannot find function `ad` in module `math`
 
 干跑用 `lp tangle --check`：它列出会被删的东西，一个文件也不动。没有任何 `.lpignore` 时 `lp` 不删任何东西——它不保留"我以前写过什么"的记录，授权只来自目录声明。
 
-`.lpignore` 的每一条都是一句**声明**："这个东西我不管理。" `lp ignored` 把它摊开给你看——每条规则、以及它当前覆盖了哪些文件（**即使现在什么都没匹配上也会列出**，一条规则的存在本身就是决定）：
+输出目录里的每个文件恰好落在三类之一，而且只有第三类是需要有人告诉你的：
+
+| | 在哪能看见 | 谁负责 |
+|---|---|---|
+| **produced**：某个 chunk 产出它 | 所在目录的 `.lpmap.json` | `lp`——`--check` 守它的漂移 |
+| **declared**：`.lpignore` 里写了 | ignore 文件本身 | 你——`lp` 不碰它 |
+| **unaccounted**：都不是 | **哪里都看不见** | 没人 |
+
+所以 `lp unaccounted` 只报第三类：
 
 ```
-./.lpignore — 5 declarations:
-  Cargo.lock             1 file: Cargo.lock
-  target/                matches nothing right now
-  *.pdf                  1 file: demo.pdf
+out/ — 1 nothing accounts for:
+  stray.txt
 ```
 
-它是给**人**看的 review 面：清单上如果有"程序真正需要、只是没被解释"的东西（`flake.lock`、锁文件、清单），正确做法不是继续声明"我不管理"，而是写进文档——作为一个**附录 chunk**，让散文解释它为什么长这样。
+每一行是三选一，只有你知道选哪个：**让某个 chunk 产出它** / **在 `.lpignore` 里声明** / **它是过期产物，删掉**。`lp tangle` 也会打一行 note 指过去，不沉默。（在有 `.lpignore` 声明的目录里，未被声明的文件属于扫描范围，会被删掉并报 `pruned`——"声明"就是授权。）
+
+清单上如果有"程序真正需要、只是没被解释"的东西（`flake.lock`、锁文件、清单），正确做法不是继续声明"我不管理"，而是写进文档——作为一个**附录 chunk**，让散文解释它为什么长这样。
 
 ## 行号映射
 
