@@ -5134,8 +5134,9 @@ use std::process::Command;
 #chunk("self: the_document_regenerates_the_sources_we_are_running", ````rust
 /// The document is the source of the files that are compiled, so `--check` in the
 /// crate root has to be clean. This is the permanent half of the fixed point:
-/// Stage 1 also required the output to equal the frozen seed in `seed/`,
-/// which stopped being true the moment the document was refactored (ADR D15).
+/// Stage 1 also required the output to equal the frozen seed, which stopped
+/// being true the moment the document was refactored (ADR D15); the seed is a
+/// branch now, and it is refreshed from this same tree.
 #[test]
 fn the_document_regenerates_the_sources_we_are_running() {
     // The crate lives in `tangled/`, one level below the document it is generated from.
@@ -5296,9 +5297,8 @@ assembles the environment for you.
 The tangle writes to `tangled/` without being told to: when `--out` is not given it is the
 directory `tangled` next to the document, because the document is what the output belongs to. The
 older lp reads the declarations here and writes this generation over its own tree — crate, package,
-example, protect list. The
-seed is then just a directory again, and it stays untouched until someone decides the
-current generation should become the next seed.
+example, protect list. Its own history is what makes it readable a generation later, which is the
+whole trick: the seed was never a special artifact, only an older generation of this.
 
 That tree is a copy that can be read on its own, and it is a repository, but it is not this
 repository: nobody edits the generated code, and its first commit is a judgement about the program
@@ -5354,6 +5354,26 @@ The task is four plumbing commands: a temporary index, a temporary work tree fil
 `git update-ref` on `refs/heads/seed`. It never touches the working tree of `main` — and it cannot
 simply add `tangled/`, because a directory holding a `.git` is a repository, and git will not add
 what is inside one.
+
+== What the branch carries, and what it does not
+
+The branch carries what the tree's own repository commits: the declared files, and `Cargo.lock` —
+the one file in the seed that no declaration produces, because a pinned resolution is a decision
+and not a derivation. Everything else the tangle writes stays out, and each for a reason that is
+worth being able to say:
+
+- `.lpmap.json`, in every directory that received a file. The tool classifies it as a *control
+  file* rather than content — the same list `--check` exempts — and it is derived from the document
+  alone. The first tangle of a fresh clone writes it back.
+- `.lp/`, the copy of the package unpacked next to a document so Typst can import it. Also
+  derived: it is the declaration of the package, unpacked.
+- `target/` and the example's `build/`, which the build and the nested document produce rather than
+  this document.
+
+So the seed is the program, not the state around it: a generation to read, to build, and — in the
+one case where that matters — one to bootstrap from. Being a program is also the test: if the
+bootstrap in "Starting from nothing" runs green from the branch alone, the branch carries enough,
+and nothing else needs a rule.
 
 Only one property is required of the seed: it must be a generation that can read this document, and
 one generation behind is enough. Being the current one is better, so refresh it whenever the tree
