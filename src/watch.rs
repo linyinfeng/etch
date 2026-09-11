@@ -24,7 +24,6 @@ use notify_debouncer_full::notify::RecursiveMode;
 use notify_debouncer_full::{DebounceEventResult, new_debouncer};
 
 use crate::diag::LpError;
-use crate::map::LpMap;
 use crate::parse::Doc;
 use crate::tangle;
 
@@ -178,13 +177,8 @@ fn check(options: &Options) {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // Same translation as `lp explain`, reading the map we just wrote.
-    match LpMap::read(&options.out) {
-        Ok(map) => {
-            let _ = crate::explain::run(&map, "generic", &text);
-        }
-        Err(_) => print!("{text}"),
-    }
+    // Same translation as `lp explain`, reading the maps we just wrote.
+    let _ = crate::explain::run(&options.out, "generic", &text);
 }
 
 fn report(err: LpError) {

@@ -91,24 +91,17 @@ src/main.rs:6:38: error[E0425]: cannot find function `ad` in module `math`
 
 ## 行号映射
 
-`lp tangle` 在每个 `--out` 目录里写一份 `.lpmap.json`：**当前产物**的行号映射（生成行 → `.typ` 行，指向定义处），`lp map` / `lp explain` 只读它。它不承担所有权职责。
+**每个目录一份**：`out/.lpmap.json` 只管 `out/` 里直接躺着的文件，`out/src/.lpmap.json` 只管 `out/src/` 里的。渐进式披露——你打开哪个目录就读哪份映射，不用面对一棵树的全局索引；映射跟着它解释的文件走，目录消失时它也一起消失（删掉一个 `src/foo.rs` 的根 chunk，那份映射里就没有它了）。
 
 ```json
-{
-  "version": 1,
-  "docs": ["examples/demo/literate.typ"],
-  "files": {
-    "src/main.rs": {
-      "typ": "examples/demo/literate.typ",
-      "lang": "rust",
-      "lines": [[1, 82], [7, 92]],
-      "chunks": [{ "name": "print-results", "typ_line": 91, "end_line": 93 }]
-    }
-  }
-}
+// examples/demo/build/.lpmap.json
+{ "version": 2, "docs": ["examples/demo/literate.typ"],
+  "files": { "Cargo.toml": { "typ": "examples/demo/literate.typ", "lang": "toml",
+                             "lines": [[1, 25], [7, 31]],
+                             "chunks": [{ "name": "Cargo.toml", "typ_line": 25, "end_line": 33 }] } } }
 ```
 
-`lines` 是 `[生成文件行, .typ 行]`，指向**定义处**而不是引用处；`lp map` / `lp explain` 只读它、不改它。生成物不入库：CI 跑 `lp tangle --check`，漂移即失败。
+`lines` 是 `[该目录内的生成文件行, .typ 行]`，指向**定义处**而不是引用处。查询时按"最具体的目录优先"解析：`lp map --file src/main.rs` 用 `src/` 的映射；只给文件名（`--file main.rs`）而多个目录都有同名文件时，报歧义而不是猜。生成物不入库：CI 跑 `lp tangle --check`，漂移即失败。
 
 ## 状态
 

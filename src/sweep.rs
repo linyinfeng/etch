@@ -102,7 +102,7 @@ pub fn run(out: &Path, produced: &BTreeSet<String>, delete: bool) -> Result<Swee
         sweep.removed.push(relative(out, &path));
         if delete {
             std::fs::remove_file(&path).map_err(|e| LpError::io(&path, e))?;
-            prune_empty_parents(&path, out, &mut declared);
+            prune_empty_dirs(path.parent().unwrap_or(out), out);
         }
     }
     Ok(sweep)
@@ -145,10 +145,12 @@ pub fn relative(out: &Path, path: &Path) -> String {
         .replace('\\', "/")
 }
 
-fn prune_empty_parents(path: &Path, out: &Path, cache: &mut BTreeMap<PathBuf, bool>) {
-    let mut dir = path.parent();
+/// Remove empty directories from `start` upwards, stopping before `stop`. Only
+/// ever walks up from a directory this pass emptied.
+pub fn prune_empty_dirs(start: &Path, stop: &Path) {
+    let mut dir = Some(start);
     while let Some(current) = dir {
-        if current == out || declaring_root(out, current, cache).is_none() {
+        if current == stop || !current.starts_with(stop) {
             break;
         }
         let empty = std::fs::read_dir(current).is_ok_and(|mut entries| entries.next().is_none());

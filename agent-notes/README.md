@@ -17,6 +17,7 @@
 - `decisions/2026-09-11-engine-and-deps.md` — **D6 解析引擎：`typst-syntax` 为主、`typst eval` 降为 oracle**（实测：能用官方 parser 拿到精确 span，不必自己扫 fence）、**D7 依赖策略：用成熟库**（clap/notify/miette/cargo_metadata…，并推翻原 plan 的手写倾向）。
 - `decisions/2026-09-11-chunk-labels.md` — **D8 chunk 命名**：Typst 的 `<...>` 不允许 `/`（实测），平面名字用 `<name>`、带目录的用 `#label("src/main.rs")`，不用自定义 `:` 编码。
 - `decisions/2026-09-11-watch-contract.md` — **D9 实时同步契约**：只写字节变化的输出（mtime 不变）、语法错误不 tangle（保留上一份好产物）、事件合并、`--check-cmd` 只在真改写后跑。
+- `decisions/2026-09-11-map-scope.md` — **D11 映射作用域**：`.lpmap.json` 每目录一份、只管本目录的文件（渐进式披露，映射跟着文件走，歧义报错）。
 - `decisions/2026-09-11-output-ownership.md` — **D10 输出目录所有权**：删除只由目录里的 `.lpignore` 授权（规则即 gitignore，一次 walk 交给 `ignore` 库，匹配=保护）；`.lpmap.json` 只管行号映射，不做所有权记忆；没有声明就什么都不删；无 git 特例；`--check` 是干跑。
 - `plan.md` — M0–M3 实施计划：CLI 表面、依赖预算、测试策略、自举不变量、明确不做的清单。
 - `research/2026-09-11-prior-art.md` — 现有 literate programming 工具盘点（noweb/littst/Entangled/Ravel/typst-unlit/Calepin/org-babel/…），Typst 生态现状，以及 AI 时代的四篇相关工作。含"我们的差异化在哪"。

@@ -6,7 +6,7 @@
 src/main.rs       CLI（clap）+ 命令派发 + lp list
 src/parse.rs      typst-syntax CST 遍历 → chunk（两种 label 写法）
 src/tangle.rs     展开、缩进、严格报错、写文件、--check
-src/map.rs        .lpmap.json 的 schema + 查找
+src/map.rs        每个目录一份 .lpmap.json 的 schema + 解析（最具体目录优先）
 src/explain.rs    诊断行 → .typ 行（纯查表 + 通用正则）
 src/diag.rs       LpError（miette，指向 .typ 源 span）
 lit/lit.typ       Typst 渲染库（`#show: lit`）

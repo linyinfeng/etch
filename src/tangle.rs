@@ -2,10 +2,10 @@
 //! output line came from.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::diag::LpError;
-use crate::map::{ChunkEntry, FileMap, LpMap};
+use crate::map::{ChunkEntry, FileMap, LpMap, MAP_FILE, split};
 use crate::parse::{Block, Doc, check_output_path, is_root};
 use crate::sweep;
 
@@ -177,15 +177,12 @@ pub struct Outcome {
 /// Tangle every document into `out`; with `check`, write nothing and only report
 /// drift against what is already there.
 pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
-    let names = docs
-        .iter()
-        .map(|d| d.path.display().to_string())
-        .collect::<Vec<_>>();
-
     // The map is a line map: what this pass produced, nothing more. Ownership of
     // files that no chunk produces any more is a directory question, answered by
     // `.lpignore` (see `sweep.rs`), not by remembering the past here.
-    let mut map = LpMap::new(&names);
+    // One map per output directory, filled as roots are expanded; `produced`
+    // stays the flat list of paths for the sweep.
+    let mut maps: BTreeMap<PathBuf, LpMap> = BTreeMap::new();
     let mut produced: BTreeSet<String> = BTreeSet::new();
     let mut outcome = Outcome::default();
 
@@ -264,15 +261,14 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
                 lines: tangled.lines,
                 chunks: tangled.chunks,
             };
-            if map.files.insert(root.to_string(), entry).is_some() {
-                // The same output produced by two roots is a mistake; a repeat
-                // pass overwriting its own entry is not.
-                if !produced.insert(root.to_string()) {
-                    return Err(LpError::plain(format!("output {root} is produced twice")));
-                }
-            } else {
-                produced.insert(root.to_string());
+            if !produced.insert(root.to_string()) {
+                return Err(LpError::plain(format!("output {root} is produced twice")));
             }
+            let (dir, name) = split(root);
+            maps.entry(PathBuf::from(dir))
+                .or_default()
+                .files
+                .insert(name.to_string(), entry);
         }
     }
 
@@ -291,11 +287,33 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
         }
     }
 
-    // The map tracks the *document*, so it can be stale even when no output byte
-    // moved (a line of prose shifts every mapping). Compare its content rather
-    // than the output files'.
+    // A map tracks the *document*, so it can be stale even when no output byte
+    // moved (a line of prose shifts every mapping); `write_if_changed` compares
+    // content rather than the output files'. Maps for directories that stopped
+    // producing anything are removed with the directories themselves: the map
+    // travels with the files it explains.
     if !check {
-        map.write_if_changed(out)?;
+        for (dir, map) in maps.iter_mut() {
+            if map.is_empty() {
+                continue;
+            }
+            map.set_docs(
+                map.files
+                    .values()
+                    .map(|file| file.typ.clone())
+                    .collect::<Vec<_>>(),
+            );
+            map.write_if_changed(&out.join(dir))?;
+        }
+        for (dir, _) in LpMap::read_all(out) {
+            if maps.get(Path::new(&dir)).is_some_and(|map| !map.is_empty()) {
+                continue;
+            }
+            let stale = out.join(&dir).join(MAP_FILE);
+            if std::fs::remove_file(&stale).is_ok() {
+                sweep::prune_empty_dirs(stale.parent().unwrap_or(out), out);
+            }
+        }
     }
     Ok(outcome)
 }

@@ -1,20 +1,29 @@
-//! The line map: which `.typ` line produced which line of which output file.
+//! The line map: which `.typ` line produced which line of which generated file.
+//!
+//! One map per directory, next to the files it describes: `out/.lpmap.json`
+//! covers the files directly in `out/`, `out/src/.lpmap.json` covers the files
+//! directly in `out/src/`. Progressive disclosure — a reader, person or agent,
+//! opens the directory it cares about instead of one index of the whole tree; the
+//! map travels with the files it explains; and a directory that stops producing
+//! anything takes its map with it.
 
-use std::collections::BTreeMap;
-use std::path::Path;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
+use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 
 use crate::diag::LpError;
 
 pub const MAP_FILE: &str = ".lpmap.json";
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LpMap {
     pub version: u32,
+    /// Documents that produced the files listed here.
     pub docs: Vec<String>,
-    /// Keyed by the output file's path relative to `--out`.
+    /// Keyed by file name *within this directory*.
     pub files: BTreeMap<String, FileMap>,
 }
 
@@ -36,13 +45,27 @@ pub struct ChunkEntry {
     pub end_line: usize,
 }
 
-impl LpMap {
-    pub fn new(docs: &[String]) -> Self {
+impl Default for LpMap {
+    fn default() -> Self {
         Self {
             version: VERSION,
-            docs: docs.to_vec(),
+            docs: Vec::new(),
             files: BTreeMap::new(),
         }
+    }
+}
+
+impl LpMap {
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
+    }
+
+    pub fn set_docs(&mut self, docs: impl IntoIterator<Item = String>) {
+        self.docs = docs
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
     }
 
     /// Write only when the serialized map actually differs.
@@ -52,8 +75,8 @@ impl LpMap {
     /// shifts every mapping while leaving every output file identical. Comparing
     /// the whole map keeps it correct without handing editors and CI a file whose
     /// mtime moves on every pass.
-    pub fn write_if_changed(&self, out: &Path) -> Result<bool, LpError> {
-        let (path, json) = self.serialize(out)?;
+    pub fn write_if_changed(&self, dir: &Path) -> Result<bool, LpError> {
+        let (path, json) = self.serialize(dir)?;
         if std::fs::read_to_string(&path).ok().as_deref() == Some(json.as_str()) {
             return Ok(false);
         }
@@ -61,17 +84,44 @@ impl LpMap {
         Ok(true)
     }
 
-    fn serialize(&self, out: &Path) -> Result<(std::path::PathBuf, String), LpError> {
-        let path = out.join(MAP_FILE);
+    pub fn read(dir: &Path) -> Result<Self, LpError> {
+        let path = dir.join(MAP_FILE);
+        let text = std::fs::read_to_string(&path).map_err(|e| LpError::io(&path, e))?;
+        serde_json::from_str(&text).map_err(|e| LpError::plain(format!("{}: {e}", path.display())))
+    }
+
+    /// Every map under `out`, paired with its directory relative to `out` (`""`
+    /// for the output directory itself), in a stable order.
+    pub fn read_all(out: &Path) -> Vec<(String, LpMap)> {
+        if !out.exists() {
+            return Vec::new();
+        }
+
+        let walker = WalkBuilder::new(out)
+            .standard_filters(false)
+            .hidden(false)
+            .build();
+        let mut found = Vec::new();
+        for entry in walker.flatten() {
+            if entry.file_name() != MAP_FILE {
+                continue;
+            }
+            let Some(dir) = entry.path().parent() else {
+                continue;
+            };
+            if let Ok(map) = Self::read(dir) {
+                found.push((relative(out, dir), map));
+            }
+        }
+        found.sort_by(|a, b| a.0.cmp(&b.0));
+        found
+    }
+
+    fn serialize(&self, dir: &Path) -> Result<(PathBuf, String), LpError> {
+        let path = dir.join(MAP_FILE);
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| LpError::plain(format!("{}: {e}", path.display())))?;
         Ok((path, json + "\n"))
-    }
-
-    pub fn read(out: &Path) -> Result<Self, LpError> {
-        let path = out.join(MAP_FILE);
-        let text = std::fs::read_to_string(&path).map_err(|e| LpError::io(&path, e))?;
-        serde_json::from_str(&text).map_err(|e| LpError::plain(format!("{}: {e}", path.display())))
     }
 }
 
@@ -89,44 +139,92 @@ impl FileMap {
         self.chunks
             .iter()
             .rev()
-            .find(|c| c.typ_line <= typ_line && typ_line <= c.end_line)
+            .find(|chunk| chunk.typ_line <= typ_line && typ_line <= chunk.end_line)
     }
 }
 
-/// Resolve a user-supplied file argument against the map: relative path first,
-/// then path suffix, then unique basename.
-pub fn resolve<'a>(map: &'a LpMap, file: &str) -> Result<(&'a str, &'a FileMap), LpError> {
-    if let Some((key, entry)) = map.files.get_key_value(file) {
-        return Ok((key.as_str(), entry));
+/// Split an output path into `(directory, file name)`; the directory is `""` for
+/// files directly in the output directory. Both use forward slashes.
+pub fn split(rel: &str) -> (&str, &str) {
+    match rel.rsplit_once('/') {
+        Some((dir, name)) => (dir, name),
+        None => ("", rel),
+    }
+}
+
+pub fn join(dir: &str, name: &str) -> String {
+    if dir.is_empty() {
+        name.to_string()
+    } else {
+        format!("{dir}/{name}")
+    }
+}
+
+/// Relative path with forward slashes.
+pub fn relative(out: &Path, path: &Path) -> String {
+    path.strip_prefix(out)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+/// Where did this file come from? `file` is a path as a toolchain reported it:
+/// relative to the output directory, to the working directory, or absolute.
+///
+/// The map of the most specific directory wins; if two directories could equally
+/// well claim the name, that is an error rather than a guess.
+pub fn resolve<'a>(
+    maps: &'a [(String, LpMap)],
+    file: &str,
+) -> Result<(&'a str, &'a str, &'a FileMap), LpError> {
+    let normalized = file.trim_start_matches("./").replace('\\', "/");
+    let (dir, name) = split(&normalized);
+
+    let mut candidates: Vec<(&str, &str, &FileMap)> = Vec::new();
+    for (map_dir, map) in maps {
+        let Some((key, entry)) = map.files.get_key_value(name) else {
+            continue;
+        };
+        let in_scope = dir.is_empty()
+            || map_dir.is_empty()
+            || dir == map_dir
+            || dir.ends_with(&format!("/{map_dir}"));
+        if in_scope {
+            candidates.push((map_dir.as_str(), key.as_str(), entry));
+        }
     }
 
-    let wanted = file.rsplit('/').next().unwrap_or(file);
-    let matches: Vec<(&str, &FileMap)> = map
-        .files
-        .iter()
-        .filter(|(key, _)| {
-            key.as_str() == file
-                || key.ends_with(&format!("/{file}"))
-                || key.rsplit('/').next() == Some(wanted)
-        })
-        .map(|(key, entry)| (key.as_str(), entry))
-        .collect();
-
-    match matches.as_slice() {
-        [(key, entry)] => Ok((*key, *entry)),
-        [] => Err(
-            LpError::plain(format!("{file}: not in the line map")).with_help(format!(
-                "known files: {}",
-                map.files.keys().cloned().collect::<Vec<_>>().join(", ")
+    candidates.sort_by_key(|(map_dir, _, _)| std::cmp::Reverse(map_dir.len()));
+    let Some(best) = candidates.first() else {
+        let known = maps
+            .iter()
+            .map(|(dir, _)| if dir.is_empty() { "." } else { dir.as_str() })
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(
+            LpError::plain(format!("{file}: not in any line map")).with_help(format!(
+                "maps found in: {}",
+                if known.is_empty() {
+                    "(none)".into()
+                } else {
+                    known
+                }
             )),
-        ),
-        _ => Err(LpError::plain(format!(
-            "{file}: ambiguous, matches {}",
-            matches
-                .iter()
-                .map(|(k, _)| *k)
-                .collect::<Vec<_>>()
-                .join(", ")
-        ))),
+        );
+    };
+
+    if candidates
+        .get(1)
+        .is_some_and(|(map_dir, _, _)| map_dir.len() == best.0.len())
+    {
+        let all = candidates
+            .iter()
+            .map(|(dir, name, _)| join(dir, name))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(LpError::plain(format!("{file}: which line map?"))
+            .with_help(format!("candidates: {all}; name the directory")));
     }
+
+    Ok(*best)
 }

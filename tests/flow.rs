@@ -154,6 +154,82 @@ fn the_map_follows_the_document_even_when_no_output_byte_changes() {
 }
 
 #[test]
+fn maps_live_next_to_the_files_they_explain() {
+    let doc = "```py\nprint('a')\n``` <a.py>\n\n```py\nprint('b')\n``` #label(\"src/b.py\")\n";
+    let (_guard, dir) = project(doc);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let root: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(dir.join("out/.lpmap.json")).expect("root map"),
+    )
+    .expect("json");
+    let nested: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(dir.join("out/src/.lpmap.json")).expect("nested map"),
+    )
+    .expect("json");
+    assert!(root["files"].get("a.py").is_some(), "{root}");
+    assert!(
+        root["files"].get("src/b.py").is_none(),
+        "the root map must not index the subtree: {root}"
+    );
+    assert!(nested["files"].get("b.py").is_some(), "{nested}");
+
+    // A path resolves against the most specific map; a bare name works when it
+    // is unambiguous.
+    for file in ["src/b.py", "b.py"] {
+        let output = lp(
+            &dir,
+            &["map", "--file", file, "--line", "1", "--out", "out"],
+        );
+        assert!(output.status.success(), "{file}: {}", stderr(&output));
+        assert_eq!(stdout(&output).lines().next(), Some("demo.typ:6"), "{file}");
+    }
+
+    // Reverse, with the directory spelled out.
+    let reverse = lp(
+        &dir,
+        &["map", "--typ", "demo.typ", "--line", "6", "--out", "out"],
+    );
+    assert!(
+        stdout(&reverse).contains("src/b.py:1"),
+        "{}",
+        stdout(&reverse)
+    );
+}
+
+#[test]
+fn an_ambiguous_file_name_is_an_error_not_a_guess() {
+    let doc = "```py\nprint('a')\n``` #label(\"one/b.py\")\n\n```py\nprint('b')\n``` #label(\"two/b.py\")\n";
+    let (_guard, dir) = project(doc);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let output = lp(
+        &dir,
+        &["map", "--file", "b.py", "--line", "1", "--out", "out"],
+    );
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("which line map?"),
+        "{}",
+        stderr(&output)
+    );
+
+    let explicit = lp(
+        &dir,
+        &["map", "--file", "two/b.py", "--line", "1", "--out", "out"],
+    );
+    assert!(explicit.status.success(), "{}", stderr(&explicit));
+}
+
+#[test]
 fn check_reports_drift_with_the_typ_line() {
     let (_guard, dir) = project(DOC);
     assert!(

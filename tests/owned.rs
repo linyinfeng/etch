@@ -235,6 +235,29 @@ fn a_missing_output_directory_is_not_an_io_error() {
 }
 
 #[test]
+fn a_map_goes_away_with_the_files_it_explained() {
+    let (_guard, dir) = managed(IGNORES, &[]);
+    assert!(dir.join("out/src/.lpmap.json").exists());
+
+    std::fs::write(dir.join("doc.typ"), without_b(DOC)).expect("doc");
+    assert!(
+        lp(&dir, &["tangle", "doc.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    assert!(
+        !dir.join("out/src/.lpmap.json").exists(),
+        "the map travelled with src/"
+    );
+    assert!(!dir.join("out/src").exists(), "and so did the directory");
+    assert!(
+        dir.join("out/.lpmap.json").exists(),
+        "the root map stays: a.py is still there"
+    );
+}
+
+#[test]
 fn check_is_a_dry_run_for_the_sweep() {
     let (_guard, dir) = managed(IGNORES, &[]);
     std::fs::write(dir.join("out/leftover.py"), "stale").expect("stray");

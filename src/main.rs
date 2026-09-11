@@ -146,18 +146,20 @@ fn run() -> Result<i32, LpError> {
             line,
             out,
         } => {
-            let map = map::LpMap::read(&out)?;
+            let maps = map::LpMap::read_all(&out);
 
             if let Some(doc) = typ {
                 let mut hits = 0;
-                for (rel, entry) in &map.files {
-                    if entry.typ != doc && !entry.typ.ends_with(doc.as_str()) {
-                        continue;
-                    }
-                    for [out_line, typ_line] in &entry.lines {
-                        if *typ_line == line {
-                            println!("{rel}:{out_line}");
-                            hits += 1;
+                for (dir, map) in &maps {
+                    for (name, entry) in &map.files {
+                        if entry.typ != doc && !entry.typ.ends_with(doc.as_str()) {
+                            continue;
+                        }
+                        for [out_line, typ_line] in &entry.lines {
+                            if *typ_line == line {
+                                println!("{}:{out_line}", map::join(dir, name));
+                                hits += 1;
+                            }
                         }
                     }
                 }
@@ -172,7 +174,8 @@ fn run() -> Result<i32, LpError> {
                     "lp map needs --file (generated line) or --typ (reverse)",
                 ));
             };
-            let (rel, entry) = map::resolve(&map, &file)?;
+            let (dir, name, entry) = map::resolve(&maps, &file)?;
+            let rel = map::join(dir, name);
             let Some([mapped_line, typ_line]) = entry.locate(line) else {
                 return Err(LpError::plain(format!("{rel}:{line}: not in the line map")));
             };
@@ -194,12 +197,11 @@ fn run() -> Result<i32, LpError> {
             Ok(0)
         }
         Command::Explain { out, format } => {
-            let map = map::LpMap::read(&out)?;
             let mut input = String::new();
             std::io::stdin()
                 .read_to_string(&mut input)
                 .map_err(|e| LpError::plain(e.to_string()))?;
-            let mapped = explain::run(&map, &format, &input)?;
+            let mapped = explain::run(&out, &format, &input)?;
             if mapped == 0 {
                 eprintln!("note: no diagnostic line matched the line map");
             }
