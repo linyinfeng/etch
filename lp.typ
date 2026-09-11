@@ -4210,3 +4210,66 @@ target/
 *.png
 run.txt
 ````)
+
+= Appendix: how this document is worked on
+
+== Starting from nothing
+
+A fresh clone holds five things: this document, the seed, the notes, and the two
+one-line files that point here. Everything else — the crate, the package, the example,
+the devshell, the control files — is produced by tangling. The devshell is one of those,
+so the first pass uses the copy the seed was frozen with:
+
+```sh
+nix develop ./seed -c cargo build --manifest-path seed/Cargo.toml
+nix develop ./seed -c ./seed/target/debug/lp tangle lp.typ --out .
+nix develop -c cargo test
+```
+
+After that the loop is the ordinary one: edit this document, tangle, test. While writing,
+
+```sh
+nix develop -c ./target/debug/lp watch lp.typ --out . --check-cmd 'cargo build --message-format=short'
+```
+
+`tests/self.rs` is what keeps the loop honest: the binary this document builds has to be
+able to reproduce the sources it was built from, so hand-editing `src/` or `tests/` fails
+a test instead of quietly working.
+
+== The rules
+
+These are not style preferences; each one was paid for. The decisions behind them are in
+`agent-notes/decisions/`.
+
+- **Elegance is an admission requirement.** If the only way to build a feature is to
+  search source text heuristically, or to parse Typst a second time, the feature is not
+  built. That is how line-number mapping, label-as-chunk-name and static analysis of
+  Typst were dropped.
+- **The tool never parses Typst.** Its whole understanding is one `typst eval` reading the
+  declaration stream.
+- **No line numbers.** Typst's script layer has no source positions; provenance is
+  chunk-level, and pretending otherwise would mean re-parsing.
+- **Orthogonality.** No knowledge of any target language in the algorithms; language
+  differences are data (the fence tag), never code.
+- **Generated files stay out of git**, and only this document is edited: the crate, the
+  package, the example, the devshell, the control files. The seed is the one thing that is
+  copied rather than produced, and it is only ever read.
+- **An error points at a declaration**, never at a bare string: which chunk, and which
+  line inside it.
+- **Unexplained files are errors, deletion is explicit.** Everything under the output
+  directory is produced by a declaration or listed in a `.lpignore`; `lp` never deletes
+  anything by itself.
+- **Only changed bytes are written, and a document that does not evaluate is not
+  tangled.** The previous good output stays until the document is valid again.
+- **The order is free and the language tag is data** (D18). Thought-first, progressive
+  disclosure and logical consistency cannot be checked by a tool, so they are the
+  writer's job — the skill in the appendix above is the attempt to keep that promise.
+- **Dependencies are chosen from mature crates** (D7); every new one gets a line saying
+  why. `typst` is a hard dependency of tangling (`LP_TYPST`, then `PATH`).
+
+== The skill
+
+`lp.typ` also produces the agent skill under `.agents/skills/literate-programming/`: the
+discipline for writing in this document, in a form an agent loads by itself. It is part
+of the document for the reason everything else is — a rule that lives outside the thing it
+governs is a rule that drifts.

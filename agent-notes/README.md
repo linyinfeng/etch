@@ -13,6 +13,7 @@
 
 ## 索引
 
+- `working-agreements.md` — **流程约定**（worktree、NixOS 工具链、agent-notes 规矩、语言）。工具的设计规则不在这里，在 `lp.typ` 的 "The rules" 一节。
 - `handoff.md` — **接手先读这份**：项目现状、行为契约、铁规矩、已知脏点、下一步候选、环境陷阱。
 
 - `decisions/2026-09-11-mvp-decisions.md` — **已拍板的 5 个决定**（场景=多文件工程，形态=纯 `.typ`，实现=Rust 原型→自举，生成物不入库，错误定位=D1）+ 落选方案与理由。
