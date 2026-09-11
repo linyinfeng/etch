@@ -3056,7 +3056,7 @@ struct Cli {
 #chunk("main: tangle", ````rust
 /// Expand a .typ document into its source files
 Tangle {
-    /// Documents to tangle, e.g. examples/demo/literate.typ
+    /// Documents to tangle, e.g. tangled/examples/demo/literate.typ
     #[arg(required = true)]
     docs: Vec<PathBuf>,
     /// Directory the root chunk names resolve into (default: tangled/ next to the
@@ -3100,7 +3100,7 @@ Explain {
 #chunk("main: watch", ````rust
 /// Keep the generated files in step while the document is edited
 Watch {
-    /// Documents to watch, e.g. examples/demo/literate.typ
+    /// Documents to watch, e.g. tangled/examples/demo/literate.typ
     #[arg(required = true)]
     docs: Vec<PathBuf>,
     #[arg(long)]
@@ -5262,8 +5262,9 @@ output directory cannot be inside it.
 
 = Starting from nothing
 
-A fresh clone holds five things and nothing else: this document, the seed, the notes, and the two
-one-line files that point here. Everything else is produced by tangling:
+A fresh clone holds six things and nothing else: this document, the seed, the notes, the two
+one-line files that point here, and the `.gitignore` that keeps the output out of git. Everything
+else is produced by tangling:
 
 The seed is a whole older generation — a built crate and the package it is built with — laid out
 the way the document expects to write it: under `tangled/`. So the first move is to copy it into
@@ -5296,7 +5297,7 @@ current generation should become the next seed.
 After that the loop is the ordinary one: edit this document, tangle, test. While writing,
 
 ```sh
-./target/debug/lp watch lp.typ --out . --check-cmd 'cargo build --message-format=short'
+./tangled/target/debug/lp watch lp.typ --check-cmd 'cargo build --manifest-path tangled/Cargo.toml --message-format=short'
 ```
 
 `tests/self.rs` is what keeps the loop honest: the binary this document builds has to be
@@ -5358,7 +5359,7 @@ These are not style preferences; each one was paid for. The decisions behind the
 
 = The example: the same tool, used on something small
 
-`examples/demo/` is a small Rust crate written as one document: one fragment shared by two
+`tangled/examples/demo/` is a small Rust crate written as one document: one fragment shared by two
 files, indentation that matters, a woven PDF, and a real rustc error translated back to the chunk
 it came from. It is here because it is the loud half of every claim this document makes — `run.sh`
 fails when the tool stops working, and it runs with the tests.
@@ -5392,7 +5393,8 @@ the chapters above are — which is the point being made, made twice.
 
 == What the example demonstrates
 
-Its document is tangled into `tangled/examples/demo/`, next to the crate that run it.
+Its document is tangled into `tangled/examples/demo/` — the tree is where it lives, and the
+commands inside its own document are written from there, which is also where `run.sh` runs them.
 
 The order of its sections is the argument of a much smaller program, and it is worth reading as
 one: what the crate is, the three files as skeletons, then the pieces each in the section that
