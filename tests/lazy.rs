@@ -1,36 +1,33 @@
-//! The lazy/watch contract: a pass must touch only what actually changed, refuse
-//! half-written documents, and keep the line map usable in both directions.
+//! The lazy contract: a pass touches only what actually changed, refuses to
+//! tangle a document that does not evaluate, and keeps the line map usable in
+//! both directions.
 
 use std::path::Path;
 use std::process::{Command, Output};
 
 use tempfile::TempDir;
 
+const PKG: &str = include_str!("../lit/lp.typ");
+
 const DOC: &str = "\
 = Demo
 
-```py
+#file(\"main.py\", ```py
 <<imports>>
 <<body>>
-``` <main.py>
+```)
 
-```py
+#chunk(\"imports\", ```py
 import sys
-``` <imports>
+```)
 
-```py
+#chunk(\"body\", ```py
 print('one')
-``` <body>
+```)
 
-```py
+#chunk(\"body\", ```py
 print('two')
-``` <body>
-";
-
-const SECOND: &str = "\
-```py
-print('second')
-``` <other.py>
+```)
 ";
 
 fn lp(dir: &Path, args: &[&str]) -> Output {
@@ -49,10 +46,20 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).to_string()
 }
 
+fn write_doc(dir: &Path, name: &str, body: &str) {
+    std::fs::write(dir.join("lp.typ"), PKG).expect("package");
+    let text = format!("#import \"lp.typ\": chunk, file, rule\n#show: rule\n{body}");
+    std::fs::write(dir.join(name), text).expect("doc");
+}
+
 fn project() -> (TempDir, std::path::PathBuf) {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("demo.typ"), DOC).expect("doc");
-    std::fs::write(dir.path().join("second.typ"), SECOND).expect("doc");
+    write_doc(dir.path(), "demo.typ", DOC);
+    write_doc(
+        dir.path(),
+        "second.typ",
+        "#file(\"other.py\", ```py\nprint('second')\n```)\n",
+    );
     let path = dir.path().to_path_buf();
     (dir, path)
 }
@@ -104,9 +111,11 @@ fn only_the_affected_output_is_rewritten() {
             .success()
     );
 
-    // Edit a fragment that only <main.py> pulls in.
-    let doc = DOC.replace("print('two')", "print('three')");
-    std::fs::write(dir.join("demo.typ"), &doc).expect("rewrite doc");
+    write_doc(
+        dir.as_path(),
+        "demo.typ",
+        &DOC.replace("print('two')", "print('three')"),
+    );
 
     let output = lp(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
@@ -133,26 +142,24 @@ fn a_half_written_document_is_not_tangled() {
     );
     let good = std::fs::read_to_string(dir.join("out/main.py")).expect("main");
 
-    // An unclosed label is exactly the mid-edit state that would silently drop a chunk.
-    let broken = DOC.replace("``` <main.py>", "``` #label(\"main.py");
-    std::fs::write(dir.join("demo.typ"), &broken).expect("rewrite doc");
+    // Mid-edit, the document does not evaluate: nothing is tangled and the last
+    // good output stays where it is.
+    write_doc(
+        dir.as_path(),
+        "demo.typ",
+        &DOC.replace("#file(\"main.py\", ```py", "#file(\"main.py\", `"),
+    );
 
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(
         !output.status.success(),
-        "a broken document must not be tangled"
+        "a document that does not evaluate must not be tangled"
     );
-    // The document must evaluate before it can say what its chunks are, and the
-    // error is Typst's own diagnostic — with the file and the line.
-    assert!(
-        stderr(&output).contains("did not evaluate") && stderr(&output).contains("unclosed"),
-        "{}",
-        stderr(&output)
-    );
+    let message = stderr(&output);
+    assert!(message.contains("did not evaluate"), "{message}");
     assert_eq!(
         std::fs::read_to_string(dir.join("out/main.py")).expect("main"),
-        good,
-        "the last good output stays"
+        good
     );
 }
 
@@ -181,7 +188,6 @@ fn map_works_in_both_directions() {
         .to_string();
     assert!(forward.starts_with("demo.typ:"), "{forward}");
 
-    // Reverse: that .typ line produced exactly line 3 of main.py.
     let reverse = lp(
         &dir,
         &[
@@ -197,10 +203,13 @@ fn map_works_in_both_directions() {
 }
 
 #[test]
-fn unused_chunk_warns_without_failing() {
+fn unused_fragment_warns_without_failing() {
     let (_guard, dir) = project();
-    let doc = format!("{DOC}\n```py\nprint('dead')\n``` <never-used>\n");
-    std::fs::write(dir.join("demo.typ"), &doc).expect("doc");
+    write_doc(
+        dir.as_path(),
+        "demo.typ",
+        &format!("{DOC}\n#chunk(\"never-used\", ```py\nprint('dead')\n```)\n"),
+    );
 
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));

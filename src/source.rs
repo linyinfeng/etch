@@ -44,10 +44,6 @@ impl FileText {
         }
         None
     }
-
-    pub fn lines(&self) -> Vec<&str> {
-        self.text.lines().collect()
-    }
 }
 
 /// Every file the documents may hold chunks in: the ones named, plus whatever
@@ -99,18 +95,6 @@ fn included_paths(text: &str, dir: &Path) -> Vec<PathBuf> {
     paths
 }
 
-/// A chunk name that names a file is a *root*: tangling writes it to disk.
-/// Everything else is a fragment that only appears where it is referenced.
-pub fn is_root(name: &str) -> bool {
-    let file = name.rsplit('/').next().unwrap_or(name);
-    match file.rsplit_once('.') {
-        Some((stem, ext)) => {
-            !stem.is_empty() && !ext.is_empty() && ext.chars().all(|c| c.is_ascii_alphanumeric())
-        }
-        None => false,
-    }
-}
-
 /// Reject names that would write outside the output directory.
 pub fn check_output_path(name: &str) -> Result<(), LpError> {
     let unsafe_name = name.is_empty()
@@ -135,16 +119,6 @@ pub fn check_output_path(name: &str) -> Result<(), LpError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn roots_are_names_that_look_like_files() {
-        for name in ["main.c", "src/lib.rs", "Cargo.toml"] {
-            assert!(is_root(name), "{name}");
-        }
-        for name in ["imports", "body", "v1", "notes.", ".hidden"] {
-            assert!(!is_root(name), "{name}");
-        }
-    }
 
     #[test]
     fn output_paths_cannot_escape_the_output_directory() {

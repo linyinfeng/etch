@@ -1,5 +1,7 @@
 # Chunk 命名：两种原生写法，不发明路径编码（2026-09-11）
 
+> **已被 D13 取代（同日）**：chunk 现在由 `lit/lp.typ` 的 `#chunk` / `#file` 声明给出，label 不再是命名机制。本文件保留为历史记录——"Typst 的 `<...>` 里不能有 `/`"这个限制今天依然成立，只是我们不再把 chunk 名字放在 label 里。
+
 跑 M1 原型时撞上的硬约束，必须记录：**Typst 的 `<...>` label 语法只允许 `[A-Za-z0-9_.:-]`**，实测 `<src/lib.rs>` 直接是 parse error（`unclosed label`）；`/`、`,`、`+`、`[`、`]`、`#`、`%`、`=`、`*`、`@`、`$` 等全部不允许。官方文档原文：*"A label's name can contain letters, numbers, `_`, `-`, `:`, and `.`"*（<https://typst.app/docs/reference/foundations/label/>）。
 
 这直接威胁 D1（多文件工程需要 `src/`、`tests/` 目录结构）。

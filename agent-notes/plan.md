@@ -29,7 +29,7 @@
 - ✅ `lp watch <doc.typ>`：`notify` + `notify-debouncer-full`；只写字节变化的输出、语法错误不 tangle、出错只打印不退出。**行为契约见 ADR D9**，实测见 `research/2026-09-11-lazy-tangle.md`。
 - ✅ `lp explain` 的通用后端（`regex` 表处理 `file:line:col:`），纯查表 + 通用解析，**不含目标语言算法**。
 - ✅ `lp map` 双向（`--file` / `--typ`）。
-- ✅ **D12 管线已落地**：`plan()` 的 chunk 来自 `typst eval`，位置来自 `locate`，`typst-syntax` 已删除，映射 schema v4（`null` = 无字面位置），demo 全流程 77ms。下一步可做分节归属（`location()` 排序，已验证可行）或 `#include` 的更细场景。
+- ✅ **D13 已落地**：chunk 由**声明**给出（`lit/lp.typ` 的 `#chunk`/`#file`），工具只读 `query(<lp-decl>)`；位置由**精确 token 查找**给出（不再是四层启发式搜索）；`typst-syntax` 已删除；测试全部改写成声明语法。
 - ⏳ 多章文档（超出现计划）：跨文档 ChunkSet → 映射 schema v3（per-line 源文件）→ 跟随 `#include`，见 `research/2026-09-11-typst-structure-and-include.md` 的缺口表。
 - ⏳ 剩下：`lp explain --format cargo`（`cargo_metadata` 解析 `--message-format=json`，自举时天天用）、诊断列位置精确到 span（现在高亮整行）、`ci.sh`（typst compile + cargo test + `tangle --check`）。
 - ✅ 删除语义（超出原计划）：删根 chunk 不再留孤儿——`.lpignore` 目录声明 + `ignore` crate 的 gitignore 语义 + `--check` 干跑，见 ADR D10，回归在 `tests/owned.rs`。

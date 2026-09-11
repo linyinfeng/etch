@@ -92,7 +92,7 @@ pub fn run(out: &Path, format: &str, input: &str) -> Result<usize, LpError> {
         };
         let mut err = LpError::plain(format!("{rel}:{out_line}: {message}"));
         if let Some(range) = line_range(&text, typ_line) {
-            let named = miette::NamedSource::new(typ.to_string(), text.clone());
+            let named = miette::NamedSource::new(typ, text.clone());
             err = LpError::at(&named, range, format!("{rel}:{out_line}: {message}"), note);
         }
         eprintln!("{:?}", miette::Report::new(err));

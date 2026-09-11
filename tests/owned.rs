@@ -1,22 +1,27 @@
 //! Nothing under the output directory may go unaccounted for.
 //!
-//! A file is either produced by a chunk, declared in a `.lpignore`, or an error
-//! the user resolves — by declaring it, or by deleting it on purpose. `lp` never
-//! removes anything on its own, and it never lets a stray file pass silently.
+//! A file is either produced by a declaration, declared in a `.lpignore`, or an
+//! error the user resolves — by declaring it, or by deleting it on purpose. `lp`
+//! never removes anything on its own, and it never lets a stray file pass
+//! silently.
 
 use std::path::Path;
 use std::process::{Command, Output};
 
 use tempfile::TempDir;
 
-const DOC: &str = "\
-```py
-print('a')
-``` <a.py>
+const PKG: &str = include_str!("../lit/lp.typ");
 
-```py
+const DOC: &str = "\
+= Demo
+
+#file(\"a.py\", ```py
+print('a')
+```)
+
+#file(\"src/b.py\", ```py
 print('b')
-``` #label(\"src/b.py\")
+```)
 ";
 
 const IGNORES: &str = "\
@@ -42,14 +47,18 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).to_string()
 }
 
-fn without_b(doc: &str) -> String {
-    doc.replace("\n```py\nprint('b')\n``` #label(\"src/b.py\")\n", "")
+/// Write a document in the real authoring form, plus the package it imports.
+fn write_doc(dir: &Path, name: &str, body: &str) -> String {
+    std::fs::write(dir.join("lp.typ"), PKG).expect("package");
+    let text = format!("#import \"lp.typ\": chunk, file, rule\n#show: rule\n{body}");
+    std::fs::write(dir.join(name), &text).expect("doc");
+    text
 }
 
 /// A project tangled into an output directory with the given declaration.
 fn tangled(declaration: &str, extra: &[(&str, &str)]) -> (TempDir, std::path::PathBuf) {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
+    write_doc(dir.path(), "doc.typ", DOC);
     if !declaration.is_empty() {
         std::fs::create_dir_all(dir.path().join("out")).expect("out");
         std::fs::write(dir.path().join("out/.lpignore"), declaration).expect("ignore file");
@@ -65,10 +74,15 @@ fn tangled(declaration: &str, extra: &[(&str, &str)]) -> (TempDir, std::path::Pa
     (dir, path)
 }
 
+/// The same document without the `src/b.py` declaration.
+fn without_b() -> String {
+    DOC.replace("\n#file(\"src/b.py\", ```py\nprint('b')\n```)\n", "")
+}
+
 #[test]
-fn a_deleted_root_chunk_is_an_error_until_it_is_resolved() {
+fn a_dropped_declaration_is_an_error_until_it_is_resolved() {
     let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
-    std::fs::write(dir.join("doc.typ"), without_b(DOC)).expect("doc");
+    write_doc(&dir, "doc.typ", &without_b());
     assert!(dir.join("out/src/b.py").exists());
 
     // The leftover is an error, not something quietly removed.
@@ -91,7 +105,7 @@ fn a_deleted_root_chunk_is_an_error_until_it_is_resolved() {
     assert_eq!(report.status.code(), Some(1));
     assert!(stdout(&report).contains("src/b.py"), "{}", stdout(&report));
 
-    // The other remedy: declare it. Then everything is accounted for again.
+    // One remedy: declare it. Then everything is accounted for again.
     let mut declaration = std::fs::read_to_string(dir.join("out/.lpignore")).expect("ignore");
     declaration.push_str("src/b.py\n");
     std::fs::write(dir.join("out/.lpignore"), &declaration).expect("ignore");
@@ -99,8 +113,7 @@ fn a_deleted_root_chunk_is_an_error_until_it_is_resolved() {
     assert!(declared.status.success(), "{}", stderr(&declared));
     assert!(dir.join("out/src/b.py").exists(), "declared, so kept");
 
-    // Undeclare it and delete it deliberately: the stale file and its directory
-    // and its map all go.
+    // The other: delete it deliberately.
     std::fs::write(dir.join("out/.lpignore"), IGNORES).expect("ignore");
     let deleted = lp(
         &dir,
@@ -141,7 +154,6 @@ fn declared_files_are_accounted_for() {
             ("Cargo.lock", "foreign"),
         ],
     );
-    // A pass with everything accounted for stays quiet about it.
     let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(
@@ -185,8 +197,6 @@ fn a_deeper_ignore_file_can_take_a_file_back() {
     );
     std::fs::write(dir.join("out/src/.lpignore"), "!stale.py\n").expect("ignore");
 
-    // `src/*` protects the directory; the deeper `!stale.py` makes that one file
-    // ours again, so it has to be accounted for.
     let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
     assert!(!output.status.success());
     assert!(
@@ -214,7 +224,7 @@ fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
     );
     assert!(
         dir.join("out/.lpmap.json").exists(),
-        "the ledger is never content"
+        "the line map is never content"
     );
     assert!(dir.join("out/.lpignore").exists(), "nor are the rules");
     assert!(dir.join("out/kept.dot").exists(), "listed, so kept");
@@ -222,10 +232,10 @@ fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
 
 #[test]
 fn a_git_directory_is_ordinary_content() {
-    // Nothing is special-cased, not even a repository: it is kept because the
-    // rules say so, not because the tool knows what `.git` is.
+    // Nothing is special-cased, not even a repository: built here rather than by
+    // the helper because the first tangle is supposed to fail.
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
+    write_doc(dir.path(), "doc.typ", DOC);
     std::fs::create_dir_all(dir.path().join("out/.git")).expect("out");
     std::fs::write(dir.path().join("out/.lpignore"), IGNORES).expect("ignore");
     std::fs::write(dir.path().join("out/.git/config"), "[core]\n").expect("file");
@@ -239,7 +249,7 @@ fn a_git_directory_is_ordinary_content() {
         stderr(&output)
     );
 
-    // The escape hatch is the ignore file, like for anything else.
+    // The escape hatch is the declaration, like for anything else.
     let (_guard, declared) = tangled(".git/\n", &[(".git/config", "[core]\n")]);
     assert!(declared.join("out/.git/config").exists());
 }
@@ -288,8 +298,6 @@ fn deleting_a_foreign_subtree_takes_one_line_and_one_command() {
 
 #[test]
 fn without_a_declaration_a_stray_is_still_an_error() {
-    // The output directory is lp's whether or not it declares anything, so a file
-    // nothing produces is reported rather than ignored.
     let (_guard, dir) = tangled("", &[]);
     std::fs::write(dir.join("out/stray.txt"), "who put this here").expect("stray");
 
@@ -301,10 +309,8 @@ fn without_a_declaration_a_stray_is_still_an_error() {
 
 #[test]
 fn a_missing_output_directory_is_not_an_io_error() {
-    // `lp tangle --check` on a fresh checkout: the outputs are missing, which is
-    // drift, and that is what it should say.
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
+    write_doc(dir.path(), "doc.typ", DOC);
     let path = dir.path().to_path_buf();
 
     let output = lp(&path, &["tangle", "doc.typ", "--out", "out", "--check"]);

@@ -253,12 +253,13 @@ fn run() -> Result<i32, LpError> {
         Command::Metadata { docs } => {
             let typst = metadata::binary()?;
             let cwd = std::env::current_dir().map_err(|err| LpError::plain(err.to_string()))?;
-            for chunk in metadata::chunks(&typst, &docs, &cwd)? {
+            for declaration in metadata::declarations(&typst, &docs, &cwd)? {
                 println!(
-                    "{:<28} {:<8} {}",
-                    chunk.label,
-                    chunk.lang.as_deref().unwrap_or("-"),
-                    chunk.text.lines().next().unwrap_or("")
+                    "{:<6} {:<28} {:<8} {}",
+                    declaration.lp,
+                    declaration.name,
+                    declaration.lang.as_deref().unwrap_or("-"),
+                    declaration.text.lines().next().unwrap_or("")
                 );
             }
             Ok(0)
@@ -279,16 +280,12 @@ fn list(docs: &[PathBuf]) -> Result<(), LpError> {
         println!("{}", doc.display());
     }
     for block in &plan.blocks {
-        let kind = if source::is_root(&block.name) {
-            "root"
-        } else {
-            "frag"
-        };
+        let kind = if block.root { "root" } else { "frag" };
         let where_ = match block.place.line_for(0) {
             Some((file, line)) => format!("{}:{line}", file.path.display()),
             None => "built by the document".to_string(),
         };
-        let used = if referenced.contains(&block.name) || source::is_root(&block.name) {
+        let used = if referenced.contains(&block.name) || block.root {
             String::new()
         } else {
             "unreferenced".to_string()

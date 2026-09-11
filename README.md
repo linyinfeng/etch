@@ -10,28 +10,34 @@ typst compile --root . doc.typ  # 把文档排成 PDF
 
 ## 文档长什么样
 
-普通的 Typst 文档；**带 label 的 fenced code block 就是 chunk**：
+普通的 Typst 文档，加一个包：**chunk 由声明给出**。
 
 ````
-```python
+#import "lit/lp.typ": chunk, file, rule
+#show: rule
+
+= The program
+
+#chunk("imports", ```python
+from greet import greet
+```)
+
+#file("src/main.py", ```python
 <<imports>>
 print(greet("world"))
-``` <main.py>                       # label 像文件名 → 这是一个输出文件
+```)
 
-```python
-from greet import greet
-``` <imports>                        # 普通 chunk，被 <<imports>> 引用
-
-```python
+#file("src/greet.py", ```python
 def greet(name):
     return f"hello, {name}"
-``` #label("src/greet.py")            # 需要目录时用 Typst 的 constructor 写法
+```)
 ````
 
+- `#file(path, …)` 声明**输出文件**，`#chunk(name, …)` 声明**片段**——名字、语言、正文都在声明里，工具不需要读源码猜。
 - `<<name>>` 独占一行时是引用，展开时按引用点的缩进整体缩进；其他位置（`std::cout << x`）保持字面量。
-- 同名 label 的多块按文档顺序拼接（noweb / org-babel `:noweb-ref` 语义）。
-- 根 chunk（label 看起来像文件名的）按 `--out` 写成文件；其余 chunk 只出现在被引用的地方。
-- Typst 的 `<...>` label 只允许 `[A-Za-z0-9_.:-]`，**不含 `/`**，所以带目录的名字要用 `#label("src/main.rs")`。两种写法都原生、都可以被 `query` 看到（`@name` / show rule 同样适用）。
+- **同名的多个声明按文档顺序拼接**（noweb / org-babel `:noweb-ref` 语义）——一个文件可以分几处写。
+- 包负责渲染（带标题的块 + 引用标记），文档不需要任何样式化 show rule；`#show: rule` 只是让 `<<引用>>` 显示成绿色。
+- 没有"名字看起来像文件名"之类的启发式：是不是输出文件由 `file` 还是 `chunk` 决定。
 
 ## 命令
 
@@ -137,14 +143,15 @@ Typst 是图灵完备的：代码块可以来自 `#for` 循环、`#if` 分支、
 
 求值看到 `built-0/1/2` 三个 chunk，文本是 `print(0/1/2)`——而这些文本**在源文件里一行都没有**。所以 chunk 集合、顺序、文本、语言**一律由 `typst eval` 求值决定**（`query(raw.where(block: true))`，通过一个只 `#include` 你文件的 wrapper——你的文件不被改动）。工具里**没有 Typst 解析器**。
 
-源位置是 Typst 唯一不给的东西（它不暴露 span），于是由**纯文本搜索**回答（`locate.rs`），四层、可信度递减，最后一层如实说"没有字面位置"而不是编一个行号：
+源位置是 Typst 唯一不给的东西（它不暴露 span）。但既然 chunk 是**声明**出来的，**声明自己就是锚点**：工具去找作者写下的那串 token（`#file("src/main.rs"` / `#chunk("imports"`），再按行计数——这是查表，不是启发式搜索；`locate.rs` 里没有一行知道 fenced block 长什么样（正文也根本不从源码读，声明里带着）。
 
-| 层 | 场景 | 指向 |
-|---|---|---|
-| Literal | label 在源里，且它上方的块文本逐字相等 | 精确（绝大多数） |
-| Template | label 是运行时拼的，但文本在源里出现过 | 那段模板 |
-| Generated | 内容由代码拼出、源里没有该文本，但 label 的字面前缀在 | 生成它的那一行 |
-| Nowhere | 都不匹配 | 无行号，`lp map` 直说"由文档代码生成" |
+| 情况 | 指向 |
+|---|---|
+| 声明是字面写下的 | 精确行（绝大多数） |
+| 名字是运行时拼的（`#chunk("part-" + str(i), …)`） | 最长字面前缀所在行，也就是**生成它的那段代码** |
+| 什么都不匹配 | 无行号；`lp map` 直说"由文档代码生成"，不编一个行号 |
+
+细节见 ADR D13（含两次实测教训：为什么不用 Rust 静态分析 Typst，为什么不用 show rule 埋点）。
 
 代价：**`typst` 是 tangle 的硬依赖**（`LP_TYPST` 或 PATH；`nix develop` 里已备），且**文档必须能求值**才能 tangle（半写状态由 Typst 自己的诊断拦截，比以前的语法门更准）。一次完整 tangle（含一次 `typst eval`）在 demo 上是 **77ms**（debug 构建）。
 

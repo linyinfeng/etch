@@ -13,10 +13,13 @@ use crate::diag::LpError;
 use crate::locate::{self, Placed};
 use crate::map::{ChunkEntry, FileMap, LpMap, MAP_FILE, split};
 use crate::metadata;
-use crate::source::{self, FileText, check_output_path, is_root};
+use crate::source::{self, FileText, check_output_path};
 
 /// A chunk as the document produced it, plus the place we could find for it.
 pub struct Block {
+    /// A `file` declaration names the path it is tangled to; a `chunk` is a
+    /// fragment that only exists where it is referenced.
+    pub root: bool,
     pub name: String,
     pub lang: Option<String>,
     pub text: String,
@@ -64,13 +67,18 @@ impl<'a> ChunkSet<'a> {
         Self { chunks }
     }
 
-    /// Chunks whose name looks like a file become output files.
+    /// The declared files, in the order the document declared them.
     pub fn roots(&self) -> Vec<&'a str> {
-        self.chunks
-            .keys()
-            .copied()
-            .filter(|name| is_root(name))
-            .collect()
+        let mut roots: Vec<&str> = Vec::new();
+        for blocks in self.chunks.values() {
+            if let Some(block) = blocks.first()
+                && block.root
+                && !roots.contains(&block.name.as_str())
+            {
+                roots.push(block.name.as_str());
+            }
+        }
+        roots
     }
 
     pub fn names(&self) -> impl Iterator<Item = &'a str> {
@@ -239,15 +247,16 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
 
     let sources = source::sources(docs)?;
 
-    let chunks = metadata::chunks(&typst, docs, &cwd)?;
-    let places = locate::chunks(&sources, &chunks);
-    let blocks: Vec<Block> = chunks
+    let declarations = metadata::declarations(&typst, docs, &cwd)?;
+    let places = locate::places(&sources, &declarations);
+    let blocks: Vec<Block> = declarations
         .into_iter()
         .zip(places)
-        .map(|(chunk, place)| Block {
-            name: chunk.label,
-            lang: chunk.lang,
-            text: chunk.text,
+        .map(|(declaration, place)| Block {
+            root: declaration.is_file(),
+            name: declaration.name,
+            lang: declaration.lang,
+            text: declaration.text,
             place,
         })
         .collect();
@@ -268,8 +277,13 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
 
     let mut warnings = Vec::new();
     let referenced: BTreeSet<String> = blocks.iter().flat_map(refs_of).collect();
+    let file_names: BTreeSet<&str> = blocks
+        .iter()
+        .filter(|block| block.root)
+        .map(|block| block.name.as_str())
+        .collect();
     for name in set.names() {
-        if !is_root(name) && !referenced.contains(name) {
+        if !file_names.contains(name) && !referenced.contains(name) {
             let block = set.get(name).and_then(|blocks| blocks.first());
             let where_ = block.map_or_else(String::new, |block| block.where_());
             warnings.push(format!("{where_}chunk <<{name}>> is never referenced"));

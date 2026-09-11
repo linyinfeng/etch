@@ -1,27 +1,24 @@
-//! What the document says its chunks are.
+//! What the document declares its chunks to be.
 //!
-//! Typst is Turing-complete, so the only authority on which chunks exist is
-//! Typst: a code block can come from a loop, a branch, a function, or a file that
-//! was `#include`d, and no amount of reading the source can tell. Measured: a
-//! three-line document whose loop builds `raw(...)` blocks yields chunks whose
-//! text appears in no source line at all. So the document is asked, not parsed.
+//! Typst is Turing-complete: a chunk can come from a loop, a branch, a function
+//! or an `#include`d file, so the only authority is evaluation. The document
+//! declares its chunks through the `lp` package (`lit/lp.typ`), whose `chunk` and
+//! `file` functions take the code block as an argument and emit one metadata
+//! record each:
 //!
-//! The asking is deliberately dull: `query(raw.where(block: true))` over a
-//! wrapper that `#include`s the user's files. Two things were tried and rejected:
+//! ```typ
+//! #chunk("imports", ```rust
+//! use std::fmt;
+//! ```)
 //!
-//! * **Show rules with a counter** (one metadata event per block, ordered,
-//!   interleaved with headings). It works — until a styling show rule *consumes*
-//!   the element, which is exactly what our own `lit.typ` does for labelled
-//!   blocks: the rule replaces the raw block with a rendered box, and the
-//!   instrumentation never sees it. The document lost every chunk and only the
-//!   unlabelled samples survived. A query reads the element tree, which styling
-//!   does not change.
-//! * **Parsing the source** (`typst-syntax`): wrong by construction once a
-//!   document generates anything, and a second implementation of Typst's
-//!   semantics to keep in sync forever.
+//! #file("src/main.rs", ```rust
+//! <<imports>>
+//! ```)
+//! ```
 //!
-//! Source positions are the one thing evaluation cannot give (Typst has no
-//! spans), and they are `locate.rs`'s problem.
+//! A declaration carries name, language and text, so nothing has to be
+//! recovered from the source afterwards. What the source is needed for is the
+//! line, and there the declaration is its own anchor (`locate.rs`).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -30,23 +27,25 @@ use serde::Deserialize;
 
 use crate::diag::LpError;
 
-/// Ask for every labelled code block, with its language and its text.
-const QUERY: &str = "\
-query(raw.where(block: true))
-  .filter(block => block.at(\"label\", default: none) != none)
-  .map(block => (
-    label: str(block.at(\"label\", default: none)),
-    lang: block.lang,
-    text: block.text,
-  ))";
+/// Every declaration, in the order the document produced them.
+const QUERY: &str = "query(<lp-decl>).map(declaration => declaration.value)";
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct Chunk {
-    pub label: String,
+pub struct Decl {
+    /// `"chunk"` or `"file"`.
+    pub lp: String,
+    /// The fragment's name, or the path for a file declaration.
+    pub name: String,
     #[serde(default)]
     pub lang: Option<String>,
     #[serde(default)]
     pub text: String,
+}
+
+impl Decl {
+    pub fn is_file(&self) -> bool {
+        self.lp == "file"
+    }
 }
 
 /// Locate the `typst` binary: an explicit override, then `PATH`.
@@ -59,24 +58,24 @@ pub fn binary() -> Result<PathBuf, LpError> {
         .and_then(|paths| std::env::split_paths(&paths).map(|dir| dir.join(name)).find(|candidate| candidate.is_file()))
         .ok_or_else(|| {
             LpError::plain("no `typst` binary found").with_help(
-                "tangling asks the document what its chunks are, so typst has to be available (set LP_TYPST or put it on PATH)",
+                "tangling asks the document for its declarations, so typst has to be available (set LP_TYPST or put it on PATH)",
             )
         })
 }
 
-/// Ask the documents for their chunks, in the order the document produced them.
+/// Evaluate the documents and read their declarations.
 ///
 /// `docs` are paths as the user wrote them, which is what the wrapper includes,
 /// so they have to be readable from `cwd`.
-pub fn chunks(typst: &Path, docs: &[PathBuf], cwd: &Path) -> Result<Vec<Chunk>, LpError> {
-    // A wrapper only because `#include`ing several files in one document needs
-    // one; the user's files are never modified.
+pub fn declarations(typst: &Path, docs: &[PathBuf], cwd: &Path) -> Result<Vec<Decl>, LpError> {
+    // A wrapper only because including several files in one document needs one;
+    // the user's files are never modified.
     let mut wrapper = String::new();
     for doc in docs {
         wrapper.push_str(&format!("#include \"{}\"\n", doc.display()));
     }
 
-    let path = cwd.join(format!(".lp-metadata-{}.typ", std::process::id()));
+    let path = cwd.join(format!(".lp-decl-{}.typ", std::process::id()));
     std::fs::write(&path, wrapper).map_err(|err| LpError::io(&path, err))?;
     let output = Command::new(typst)
         .arg("eval")
@@ -97,8 +96,14 @@ pub fn chunks(typst: &Path, docs: &[PathBuf], cwd: &Path) -> Result<Vec<Chunk>, 
         )));
     }
 
-    serde_json::from_slice(&output.stdout).map_err(|err| {
-        LpError::plain(format!("cannot read the document's chunks: {err}"))
+    let declarations: Vec<Decl> = serde_json::from_slice(&output.stdout).map_err(|err| {
+        LpError::plain(format!("cannot read the document's declarations: {err}"))
             .with_help(String::from_utf8_lossy(&output.stdout).to_string())
-    })
+    })?;
+    if declarations.is_empty() {
+        return Err(LpError::plain("the document declares no chunks").with_help(
+            "import the package and declare them: `#import \"lp.typ\": chunk, file`, then `#chunk(\"name\", ```…```)` or `#file(\"src/main.rs\", ```…```)`",
+        ));
+    }
+    Ok(declarations)
 }

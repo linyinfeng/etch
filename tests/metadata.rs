@@ -1,4 +1,4 @@
-//! The Typst side: what the document says its chunks are.
+//! The declaration side: what the document says its chunks are.
 //!
 //! These tests need the `typst` binary (the tool asks the document, it does not
 //! read it), so they skip cleanly when it is not on PATH.
@@ -7,6 +7,8 @@ use std::path::Path;
 use std::process::{Command, Output};
 
 use tempfile::TempDir;
+
+const PKG: &str = include_str!("../lit/lp.typ");
 
 fn typst_available() -> bool {
     Command::new("typst")
@@ -27,54 +29,41 @@ fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
-/// A document that only evaluation can describe: a chapter pulled in with
-/// `#include`, a block built inside a loop, and content assembled by code.
-const DOC: &str = "\
-= Dynamic
-#include \"chapter.typ\"
-";
+fn stderr(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stderr).to_string()
+}
 
-const CHAPTER: &str = "\
-= Chapter
-```py
-print('included')
-``` <from-chapter>
-
-#for i in range(2) [
-```py
-print(#i)
-``` #label(\"looped-\" + str(i))
-]
-
-#for i in range(2) [
-  #raw(\"print(\" + str(i) + \")\", lang: \"py\", block: true) #label(\"built-\" + str(i))
-]
-";
+/// Write the package and a document that imports it.
+fn write(dir: &Path, name: &str, body: &str) {
+    std::fs::write(dir.join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.join(name),
+        format!("#import \"lp.typ\": chunk, file, rule\n#show: rule\n{body}"),
+    )
+    .expect("doc");
+}
 
 #[test]
 fn a_styling_show_rule_does_not_hide_a_chunk() {
-    // The tool's own lit.typ styles labelled blocks by *replacing* them, which is
-    // what an instrumented show rule cannot survive: it never sees the element.
-    // A query reads the element tree, which styling does not change.
+    // The declaration is what the tool reads, and it is emitted before the block
+    // is rendered — so even a show rule that throws the element away cannot hide
+    // a chunk. (An instrumented show rule could not survive this; a declaration
+    // does not care.)
     if !typst_available() {
         eprintln!("skipping: typst is not on PATH");
         return;
     }
 
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(
-        dir.path().join("styled.typ"),
-        "#show raw.where(block: true): it => block(fill: luma(240))[styled away]\n         ```py\nprint('styled')\n``` <styled>\n",
-    )
-    .expect("doc");
+    write(
+        dir.path(),
+        "styled.typ",
+        "#show raw.where(block: true): it => [styled away]\n\n#chunk(\"styled\", ```py\nprint('styled')\n```)\n",
+    );
     let path = dir.path().to_path_buf();
 
     let output = lp(&path, &["metadata", "styled.typ"]);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert!(output.status.success(), "{}", stderr(&output));
     let report = stdout(&output);
     assert!(report.contains("styled"), "{report}");
     assert!(report.contains("print('styled')"), "{report}");
@@ -82,38 +71,37 @@ fn a_styling_show_rule_does_not_hide_a_chunk() {
 
 #[test]
 fn a_chapter_is_tangled_without_being_listed() {
-    // Typst merges #include'd content, so the tool no longer needs to be told
-    // about every file — the document already says.
+    // Typst merges #include'd content, so the tool does not need to be told about
+    // every file — the document already says.
     if !typst_available() {
         eprintln!("skipping: typst is not on PATH");
         return;
     }
 
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(
-        dir.path().join("book.typ"),
-        "= Book\n#include \"chapter.typ\"\n",
-    )
-    .expect("book");
-    std::fs::write(
-        dir.path().join("chapter.typ"),
-        "= Chapter\n\n```py\nprint('from a chapter')\n``` #label(\"src/main.py\")\n",
-    )
-    .expect("chapter");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    write(dir.path(), "book.typ", "= Book\n#include \"chapter.typ\"\n");
+    write(
+        dir.path(),
+        "chapter.typ",
+        "= Chapter\n\n#file(\"src/main.py\", ```py\nprint('from a chapter')\n```)\n",
+    );
     let path = dir.path().to_path_buf();
 
     let output = lp(&path, &["tangle", "book.typ", "--out", "out"]);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(
         std::fs::read_to_string(path.join("out/src/main.py")).expect("output"),
         "print('from a chapter')\n"
     );
 
     // And the line is traced to the chapter file, not to the book that includes it.
+    let chapter = std::fs::read_to_string(path.join("chapter.typ")).expect("chapter");
+    let expected = chapter
+        .lines()
+        .position(|line| line.contains("print('from a chapter')"))
+        .expect("line")
+        + 1;
     let mapped = lp(
         &path,
         &[
@@ -128,7 +116,7 @@ fn a_chapter_is_tangled_without_being_listed() {
     );
     assert_eq!(
         stdout(&mapped).lines().next(),
-        Some("chapter.typ:4"),
+        Some(format!("chapter.typ:{expected}").as_str()),
         "{}",
         stdout(&mapped)
     );
@@ -142,33 +130,28 @@ fn the_document_reports_chunks_no_parser_could_find() {
     }
 
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("book.typ"), DOC).expect("book");
-    std::fs::write(dir.path().join("chapter.typ"), CHAPTER).expect("chapter");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    write(
+        dir.path(),
+        "dynamic.typ",
+        "#for i in range(2) [\n  #chunk(\"part-\" + str(i), ```py\n  print(#i)\n  ```)\n]\n\n#file(\"src/main.py\", ```py\n<<part-0>>\n```)\n",
+    );
     let path = dir.path().to_path_buf();
 
-    let output = lp(&path, &["metadata", "book.typ"]);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    let output = lp(&path, &["metadata", "dynamic.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
     let report = stdout(&output);
+    assert!(
+        report.contains("part-0") && report.contains("part-1"),
+        "{report}"
+    );
 
-    // The included chapter's chunk is part of the document …
-    assert!(report.contains("from-chapter"), "{report}");
-    // … the loop's blocks are, one event each …
-    assert!(
-        report.contains("looped-0") && report.contains("looped-1"),
-        "{report}"
-    );
-    // … and so is content that exists in no source line at all.
-    assert!(
-        report.contains("built-0") && report.contains("built-1"),
-        "{report}"
-    );
-    assert!(
-        report.contains("print(0)") && report.contains("print(1)"),
-        "{report}"
+    // The chunks built by the loop are tangled like any other.
+    let tangled = lp(&path, &["tangle", "dynamic.typ", "--out", "out"]);
+    assert!(tangled.status.success(), "{}", stderr(&tangled));
+    assert_eq!(
+        std::fs::read_to_string(path.join("out/src/main.py")).expect("output"),
+        "print(#i)\n"
     );
 }
 
@@ -189,10 +172,35 @@ fn a_document_that_does_not_evaluate_says_so() {
 
     let output = lp(&path, &["metadata", "broken.typ"]);
     assert!(!output.status.success());
-    let message = String::from_utf8_lossy(&output.stderr);
+    let message = stderr(&output);
     assert!(message.contains("did not evaluate"), "{message}");
     assert!(
         message.contains("undefined-thing"),
         "typst's own diagnostic: {message}"
+    );
+}
+
+#[test]
+fn a_document_without_declarations_says_what_to_do() {
+    if !typst_available() {
+        eprintln!("skipping: typst is not on PATH");
+        return;
+    }
+
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(
+        dir.path().join("plain.typ"),
+        "= Just prose\n\n```py\nprint('not a chunk')\n```\n",
+    )
+    .expect("doc");
+    let path = dir.path().to_path_buf();
+
+    let output = lp(&path, &["metadata", "plain.typ"]);
+    assert!(!output.status.success());
+    let message = stderr(&output);
+    assert!(message.contains("declares no chunks"), "{message}");
+    assert!(
+        message.contains("#file("),
+        "the remedy belongs there: {message}"
     );
 }
