@@ -24,6 +24,11 @@
 // so the woven page has to show it — otherwise the document lies about the code.
 #let ref-re = regex("^(\\s*)<<([^<>]+)>>\\s*$")
 
+// The escape: a line that starts with `@` is a reference only to the eye. Tangling
+// writes it out as `<<name>>`, so a document can quote the syntax it is written in
+// (ADR D17).
+#let esc-re = regex("^(\\s*)@<<([^<>]+)>>\\s*$")
+
 /// The indentation a reference line contributes to the expanded chunk, or "" when
 /// the line is not a reference. The renderer below uses it too, so this is the
 /// implementation rather than a helper kept alive for a test.
@@ -38,8 +43,11 @@
   show raw.where(block: true): it => {
     let out = none
     for line in it.lines {
+      let escaped = line.text.match(esc-re)
       let m = line.text.match(ref-re)
-      let piece = if m == none {
+      let piece = if escaped != none {
+        raw(escaped.captures.at(0) + "<<" + escaped.captures.at(1) + ">>")
+      } else if m == none {
         line.body
       } else {
         raw(ref-indent(line.text)) + text(fill: rgb("#0a6"))[⟪#m.captures.at(1)⟫]

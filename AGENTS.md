@@ -3,9 +3,9 @@
 ## 代码结构（自举 Stage 1，ADR D15）
 
 ```
-self.typ              唯一真相：声明 Cargo.toml + src/*.rs + tests/*.rs
+self.typ              唯一真相：声明 Cargo.toml + src/*.rs + tests/*.rs + .agents/skills/**
 bootstrap/            冻结的种子 crate（tracked，永不重新生成）
-Cargo.toml src/ tests/  生成物（gitignore）——只改 self.typ，不要手改这里
+Cargo.toml src/ tests/ .agents/   生成物（gitignore）——只改 self.typ，不要手改这里
 .lpignore             仓库根的保护清单（--out 就是仓库根）
 lit/lp.typ            Typst 包：声明（#chunk/#file）+ 渲染
 src/main.rs           CLI（clap）+ 命令派发
@@ -18,6 +18,7 @@ src/explain.rs        诊断行 → chunk（纯查表 + 通用正则）
 src/diag.rs           LpError（miette）
 examples/demo/        可跑的多文件示例；run.sh 是端到端回归入口
 tests/*.rs            跑真二进制的端到端测试（tests/self.rs 守自复现）
+.agents/skills/       agent skill（也用 self.typ 写）：LP 纪律 + lp 机制 + 一个跑得通的例子
 ```
 
 常用命令：`nix develop -c cargo test`、`nix develop -c examples/demo/run.sh`（端到端）、`nix develop -c cargo clippy`。**fresh clone 先按 README 的"自举"三步**（`src/` 不在 git 里）：`cargo build --manifest-path bootstrap/Cargo.toml` → `./bootstrap/target/debug/lp tangle self.typ --out .` → `cargo test`。
@@ -35,6 +36,8 @@ tests/*.rs            跑真二进制的端到端测试（tests/self.rs 守自�
 - **不要**回头走这两条路：用 Rust 静态分析 Typst（构造上就错，见 D13）、用 `#show raw` 埋点（样式化规则会消费元素，见 D12）。
 - **`typst` 是 tangle 的硬依赖**（`LP_TYPST` 或 PATH），`cargo test` 也需要它 —— 用 `nix develop -c cargo test`。
 - **包在 `lit/lp.typ`**：改名/改参数要同步 `src/metadata.rs` 的 `QUERY`、`lit/lp.typ` 里的元数据字段（`lp: "chunk"|"file"`, `name`, `lang`, `text`）、以及文档里那段“怎么写 chunk”的说明。
+- **文档必须读成一篇论证**（ADR D16，硬错误）：**先命名后展开**——任何 `#chunk` 的第一次被引用必须在它的声明之前（读者先遇名字、后遇细节）；片段展开进文件时 `lang` 必须与根一致。粒度（一个 chunk 一件事）不是机械可判定的，靠 skill 的纪律。
+- **转义**（ADR D17）：要原样输出 `<<name>>` 独占一行的样子，写成 `@<<name>>`（tangle 去掉 `@`，weave 渲染成字面量，不计入引用图）。文档在引用这套语法本身时用它——`self.typ` 里的 skill 就是。
 - **一个 chunk 的行可以来自多处**：同名声明按文档顺序拼接（可以跨多个文档）；出处只到 chunk 级。
 - **未处置即错误，删除必须显式**（ADR D10）：`--out` 整个目录里的每个文件都要被 chunk 产出或被 `.lpignore` 声明，否则 `lp tangle` 失败并列出（两条出路：声明 / `lp unaccounted --delete`）。`lp` 从不自行删除。豁免只有 `.lpignore` 与 `.lpmap.json` 两个控制文件，无 git 特例。改这块前先看 `tests/owned.rs`。
 - **写盘只写变化的字节**（ADR D9）：不要无脑重写生成物或 `.lpmap.json`；有语法错误时不得 tangle。改这两条行为前先看 `tests/lazy.rs`。

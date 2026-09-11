@@ -1,25 +1,29 @@
-// The lp tool describing itself: every file of the crate, as declarations.
+// The lp tool describing itself: the crate and the skill it ships, as declarations.
 //
-// `lp tangle self.typ --out .` regenerates Cargo.toml, src/ and tests/; the crate
-// is its own output (ADR D15). The declarations are a faithful transliteration of
-// the frozen seed in bootstrap/ — chunks are not shared here yet, and nothing is
-// inlined, so the tangled files are byte-identical to the seed.
+// `lp tangle self.typ --out .` regenerates Cargo.toml, src/, tests/ and the skill;
+// the repository is its own output (ADR D15). The declarations are a faithful
+// transliteration of the frozen seed in bootstrap/ — chunks are not shared here yet,
+// and nothing is inlined, so the tangled files are byte-identical to the seed.
+//
+// Lines that look like references are escaped with `@` in the text below, because a
+// document that quotes the syntax has to be able to show `<<name>>` on a line of its
+// own without it being expanded (ADR D17).
 //
 // The seed, not this document, is what a broken toolchain falls back on:
 //
 //   nix develop -c cargo build --manifest-path bootstrap/Cargo.toml
 //   nix develop -c ./bootstrap/target/debug/lp tangle self.typ --out .
 //
-// Editing this file by hand is fine; running this script is not. It exists to
-// record how Stage 1 was cut, not to be re-run over an edited document.
+// Editing this file by hand is fine; running this script is not. It exists to record
+// how Stage 1 was cut, not to be re-run over an edited document.
 
 #import "lit/lp.typ": chunk, file, rule
 #show: rule
 
 = The tool, in its own words
 
-Every file below is a root chunk. `bootstrap/` holds the same bytes, frozen: the
-seed has to stay compilable without the tool it ships.
+Every file below is a root chunk. `bootstrap/` holds the same bytes, frozen: the seed has
+to stay compilable without the tool it ships.
 
 #file("Cargo.toml", ````toml
 [package]
@@ -1363,6 +1367,19 @@ fn ref_target(line: &str) -> Option<(&str, &str)> {
     Some((inner, &line[..line.len() - line.trim_start().len()]))
 }
 
+/// A line that reads as a reference but has to stay literal: `@<<name>>` comes out
+/// as `<<name>>`. A document quoting the syntax itself — this project's own skill,
+/// for one — needs it (ADR D17).
+fn escaped_ref(line: &str) -> Option<String> {
+    let indent = &line[..line.len() - line.trim_start().len()];
+    let rest = line.trim().strip_prefix('@')?;
+    let inner = rest.strip_prefix("<<")?.strip_suffix(">>")?;
+    if inner.is_empty() || inner.contains('<') || inner.contains('>') {
+        return None;
+    }
+    Some(format!("{indent}<<{inner}>>"))
+}
+
 pub struct Tangled {
     /// File contents, always ending in a newline.
     pub text: String,
@@ -1396,12 +1413,18 @@ pub fn expand(set: &ChunkSet, root: &str) -> Result<Tangled, LpError> {
         lines: 0,
     };
     let mut stack = Vec::new();
-    expand_chunk(set, root, "", &mut stack, &mut out)?;
+    expand_chunk(set, root, root, "", &mut stack, &mut out)?;
     Ok(out)
+}
+
+/// The language a chunk declared, if it declared one.
+fn lang_of<'a>(set: &ChunkSet<'a>, name: &str) -> Option<&'a str> {
+    set.get(name)?.first()?.lang.as_deref()
 }
 
 fn expand_chunk(
     set: &ChunkSet,
+    root: &str,
     name: &str,
     indent: &str,
     stack: &mut Vec<String>,
@@ -1427,6 +1450,10 @@ fn expand_chunk(
         }
 
         for (index, line) in block.text.lines().enumerate() {
+            if let Some(literal) = escaped_ref(line) {
+                out.push(name, indent, &literal);
+                continue;
+            }
             match ref_target(line) {
                 None => out.push(name, indent, line),
                 Some((target, local_indent)) => {
@@ -1438,8 +1465,21 @@ fn expand_chunk(
                                 set.names().collect::<Vec<_>>().join(", ")
                             )));
                     }
+                    // The lang tag is the only statement the document makes about what a
+                    // piece of text is, so a fragment expanded into a file has to agree
+                    // with it (ADR D16).
+                    if let (Some(want), Some(got)) = (lang_of(set, root), lang_of(set, target))
+                        && want != got
+                    {
+                        return Err(block.error(
+                            index,
+                            format!(
+                                "chunk ⟪{target}⟫ is {got}, but it is expanded into ⟪{root}⟫, which is {want}"
+                            ),
+                        ));
+                    }
                     let nested = format!("{indent}{local_indent}");
-                    expand_chunk(set, target, &nested, stack, out)?;
+                    expand_chunk(set, root, target, &nested, stack, out)?;
                 }
             }
         }
@@ -1468,6 +1508,45 @@ pub struct Outcome {
     /// accounts for. Non-empty means the pass failed.
     pub unaccounted: Vec<crate::status::Unaccounted>,
     pub warnings: Vec<String>,
+}
+
+/// The document is read front to back, so a name has to be introduced before the text
+/// that fills it in: a fragment declared before anything refers to it hands the reader
+/// details they have no use for yet (ADR D16).
+fn check_reading_order(blocks: &[Block]) -> Result<(), LpError> {
+    let mut declared: BTreeMap<&str, usize> = BTreeMap::new();
+    for (index, block) in blocks.iter().enumerate() {
+        declared.entry(block.name.as_str()).or_insert(index);
+    }
+
+    let mut first_used: BTreeMap<&str, usize> = BTreeMap::new();
+    for (index, block) in blocks.iter().enumerate() {
+        for line in block.text.lines() {
+            if let Some((target, _)) = ref_target(line) {
+                first_used.entry(target).or_insert(index);
+            }
+        }
+    }
+
+    // Alphabetical, so a document with several backwards declarations always reports
+    // the same one first.
+    for (name, declaration) in declared {
+        let Some(use_site) = first_used.get(name) else {
+            continue;
+        };
+        if declaration >= *use_site {
+            continue;
+        }
+        let line = blocks[declaration].text.lines().next().unwrap_or("");
+        return Err(LpError::plain(format!(
+            "chunk ⟪{name}⟫ is declared before anything refers to it: {line}"
+        ))
+        .with_help(format!(
+            "move this declaration after ⟪{}⟫, the first chunk that refers to ⟪{name}⟫: a name has to be introduced before the text that fills it in (ADR D16; `lp metadata` prints the order)",
+            blocks[*use_site].name
+        )));
+    }
+    Ok(())
 }
 
 /// What the documents produce, without writing anything.
@@ -1500,6 +1579,8 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
         return Err(LpError::plain(format!("no file declarations in {listed}"))
             .with_help("declare one: `#file(\"src/main.rs\", ```…```)`"));
     }
+
+    check_reading_order(&blocks)?;
 
     let mut warnings = Vec::new();
     let referenced: BTreeSet<String> = blocks.iter().flat_map(refs_of).collect();
@@ -1690,7 +1771,7 @@ fn drift_report(root: &str, existing: Option<&str>, runs: &[Run], text: &str) ->
 
 #[cfg(test)]
 mod tests {
-    use super::ref_target;
+    use super::{escaped_ref, ref_target};
 
     #[test]
     fn only_a_whole_line_reference_counts() {
@@ -1700,6 +1781,15 @@ mod tests {
         assert_eq!(ref_target("std::cout << x << std::endl;"), None);
         assert_eq!(ref_target("<<a>><<b>>"), None);
         assert_eq!(ref_target("auto y = <<x>>;"), None);
+    }
+
+    #[test]
+    fn an_escaped_reference_comes_out_without_the_escape() {
+        assert_eq!(escaped_ref("@<<body>>").as_deref(), Some("<<body>>"));
+        assert_eq!(escaped_ref("  @<<body>>").as_deref(), Some("  <<body>>"));
+        assert_eq!(escaped_ref("<<body>>"), None);
+        assert_eq!(escaped_ref("@<<a>><<b>>"), None);
+        assert_eq!(escaped_ref("@@<<body>>"), None);
     }
 }
 ````)
@@ -2016,7 +2106,7 @@ fn indentation_follows_the_reference_site() {
 
 #[test]
 fn a_chunk_written_indented_in_the_document_is_still_dedented() {
-    let body = "- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n\n#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n";
+    let body = "#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n\n- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n";
     let (_guard, dir, _) = project(body);
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
@@ -2243,8 +2333,39 @@ fn dangling_reference_quotes_the_line() {
 }
 
 #[test]
+fn a_fragment_declared_before_its_first_use_is_an_error() {
+    let body = "#file(\"main.py\", ```py\nprint(1)\n```)\n\n#chunk(\"early\", ```py\nx = 1\n```)\n\n#chunk(\"late\", ```py\n<<early>>\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    let message = stderr(&output);
+    assert!(
+        message.contains("chunk ⟪early⟫ is declared before anything refers to it"),
+        "{message}"
+    );
+    assert!(
+        message.contains("move this declaration after ⟪late⟫"),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_fragment_in_another_language_is_an_error() {
+    let body =
+        "#file(\"main.py\", ```py\n<<bits>>\n```)\n\n#chunk(\"bits\", ```rust\nlet x = 1;\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    let message = stderr(&output);
+    assert!(
+        message.contains("chunk ⟪bits⟫ is rust, but it is expanded into ⟪main.py⟫, which is py"),
+        "{message}"
+    );
+}
+
+#[test]
 fn cycle_is_reported() {
-    let body = "#file(\"main.py\", ```py\n<<b>>\n```)\n\n#chunk(\"a\", ```py\n<<b>>\n```)\n\n#chunk(\"b\", ```py\n<<a>>\n```)\n";
+    let body = "#file(\"main.py\", ```py\n<<a>>\n```)\n\n#chunk(\"a\", ```py\n<<b>>\n```)\n\n#chunk(\"b\", ```py\n<<a>>\n```)\n";
     let (_guard, dir, _) = project(body);
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(!output.status.success());
@@ -2754,7 +2875,7 @@ fn the_document_reports_chunks_no_parser_could_find() {
     write(
         dir.path(),
         "dynamic.typ",
-        "#for i in range(2) [\n  #chunk(\"part-\" + str(i), ```py\n  print(#i)\n  ```)\n]\n\n#file(\"src/main.py\", ```py\n<<part-0>>\n```)\n",
+        "#file(\"src/main.py\", ```py\n<<part-0>>\n```)\n\n#for i in range(2) [\n  #chunk(\"part-\" + str(i), ```py\n  print(#i)\n  ```)\n]\n",
     );
     let path = dir.path().to_path_buf();
 
@@ -3252,5 +3373,495 @@ fn the_document_regenerates_the_sources_we_are_running() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+````)
+
+#file(".agents/skills/literate-programming/SKILL.md", `````markdown
+---
+name: literate-programming
+description: Write a program as an article - one Typst document that argues the design in prose and, from that same text, tangles into real source files and weaves into a PDF. Use when writing or editing any program lp carries (including this repository's own self.typ), adding or reorganising chunks, or asked to write a literate document. The document is read front to back, so it has to go from idea to detail and stay logically self-consistent; lp enforces the structure, the argument is the writer's job.
+---
+
+# Literate programming
+
+The program is an article. One source — a Typst document — and two products: **tangle** (the machine's copy: real source files) and **weave** (the reader's copy: a typeset document). Neither is the original; the article is.
+
+Read front to back it has to be **progressive disclosure**: the first sections give the idea and the shape, later sections fill in what the earlier ones named. A reader who has to jump around — or who meets a detail before the name that explains why it exists — is reading a document that was not finished.
+
+## Your job is the argument; the tool only checks the structure
+
+`lp` can refuse a document whose *structure* contradicts this (table below). It cannot read. The part that matters is therefore on you:
+
+1. **Every section follows from the previous one.** Before writing one, answer: what has the reader been promised so far, and what does this section add? If the answer is "some other topic", the document is a list, not an argument.
+2. **A name is a promise, and the body keeps it exactly.** `<<the operation table>>` tells the reader what is coming and why it exists; when the body arrives it must be that thing — not more, not less, and not something the prose just described differently.
+3. **Make no claim the code contradicts.** Every sentence about behaviour has to be checkable in the chunk it describes. If the code does something the prose does not mention, either mention it or change the code.
+4. **One name for one thing.** Prose and chunks use the same word for the same concept; drifting synonyms are how a document starts lying.
+5. **Say what is not true yet.** Planned work, known limits, trade-offs taken: put them where the reader will meet them. A document that hides its gaps is not self-consistent, it is incomplete while pretending otherwise.
+6. **When the design changes, revise the beginning.** The top goes stale first, and a stale opening makes everything after it wrong.
+7. **Before saying done, read the article, not the diff.** Front to back, asking of each section what it promised and whether the next one kept it — then run the checks. A diff review cannot see an argument that stopped making sense three sections earlier.
+
+The failure mode to avoid is prose that *sounds* explained. A confident paragraph that does not match its chunk is worse than no paragraph: it stops the next reader — human or agent — from looking at the code.
+
+## What the tool enforces (it will refuse these)
+
+| Invariant | Message |
+| --- | --- |
+| A name is used before it is declared | `chunk ⟪x⟫ is declared before anything refers to it` |
+| A fragment's language matches the file it lands in | `chunk ⟪x⟫ is rust, but it is expanded into ⟪main.py⟫, which is py` |
+| Every reference resolves; no cycles; no empty bodies | `chunk ⟪x⟫ is not defined` / `cycle in chunks:` / `chunk ⟪x⟫ is empty` |
+| Every file under `--out` is produced by a chunk or declared | `nothing accounts for these files` |
+| The generated files still equal the document | `--check` prints `STALE` |
+
+The first rule is the structural half of "name before detail": the tool will not let you hand a reader a detail before you have introduced it. The rest are drift and consistency guards. None of them can tell whether the prose is *true* — that is the writer's half.
+
+## The shape: every file is a skeleton
+
+A root chunk (`#file`) is written as a skeleton — a few lines that name their parts. Fragments (`#chunk`) are the parts, each declared in the section that explains it, in the order a reader wants them. Depth is whatever the explanation needs: a step can itself be a skeleton of steps.
+
+````
+#file("src/calc.py", ```python
+"""An RPN calculator: `calc.py "2 3 + 4 *"` prints 20.0."""
+
+@<<imports>>
+
+@<<the operation table>>
+
+
+def evaluate(tokens):
+    @<<the evaluation loop>>
+@<<the command line>>
+```)
+````
+
+Everything above is a promise. Later sections keep them, one at a time:
+
+````
+#chunk("the evaluation loop", ```python
+stack = []
+for token in tokens:
+    @<<apply one token>>
+return stack.pop()
+```)
+````
+
+Two things this buys: a reader can stop at any level and still have a true account of the program, and the order rule keeps the promise-keeping honest.
+
+## Mechanics
+
+- `#file(path, code)` — a root chunk. Its name is the path it tangles to; every produced file needs one, and nothing else produces files.
+- `#chunk(name, code)` — a fragment, existing only where something refers to it.
+- `<<name>>` **alone on its line** is a reference; anywhere else (`a << b`) it stays literal text.
+- **Indentation comes from the reference line**, not the chunk's own text: write chunk bodies flush left and let the reference place them. Nested references compose, so a body pulled in at four spaces and pulled in again at four more lands at eight.
+- A repeated name **concatenates in document order** — a file can be introduced where its interface belongs and finished where its behaviour belongs. Nothing is inherited between the pieces: blank lines at the top of a later piece are part of what it contributes.
+- The fence's language tag is data (the tangled file's language, and the input to the language check). Nothing in `lp` parses it.
+- **To quote the syntax itself, escape it**: a line `@<<name>>` tangles out as `<<name>>` — the `@` is dropped and the line is never expanded, never counted as a reference. That is how a document can show what a reference looks like (this file is carried by `self.typ` and does exactly that).
+- Block content is verbatim: keep it flush left, and **use four backticks as the fence** whenever the code contains three (Typst fixtures, Markdown fences, heredocs).
+- Keep the document evaluable at every save; a document Typst cannot evaluate tangles nothing, and `lp watch` keeps the last good output instead of half of a new one.
+
+## Working loop
+
+1. **Outline the argument first**: sections in reading order, each one a step from idea to detail.
+2. **Write the skeleton** (the root chunks), naming parts the reader will meet later.
+3. **Keep the promises** in the sections that follow — prose, then the chunk.
+4. `lp tangle <doc.typ> --out <dir> --check` — dry run, exit 1 on drift.
+5. `lp watch <doc.typ> --out <dir> --check-cmd '<build>'` — only changed bytes are rewritten, and diagnostics come back as chunk names.
+6. `lp explain` (pipe `cargo build --message-format=short` into it) or `lp map --file <generated> --line N` to find the chunk a diagnostic came from. `--out` has to be repeated on `map`, `explain` and `unaccounted`; they default to `out`.
+7. **Resolve strays** after deleting or renaming a root: `lp unaccounted <doc> --out <dir>`. Declare what is not the document's in that directory's `.lpignore` (matching means *protect*, and it includes anything the program writes next to its own output, like a byte-compiler cache); `lp unaccounted … --delete` is the explicit alternative. `lp` never deletes by itself.
+
+## Find your way around
+
+| Question | Command |
+| --- | --- |
+| Which chunks exist, in what order, which are roots | `lp list <doc.typ>` |
+| The declaration stream as Typst evaluated it (also the reading order) | `lp metadata <doc.typ>` |
+| Where line N of `src/main.rs` came from | `lp map --file src/main.rs --line N` |
+| What generated lines a chunk produced | `lp map --typ X` |
+| The declaration itself | `rg '#chunk\("X"'` |
+
+Provenance is chunk-level on purpose — which declaration, and which line inside it — never a `.typ` line number (Typst does not expose source positions). To edit, go to the declaration the diagnostic names.
+
+## Errors you will hit
+
+| Message | Cause | Fix |
+| --- | --- | --- |
+| `chunk ⟪x⟫ is declared before anything refers to it` | a fragment written before the section that names it | move the declaration after its first reference |
+| `chunk ⟪x⟫ is <lang>, but it is expanded into ⟪path⟫, which is <lang>` | a fragment pasted into a file of another language | fix the fence tag or the chunk |
+| `chunk ⟪x⟫ is not defined` | a reference to nothing | declare it, or fix the typo |
+| `cycle in chunks:` | fragments referencing each other | break the cycle; an article is a DAG |
+| `chunk ⟪x⟫ is empty` | a declaration with no body | delete it or fill it |
+| `nothing accounts for these files` | files under `--out` that no chunk produces and no `.lpignore` declares | declare them, or `--delete` |
+| "the document did not evaluate" | a Typst error — unclosed fence, bad expression | fix the document; nothing was tangled |
+| a literal `<<name>>` line came out as something else | that line was read as a reference | write `@<<name>>` where the text itself is wanted |
+
+## Anti-patterns
+
+- Prose that restates the code ("this function adds two numbers"). It looks literate and is not.
+- Details before names — the tool rejects it, and it is the same mistake the rule is there to prevent.
+- A chunk per statement; five-line chunks with no narrative; a document that is a tangle script with headings.
+- Hand-editing tangled files, or creating an output file by hand instead of declaring it.
+- A first section that describes the design you had an hour ago.
+
+## In this repository (`lp` is self-hosted)
+
+`self.typ` is the source of the tool: it declares `Cargo.toml`, `src/*.rs`, `tests/*.rs` and this skill, all of which are generated (gitignored). Change the tool by changing `self.typ`:
+
+```sh
+nix develop -c ./target/debug/lp tangle self.typ --out . --check   # the gate
+nix develop -c ./target/debug/lp watch self.typ --out . --check-cmd 'cargo build --message-format=short'
+nix develop -c cargo test                                          # 50 tests, includes self-reproduction
+```
+
+A fresh clone has no `src/`: build the frozen seed in `bootstrap/`, then tangle (see `README.md` §自举). `tests/self.rs` fails if the files on disk stop matching the document, so hand-editing `src/` cannot survive. Adding a top-level directory means adding one line to the root `.lpignore`.
+
+## References
+
+- [`references/example.md`](references/example.md) — a complete two-file program in the skeleton shape, with a real transcript.
+- [`references/thinking.md`](references/thinking.md) — where this stance comes from (Knuth's argument, noweb's simplifications), and the strongest objections to it, honestly stated.
+- Repository: `README.md` (full contract), `AGENTS.md` (project rules), `examples/demo/` (runnable example), `agent-notes/decisions/2026-09-11-document-invariants.md` (the enforced invariants).
+`````)
+
+#file(".agents/skills/literate-programming/references/example.md", `````markdown
+# Worked example: an RPN calculator
+
+Two files, no framework, written in the shape the skill asks for: the roots are skeletons that
+name their parts, and every part is declared in the section that explains it. The document below
+is the actual source; it was tangled and run on 2026-09-11 with `lp` 0.1.0, typst 0.15.1, and a
+tool that already enforced the order and language rules. The transcript at the end is real output.
+
+## What the document decides
+
+| Decision | Where to look |
+| --- | --- |
+| Idea before shape before detail | the RPN paragraph explains why there is no precedence parser; then the whole file appears |
+| Every root is a skeleton | `src/calc.py` names `<<imports>>`, `<<the operation table>>`, `<<the evaluation loop>>`, `<<the command line>>` |
+| Depth is two levels here | the skeleton names `<<the evaluation loop>>`, which names `<<apply one token>>` |
+| Each name is explained where it is used | the loop is explained as stack policy; the one token step is explained with the indentation rule |
+| Prose keeps the promise | the table-versus-`if`-chain paragraph is the reason the table exists; nothing else claims to be |
+| A file can be declared twice | not used here — `examples/demo/literate.typ` in the repository shows it |
+
+## The document (`calc.typ`)
+
+````
+#import "lit/lp.typ": chunk, file, rule
+#show: rule
+
+= An RPN calculator
+
+This document is an argument, read from the front. It starts with the shape of the
+program and gets more specific as it goes: the first section is the whole file with
+nothing filled in, and every name in it is explained by a later section. A reader who
+stops after the first section still knows what the program is.
+
+The program is a reverse Polish calculator. That choice is worth one paragraph, because
+it is where all the difficulty went: in `2 + 3 * 4` the order of operations lives in a
+grammar — precedence, parentheses, associativity. In `2 3 + 4 *` it lives in the input,
+and the evaluator is left with a stack and no grammar at all.
+
+== The shape of the program
+
+The file, before any of it is explained:
+
+#file("src/calc.py", ```python
+"""An RPN calculator: `calc.py "2 3 + 4 *"` prints 20.0."""
+
+@<<imports>>
+
+@<<the operation table>>
+
+
+def evaluate(tokens):
+    @<<the evaluation loop>>
+@<<the command line>>
+```)
+
+`evaluate` is the interface: tokens in the order they were written, a number out. It
+keeps its state in a local stack, so two calls cannot interfere with each other — which
+is what makes it testable without touching the outside world.
+
+== What the program needs from outside
+
+Two things. `exit`, because a command line has to be able to say no with a status code.
+And `tokenize`, which is the other file in this program, defined in the next section —
+`calc.py` never parses text, and `lexer.py` never knows what the tokens mean.
+
+#chunk("imports", ```python
+import sys
+
+from lexer import tokenize
+```)
+
+== Reading the input
+
+The evaluator wants a stream of tokens; the user has one string. `tokenize` is a
+generator, so the string is never split into a list that nobody needs, and the evaluator
+can pull one token at a time without knowing where it came from.
+
+The pattern is deliberately permissive — it recognises numbers and the four operator
+characters and nothing else. Deciding what a valid *expression* is belongs to the
+evaluator, not here; a lexer that tried to do it too would have to know about the stack.
+
+#file("src/lexer.py", ```python
+"""Turning an expression into numbers and operators."""
+
+import re
+
+@<<what a token looks like>>
+
+
+def tokenize(text):
+    for match in TOKEN.finditer(text):
+        yield match.group(0)
+```)
+
+#chunk("what a token looks like", ```python
+TOKEN = re.compile(r"\d+\.?\d*|[-+*/]")
+```)
+
+== The arithmetic, in one place
+
+Four operations, one table. A chain of `if`s would work and put the arithmetic in the
+middle of the evaluation logic; the table keeps the whole of it visible on one screen,
+and adding an operator is a line here plus a character in the pattern above — two places
+that a reader can check against each other.
+
+#chunk("the operation table", ```python
+OPERATIONS = {
+    "+": lambda left, right: left + right,
+    "-": lambda left, right: left - right,
+    "*": lambda left, right: left * right,
+    "/": lambda left, right: left / right,
+}
+```)
+
+== Running the loop
+
+Evaluation is a stack machine: numbers accumulate, operators consume. The loop below is
+the whole of that policy — it names one step, and the next section explains what the step
+does. Nothing about the step is needed to read this.
+
+The body of the loop arrives in the next section; because the reference below is indented
+by four spaces, and it is itself pulled into an indented place, the expansion ends up
+eight spaces in. Indentation is relative to the reference that pulled the text in, at
+every level.
+
+#chunk("the evaluation loop", ```python
+stack = []
+for token in tokens:
+    @<<apply one token>>
+return stack.pop()
+```)
+
+== Applying one token
+
+An operator consumes the two numbers produced before it; a number is pushed. Note where
+this code ends up: the reference that pulls it in is indented by four spaces, so the loop
+body is indented, even though the chunk below is written flush left. The chunk's own
+layout is the layout of the text you are reading; the indentation comes from the place
+that names it.
+
+`float` is where a bad expression finally fails, and the traceback will point at this
+chunk.
+
+#chunk("apply one token", ```python
+if token in OPERATIONS:
+    right = stack.pop()
+    left = stack.pop()
+    stack.append(OPERATIONS[token](left, right))
+else:
+    stack.append(float(token))
+```)
+
+== The command line
+
+The tail of `calc.py`, written as one chunk about running the program rather than about
+evaluating expressions. It starts with two blank lines on purpose: in the finished file
+they are the ones that separate `main` from `evaluate`, and nothing is inherited from the
+first declaration of the file.
+
+The exit status is the part scripts depend on: an empty expression gets a usage message
+and a non-zero status, everything else prints the result.
+
+#chunk("the command line", ```python
+
+
+def main(argv):
+    expression = " ".join(argv[1:])
+    if not expression.strip():
+        print("usage: calc.py <expression>")
+        return 2
+    print(evaluate(tokenize(expression)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
+```)
+
+== Checking it
+
+Two files, and the only way to know the argument is true is to run it:
+
+```sh
+$ lp tangle calc.typ --out . && python3 src/calc.py "2 3 + 4 *"
+20.0
+```
+
+In a real project the tests would be roots too, one `#file` per test module, each sitting
+next to the behaviour it pins down. `examples/demo/literate.typ` in this repository does
+that, and also shows a fragment shared by two different files (`<<crate-preamble>>`).
+````
+
+## Transcript
+
+```sh
+$ lp tangle calc.typ --out .
+wrote  src/calc.py  (37 lines, python)
+wrote  src/lexer.py  (10 lines, python)
+
+$ python3 src/calc.py '2 3 + 4 *'
+20.0
+
+$ lp list calc.typ
+calc.typ
+  file  ⟪src/calc.py⟫                python
+  frag  ⟪imports⟫                    python
+  file  ⟪src/lexer.py⟫               python
+  frag  ⟪what a token looks like⟫    python
+  frag  ⟪the operation table⟫        python
+  frag  ⟪the evaluation loop⟫        python
+  frag  ⟪apply one token⟫            python
+  frag  ⟪the command line⟫           python
+
+outputs: <src/calc.py>, <src/lexer.py>
+
+$ lp map --out . --file src/calc.py --line 19
+chunk ⟪apply one token⟫, line 2 of it
+    find it with: rg '#chunk("apply one token")'
+```
+
+`lp list` is the document's reading order, and it is also the order the tool checks: every
+`frag` above appears after the place that first refers to it.
+
+The generated file shows what the indentation rule did. `<<apply one token>>` is written flush
+left in the document and pulled in by a reference that is itself four spaces in:
+
+```python
+# src/calc.py, tangled
+def evaluate(tokens):
+    stack = []
+    for token in tokens:
+        if token in OPERATIONS:      # ← from <<apply one token>>, written flush left
+            right = stack.pop()
+            left = stack.pop()
+            stack.append(OPERATIONS[token](left, right))
+```
+
+## Three things the transcript teaches
+
+1. **Anything written next to the generated code becomes unaccounted.** Running the program
+   created `src/__pycache__/…`, and the next `--check` refused:
+
+   ```sh
+   $ lp tangle calc.typ --out . --check
+     × nothing accounts for these files:
+     │   src/__pycache__/lexer.cpython-314.pyc
+     help: declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`
+
+   $ printf '/calc.typ\n/lit\n/src/__pycache__\n' > .lpignore   # matching means *protect*
+   $ lp tangle calc.typ --out . --check
+   ok     src/calc.py
+   ok     src/lexer.py
+   ```
+
+   While ownership was failing, the drift report printed nothing: an empty stdout from `--check`
+   means an ownership error, so read stderr. `examples/demo/build/.lpignore` in the repository is
+   the same pattern at a larger scale (`target/`, `Cargo.lock`, woven PDFs).
+2. **`--out` has to be repeated.** `lp map`, `lp explain` and `lp unaccounted` default to
+   `--out out`; a document tangled with `--out .` fails there with `no map knows this file`.
+3. **Diagnostic back-translation covers compilers that print `file:line:col:`** — `rustc
+   --message-format=short`, gcc, clang — through `lp explain`. Python tracebacks say
+   `File "…", line N` and are not parsed yet; for those, `lp map --file … --line N` is the
+   language-agnostic path. Adding a Python extractor is a row in a data table, not new algorithm
+   (see `src/explain.rs`).
+`````)
+
+#file(".agents/skills/literate-programming/references/thinking.md", ````markdown
+# Where this stance comes from, and the case against it
+
+Companion to [`../SKILL.md`](../SKILL.md). The long version, with the full map of positions and
+sources, is `agent-notes/research/2026-09-11-literate-programming-thinking.md` in the `lp`
+repository.
+
+## The stance
+
+- A program is a piece of literature addressed to human beings (Knuth): *"The main idea is to
+  treat a program as a piece of literature, addressed to human beings rather than to a
+  computer."* One source, two products — **tangle** for the machine, **weave** for the reader —
+  and neither product is the original.
+- **The order belongs to the reader.** The whole point of named references is that the text can
+  be arranged in the order the design is understood, not the order the machine runs it (noweb:
+  *"tools let you arrange the parts of a program in any order and extract documentation and code
+  from the same source file"*).
+- **The article is the centre; chunks are its parts.** A fragment exists because a section of the
+  argument needed a name for something. When a chunk name and a function name compete, the chunk
+  is usually the coarser thing, because it belongs to a sentence.
+- **Reading front to back is the contract**: idea → shape → steps → details. `lp` enforces the
+  structural half of that contract (a name may not be filled in before it is introduced, and the
+  code may not contradict the language the document declares). The other half — that the prose
+  is *true* and the argument *holds* — cannot be checked by a tool, and that is what
+  [`../SKILL.md`](../SKILL.md) is for.
+- **In an agent workflow** this is the point: the article is the complete context for the code
+  (nothing is implemented that the text does not explain), and the checks are what stop the two
+  from drifting. Writing prose is no longer the expensive part of literate programming — being
+  right is.
+
+## The case against, in its strongest form
+
+Keep these; they are the reasons this stance has to be argued rather than assumed.
+
+1. **"It is over-commenting, and the comments drift."** Names, small functions, types and tests
+   carry intent in a modern language; prose adds little and can lie. **Conceded where it is
+   right**: the payoff falls as the language's expressive power rises, so the article earns its
+   keep where *order and structure* are the difficulty — algorithms, protocols, tooling,
+   bootstrapping, teaching — and in a mature codebase it earns it as explanation of *why*, not
+   *what*. **Not conceded**: drift. In `lp` the drift is a check failure, not a matter of
+   discipline.
+2. **"Tooling friction is why WEB and CWEB stayed niche."** An extra tool between the author and
+   the compiler, no editor support, and diagnostics that point at generated code. **Answered by**
+   `lp watch` (only changed bytes are rewritten), chunk-level provenance (`lp map`, `lp explain`)
+   and `--check`. **Conceded**: it is still another tool, and a fresh clone has to bootstrap.
+3. **"Reading code just got cheap."** If an agent can read ordinary source, what does the article
+   buy? **Answered**: the *why*, which was never in the code, and a single source that cannot
+   drift. **Conceded**: if all you ever do is modify code and never explain it to anyone, the
+   article is overhead — that is a claim about the work, not about the tool.
+4. **"Generated prose can be confidently wrong."** A plausible paragraph contradicting its chunk
+   is worse than no paragraph, because the next reader stops looking at the code. **Answered**:
+   the enforced invariants and the read-it-back rule exist for exactly this; **conceded**: the
+   risk lands on the writer, and no check catches it.
+5. **"It does not fit multi-writer, PR-diff-centred teams."** Also true: the argumentative
+   structure and the review flow pull in different directions. This document's audience is the
+   author and the agent working alongside them, not a review queue.
+6. **The historical counter-fact.** What actually won was generated documentation (Javadoc,
+   rustdoc) and notebooks; strict tangling stayed a niche. That is an argument about adoption, not
+   about correctness — and the reason the position here is "the document is the source" rather
+   than "everyone should do this".
+
+## Evidence
+
+| Kind | Examples |
+| --- | --- |
+| Measured, reproducible | adoption history (WEB/CWEB niche, noweb in dozens of languages for decades, notebooks dominating data science); `typst-unlit` clobbering line numbers; `lp`'s own numbers (full tangle 3–7 ms, whole-repo ownership walk 0.82 s, 50 tests) |
+| Reasoned testimony | Knuth, Ramsey, Nørmark, Silver, apiad, Anticodians — decades of practice, no control groups |
+| **Not found** | any reproducible study showing literate programming reduces defects or maintenance cost. Knuth claims it, second-hand posts repeat it. Treat it as **unverified**, not as fact. |
+
+## Sources
+
+- Knuth, *Literate Programming* (CSLI, 1992) and his definition page: <https://www-cs-faculty.stanford.edu/~knuth/lp.html>
+- Knuth, "Literate programming", *The Computer Journal* 27(2):97–111, 1984: <https://academic.oup.com/comjnl/article-abstract/27/2/97/343244>
+- Norman Ramsey, noweb: <https://www.cs.tufts.edu/~nr/noweb/>; "Literate Programming Simplified", *IEEE Software* 11(5):97–105, 1994: <https://www.cs.tufts.edu/~nr/cs257/archive/literate-programming/04-noweb.pdf>
+- Kurt Nørmark, "Literate Programming — Issues and Problems": <https://people.cs.aau.dk/~normark/litpro/issues-and-problems.html>
+- Nik Silver, "Literate programming, part 2: Problems and challenges": <https://niksilver.com/2019/10/22/literate-programming-part-2-problems-and-challenges/>
+- Anticodians, "The End of Literate Programming": <https://anticodians.org/2024/12/04/the-end-of-literate-programming/>
+- apiad, "The Best Way to Vibe Code is Literate Programming": <https://blog.apiad.net/p/the-best-way-to-vibe-code-is-literate>
+- "A Literate Programming Environment for Human and Machine Agents" (arXiv 2608.24644): <https://arxiv.org/pdf/2608.24644>
 ````)
 

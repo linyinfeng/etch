@@ -35,6 +35,7 @@
 - ⏳ 多章文档（超出现计划）：跨文档 ChunkSet → 映射 schema v3（per-line 源文件）→ 跟随 `#include`，见 `research/2026-09-11-typst-structure-and-include.md` 的缺口表。
 - ⏳ 剩下：`lp explain --format cargo`（`cargo_metadata` 解析 `--message-format=json`，自举时天天用）、`ci.sh`（typst compile + cargo test + `tangle --check`）。~~诊断列位置精确到 span~~ → D14 已删掉 span 报错，出处只在 chunk 级。
 - ✅ 删除语义（超出原计划）：删根 chunk 不再留孤儿——`.lpignore` 目录声明 + `ignore` crate 的 gitignore 语义 + `--check` 干跑，见 ADR D10，回归在 `tests/owned.rs`。
+- ✅ **结构强制（D16/D17，2026-09-11）**：“先命名后展开”（片段的第一次被引用必须在声明之前）与“片段 lang 必须与根一致”成为**硬错误**；引用转义 `@<<name>>` 让文档可以原样展示 `<<name>>` 独占一行。据此重排了 `examples/demo/literate.typ` 与两个 fixture。语义自洽不可机械判定，归 skill（写作者）。
 
 ### M3 — 自举（bootstrap → self-host）
 

@@ -6,7 +6,7 @@
 
 - **是什么**：`lp` —— 基于 Typst 的 literate programming 工具。同一个 `.typ` 文档既是可排版的文档（weave = `typst compile`），也是多种目标语言源码的唯一真相（tangle = `lp tangle`）。与目标语言正交：工具里没有任何目标语言知识。
 - **仓库**：`~/Projects/literate`（分支 `main`）。devshell 带 `typst 0.15.1` + `cargo 1.97`：`nix develop -c <cmd>`。
-- **自举 Stage 1 已落地（ADR D15）**：`self.typ` 是唯一真相；根 `Cargo.toml`/`src/`/`tests/` 是**生成物**（gitignore）；`bootstrap/` 是**冻结种子**。所以 clone 后 `src/` 根本不存在，先跑种子：
+- **自举 Stage 1 已落地（ADR D15）**：`self.typ` 是唯一真相；根 `Cargo.toml`/`src/`/`tests/`/`.agents/`（含 skill）是**生成物**（gitignore）；`bootstrap/` 是**冻结种子**。所以 clone 后 `src/` 根本不存在，先跑种子：
 
   ```sh
   nix develop -c cargo build --manifest-path bootstrap/Cargo.toml   # 种子
@@ -14,14 +14,15 @@
   nix develop -c cargo test                                          # 48 个，需要 typst
   ```
 
-- **已有生成物时**先跑这三件事：`nix develop -c cargo test`（48 个，**需要 typst**）、`nix develop -c examples/demo/run.sh`（端到端）、`nix develop -c ./target/debug/lp tangle self.typ --out . --check`（自复现，必须绿）。
+- **已有生成物时**先跑这三件事：`nix develop -c cargo test`（51 个，**需要 typst**）、`nix develop -c examples/demo/run.sh`（端到端）、`nix develop -c ./target/debug/lp tangle self.typ --out . --check`（自复现，必须绿）。
+- **两条结构规则是硬错误（D16）**：任何片段的**第一次被引用必须在它的声明之前**（先命名、后细节）；片段展开进文件时 `lang` 必须与根一致。语义自洽（散文与代码是否一致）工具查不了，是 **skill** 那半边。
 
 ## 1. 它现在是什么（行为契约）
 
 | 问题 | 谁回答 | 机制 |
 | --- | --- | --- |
 | 有哪些 chunk、什么顺序、文本、语言 | **Typst 求值** | 文档 import `lit/lp.typ` 用 `#chunk(name, ```…```)` / `#file(path, ```…```)` **声明**；工具 `typst eval 'query(<lp-decl>)'` 读回来。`#for`/`#if`/函数/`#include` 生成的 chunk 一视同仁 |
-| `<<name>>` 展开、缩进、悬空/环/空 chunk 报错 | `lp`（`tangle.rs`） | 纯文本替换 + 每行缩进；作用在**求值后**的文本上 |
+| `<<name>>` 展开、缩进、悬空/环/空 chunk 报错、**先命名后展开**、**lang 一致** | `lp`（`tangle.rs`） | 纯文本替换 + 每行缩进；作用在**求值后**的文本上。顺序与 lang 是硬错误（D16）；要原样展示 `<<name>>` 独占一行用 `@<<name>>`（D17） |
 | 每行输出从哪来 | `lp`（`map.rs`，schema v5） | **chunk 区间**：`runs = [{chunk, first, last}]`，每目录一份 `.lpmap.json`。**没有 `.typ` 行号**（见 §2） |
 | 输出目录里的东西归谁 | `lp`（`status.rs`） | 三类：**produced**（`#file` 声明写的）/ **declared**（`.lpignore`，规则即 gitignore、**匹配=保护**）/ **unaccounted**（都不是 → `tangle` **报错**；只有 `lp unaccounted --delete` 才删） |
 | weave | `typst compile` | 包同时负责渲染（带标题的块 + 引用标记），文档不需要样式 show rule |
@@ -52,6 +53,8 @@
 | `declared-chunks.md` | D13 **声明式 chunk**：`#chunk`/`#file`，声明自带 name/lang/text |
 | `no-positions.md` | D14 **删掉行号映射**，出处降到 chunk 级；`locate.rs`/`source.rs` 删除 |
 | `self-hosting-layout.md` | D15 **自举布局**：根即 `--out`、`bootstrap/` 冻结种子、达成标准与永久不变量分开、引用撞车改夹具不加语法 |
+| `document-invariants.md` | D16 **结构不变量（硬错误）**：先命名后展开、片段与文件 lang 一致；边界：语义自洽是写作者的事（skill） |
+| `reference-escape.md` | D17 **转义**：`@<<name>>` 输出字面量；skill 进文档后必须能展示引用语法 |
 
 ## 4. 不许回头做的事（都踩过，附证据）
 
@@ -67,7 +70,9 @@
 
 ## 5. 当前状态与已知脏点
 
-- **测试 48 个**（6 单元 + 19 flow + 5 lazy + 7 metadata + 10 owned + 1 self），fmt/clippy 干净，`examples/demo/run.sh` 全绿。
+- **测试 51 个**（7 单元 + 21 flow + 5 lazy + 7 metadata + 10 owned + 1 self），fmt/clippy 干净，`examples/demo/run.sh` 全绿。
+- **结构强制已落地**：`lp tangle` 现在会拒绝“先写细节后命名”与“片段 lang 与文件不符”（D16）；引用转义 `@<<name>>`（D17）。`examples/demo/literate.typ` 与两个 fixture 已按规则重排。
+- **skill 也是生成物**：`.agents/skills/literate-programming/`（SKILL.md + 两个 reference）由 `self.typ` 声明；改 skill = 改文档。
 - **自举 Stage 1 已验**：种子 `bootstrap/target/debug/lp tangle self.typ --out . --check` 全 ok，且 `diff -r bootstrap/{src,tests} .` 逐字节相同；`tests/self.rs` 守永久不变量（自己构的二进制自复现）。
 - 规模：`self.typ` 3228 行（14 个根 chunk）；生成 `src/` 约 1.8k 行 + `lit/lp.typ` 78 行；`bootstrap/` 是同一批字节的冻结副本。
 - 上一轮审计后**剩余**的脏点（按程度）：
@@ -93,7 +98,8 @@
 - **`typst` 必须在 PATH**（或 `LP_TYPST`）：tangle 靠它读声明，`cargo test` 也需要 → 一律 `nix develop -c ...`。
 - **fresh clone 不能直接 `cargo test`**：`src/` 是生成物，先按 §0 跑种子那两步。
 - **flake 只看 git 已跟踪的文件**：新建/改 `flake.nix` 后要先 `git add`，否则 `nix develop` 报 `not tracked by Git`。
-- **`.lpignore` 语义与 `.gitignore` 反向**：匹配 = **保护**（"要保留什么"的清单），不是"忽略"。控制文件只有 `.lpignore` 与 `.lpmap.json`，**没有 git 特例**，点文件是普通内容。新增顶层文件（编辑器临时文件、新工具目录）要顺手声明，否则 `tangle` 报"未处置"。
+- **`.lpignore` 语义与 `.gitignore` 反向**：匹配 = **保护**（"要保留什么"的清单），不是"忽略"。控制文件只有 `.lpignore` 与 `.lpmap.json`，**没有 git 特例**，点文件是普通内容。新增顶层文件（编辑器临时文件、新工具目录）要顺手声明，否则 `tangle` 报"未处置"——`.agents/` 曾经就因此报错。
+- **改写 `self.typ` 里的文件内容时注意两件事**：正文里出现独占一行的 `<<name>>` 必须写成 `@<<name>>`（否则会被当引用）；fence 要比正文里最长反引号串长（skill 正文里有四反引号的例子 → 用五个）。生成脚本 `experiments/2026-09-11-transliterate/self_typ.sh` 已经会做这两件事。
 - **`--out` 是仓库根**：`lp tangle self.typ --out . --check` 是干跑（不写任何东西），可以随时跑；`lp unaccounted ... --delete` 在这个仓库里等于对全仓库动刀——别在没看清单的时候跑。
 - **`examples/demo/build/` 是生成物**（gitignore），里面有 `.lpignore`（唯一被跟踪的文件，靠 `.gitignore` 里的 `!` 规则）。
 - **本会话里 pi-lens 偶尔报 `~/.config/pi-web/...` 的路径**（例如 `src/main.rs`、`out/a.py`）：那是 harness 把仓库相对路径按自己的 cwd 解析的**假象**，那些文件不存在；以仓库内路径为准。
