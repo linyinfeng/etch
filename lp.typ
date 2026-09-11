@@ -5242,9 +5242,10 @@ files cargo and nix maintain, which no chunk has any business owning.
 # produce. The output directory is `tangled/`, the crate the document generates.
 
 # `tangled/` is a repository of its own, so that the generated code has a history separate
-# from the document's (the bootstrap makes it one; `git init tangled`). Its metadata is not
-# content, and this is the line that says so.
+# from the document's (the bootstrap makes it one; `git init tangled`). Its metadata and its own
+# ignore rules are not content, and these are the two lines that say so.
 /.git
+/.gitignore
 
 # cargo's own files, and the example's build directory — whose own .lpignore governs what is
 # inside it, because a nested document's output is not this document's business.
@@ -5293,6 +5294,18 @@ older lp reads the declarations here and writes this generation over its own tre
 example, protect list. The
 seed is then just a directory again, and it stays untouched until someone decides the
 current generation should become the next seed.
+
+That tree is a copy that can be read on its own, and it is a repository, but it is not this
+repository: nobody edits the generated code, and its first commit is a judgement about the program
+rather than about the document. One generation per commit is worth recommending — the tree is a
+whole program, so a diff across it says what the program did before and does now — and that is as
+far as the recommendation goes. Nothing here commits, and nothing here should: when a generation is
+worth keeping is the writer's call, not the tool's.
+
+The one thing that tree needs from you is its own `.gitignore`, because the root's does not reach
+inside it: `/.lp` and `/target` are the tool's state and cargo's, not a program. Write it, declare
+it in the protect list above next to `/.git` — they are the same kind of file, settings of the
+inner repository rather than content of this document — and the tangle leaves it alone.
 
 After that the loop is the ordinary one: edit this document, tangle, test. While writing,
 
