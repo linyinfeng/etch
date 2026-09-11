@@ -42,36 +42,34 @@ pub fn run(out: &Path, format: &str, input: &str) -> Result<usize, LpError> {
         let Ok((dir, name, entry)) = resolve(&maps, file) else {
             continue;
         };
-        let Some([mapped_line, typ_line]) = entry.locate(out_line) else {
+        let Some([mapped_line, typ_line, source]) = entry.locate(out_line) else {
             continue;
         };
         let rel = join(dir, name);
+        let typ = entry.source([0, 0, source]).unwrap_or_default().to_string();
 
-        let doc = match docs.get(&entry.typ) {
+        let doc = match docs.get(&typ) {
             Some(doc) => doc,
             None => docs
-                .entry(entry.typ.clone())
-                .or_insert(Doc::load(Path::new(&entry.typ))?),
+                .entry(typ.clone())
+                .or_insert(Doc::load(Path::new(&typ))?),
         };
 
         let chunk = entry.chunk_at(typ_line).map_or(String::new(), |chunk| {
             format!(" (chunk <<{}>>)", chunk.name)
         });
-        eprintln!("  ↳ {}:{typ_line}{chunk}", entry.typ);
+        eprintln!("  ↳ {typ}:{typ_line}{chunk}");
 
         let message = caps.name("msg").map_or("", |capture| capture.as_str());
         let note = if mapped_line == out_line {
-            format!("generated from {}:{typ_line}", entry.typ)
+            format!("generated from {typ}:{typ_line}")
         } else {
-            format!(
-                "generated from {}:{typ_line} (line {out_line} is blank or generated)",
-                entry.typ
-            )
+            format!("generated from {typ}:{typ_line} (line {out_line} is blank or generated)")
         };
         let mut err = LpError::plain(format!("{rel}:{out_line}: {message}"));
-        if let Some(range) = doc.line_range(typ_line) {
+        if let Some(range) = doc.file.line_range(typ_line) {
             err = LpError::at(
-                &doc.src,
+                &doc.file.named,
                 range,
                 format!("{rel}:{out_line}: {message}"),
                 note,

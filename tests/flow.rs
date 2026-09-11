@@ -84,10 +84,15 @@ fn tangle_records_where_every_line_came_from() {
         serde_json::from_str(&std::fs::read_to_string(dir.join("out/.lpmap.json")).expect("map"))
             .expect("json");
     let lines = map["files"]["main.py"]["lines"].as_array().expect("lines");
+    let sources = map["files"]["main.py"]["sources"]
+        .as_array()
+        .expect("sources");
+    assert_eq!(sources, &[serde_json::json!("demo.typ")]);
 
-    // Output line 3 comes from the *second* <body> block, not from the reference.
+    // Output line 3 comes from the *second* <body> block, not from the reference;
+    // the third element names which source file that line lives in.
     let expected = line_of(DOC, "print('two')");
-    assert_eq!(lines[2], serde_json::json!([3, expected]));
+    assert_eq!(lines[2], serde_json::json!([3, expected, 0]));
 }
 
 #[test]

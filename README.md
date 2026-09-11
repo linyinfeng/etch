@@ -116,13 +116,23 @@ lp unaccounted doc.typ --out out --delete   # 显式删掉它们（这就是那�
 
 ```json
 // examples/demo/build/.lpmap.json
-{ "version": 2, "docs": ["examples/demo/literate.typ"],
-  "files": { "Cargo.toml": { "typ": "examples/demo/literate.typ", "lang": "toml",
-                             "lines": [[1, 25], [7, 31]],
+{ "version": 3, "docs": ["examples/demo/literate.typ"],
+  "files": { "Cargo.toml": { "sources": ["examples/demo/literate.typ"], "lang": "toml",
+                             "lines": [[1, 25, 0], [7, 31, 0]],
                              "chunks": [{ "name": "Cargo.toml", "typ_line": 25, "end_line": 33 }] } } }
 ```
 
-`lines` 是 `[该目录内的生成文件行, .typ 行]`，指向**定义处**而不是引用处。查询时按"最具体的目录优先"解析：`lp map --file src/main.rs` 用 `src/` 的映射；只给文件名（`--file main.rs`）而多个目录都有同名文件时，报歧义而不是猜。生成物不入库：CI 跑 `lp tangle --check`，漂移即失败。
+`lines` 是 `[该目录内的生成文件行, 源文件行, sources 下标]`，指向**定义处**而不是引用处。`sources` 通常只有一个元素；当一本书拆成多章、某个输出文件的正文来自两个文件时才不止一个，诊断因此总能指到**真正含那一行的文件**。查询时按"最具体的目录优先"解析：`lp map --file src/main.rs` 用 `src/` 的映射；只给文件名（`--file main.rs`）而多个目录都有同名文件时，报歧义而不是猜。生成物不入库：CI 跑 `lp tangle --check`，漂移即失败。
+
+## 多章文档
+
+```sh
+lp tangle book.typ chapter-one.typ chapter-two.typ --out out
+```
+
+根 chunk 只要出现在**任意一个**文档里即可（"没有 root"是整次调用的判定，不是每个文件）；`<<ref>>` 可以跨文件引用（按命令行给出的文件顺序拼接同名 chunk）。每个输出文件的映射会记下它真正用到的源文件，`lp map` / `lp explain` 因此指到正确的文件与行。
+
+还没做：**跟随 `#include`**（Typst 的 include 是内容级合并，chunk 与 heading 都会并入文档；我们目前只解析命令行里列出的文件），以及 Typst 侧的结构元数据（见 `agent-notes/research/2026-09-11-typst-structure-and-include.md`）。
 
 ## 状态
 

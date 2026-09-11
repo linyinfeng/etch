@@ -3,20 +3,26 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::diag::LpError;
 use crate::map::{ChunkEntry, FileMap, LpMap, MAP_FILE, split};
-use crate::parse::{Block, Doc, check_output_path, is_root};
+use crate::parse::{Block, Doc, FileText, check_output_path, is_root};
 
 pub struct ChunkSet<'a> {
     chunks: BTreeMap<&'a str, Vec<&'a Block>>,
 }
 
 impl<'a> ChunkSet<'a> {
-    pub fn new(doc: &'a Doc) -> Self {
+    /// One set over every document of the invocation: a root in one file may pull
+    /// in a fragment written in another, which is what a book split into chapters
+    /// looks like. Document order is the order the files were given.
+    pub fn new(docs: &'a [Doc]) -> Self {
         let mut chunks: BTreeMap<&str, Vec<&Block>> = BTreeMap::new();
-        for block in &doc.blocks {
-            chunks.entry(block.name.as_str()).or_default().push(block);
+        for doc in docs {
+            for block in &doc.blocks {
+                chunks.entry(block.name.as_str()).or_default().push(block);
+            }
         }
         Self { chunks }
     }
@@ -53,29 +59,29 @@ fn ref_target(line: &str) -> Option<(&str, &str)> {
 pub struct Tangled {
     /// File contents, always ending in a newline.
     pub text: String,
-    /// `[output line, .typ line]`, in output order.
-    pub lines: Vec<[usize; 2]>,
+    /// `[output line, line in its source file, index into the plan's sources]`.
+    pub lines: Vec<[usize; 3]>,
     pub chunks: Vec<ChunkEntry>,
 }
 
-pub fn expand(doc: &Doc, set: &ChunkSet, root: &str) -> Result<Tangled, LpError> {
+pub fn expand(set: &ChunkSet, root: &str, sources: &[Arc<FileText>]) -> Result<Tangled, LpError> {
     let mut out = Tangled {
         text: String::new(),
         lines: Vec::new(),
         chunks: Vec::new(),
     };
     let mut stack = Vec::new();
-    expand_chunk(doc, set, root, "", &mut stack, &mut out)?;
+    expand_chunk(set, root, "", &mut stack, &mut out, sources)?;
     Ok(out)
 }
 
 fn expand_chunk(
-    doc: &Doc,
     set: &ChunkSet,
     name: &str,
     indent: &str,
     stack: &mut Vec<String>,
     out: &mut Tangled,
+    sources: &[Arc<FileText>],
 ) -> Result<(), LpError> {
     if let Some(start) = stack.iter().position(|n| n == name) {
         let mut chain: Vec<String> = stack[start..].to_vec();
@@ -84,7 +90,7 @@ fn expand_chunk(
         let block = set.get(name).and_then(|blocks| blocks.first()).copied();
         return Err(match block {
             Some(block) => LpError::at(
-                &doc.src,
+                &block.file.named,
                 block.span.clone(),
                 message,
                 "this chunk is part of the cycle",
@@ -98,7 +104,7 @@ fn expand_chunk(
         if block.text.is_empty() {
             stack.pop();
             return Err(LpError::at(
-                &doc.src,
+                &block.file.named,
                 block.span.clone(),
                 format!("chunk <<{name}>> is empty"),
                 "empty chunk",
@@ -114,20 +120,25 @@ fn expand_chunk(
 
         for (i, line) in block.text.lines().enumerate() {
             let typ_line = block.fence_line + 1 + i;
+            let source = sources
+                .iter()
+                .position(|file| Arc::ptr_eq(file, &block.file))
+                .unwrap_or_default();
             match ref_target(line) {
                 None => {
-                    out.lines.push([out.lines.len() + 1, typ_line]);
+                    out.lines.push([out.lines.len() + 1, typ_line, source]);
                     out.text.push_str(indent);
                     out.text.push_str(line);
                     out.text.push('\n');
                 }
                 Some((target, local_indent)) => {
                     if set.get(target).is_none() {
-                        let range = doc
+                        let range = block
+                            .file
                             .line_range(typ_line)
                             .unwrap_or_else(|| block.span.clone());
                         return Err(LpError::at(
-                            &doc.src,
+                            &block.file.named,
                             range,
                             format!("chunk <<{target}>> is not defined"),
                             format!("referenced from <<{name}>>"),
@@ -138,7 +149,7 @@ fn expand_chunk(
                         )));
                     }
                     let nested = format!("{indent}{local_indent}");
-                    expand_chunk(doc, set, target, &nested, stack, out)?;
+                    expand_chunk(set, target, &nested, stack, out, sources)?;
                 }
             }
         }
@@ -184,6 +195,9 @@ pub struct Plan {
     pub texts: BTreeMap<String, String>,
     pub produced: BTreeSet<String>,
     pub warnings: Vec<String>,
+    /// Every file the documents were read from, in first-seen order. Line entries
+    /// in the maps index into this.
+    pub sources: Vec<Arc<FileText>>,
 }
 
 pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
@@ -191,9 +205,18 @@ pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
     // makes a document look rootless: report it first.
     for doc in docs {
         if let Some(error) = doc.errors.first() {
-            let message = format!("{}: syntax error: {}", doc.path.display(), error.message);
+            let message = format!(
+                "{}: syntax error: {}",
+                doc.file.path.display(),
+                error.message
+            );
             let err = match error.range.clone() {
-                Some(range) => LpError::at(&doc.src, range, message, "the document does not parse"),
+                Some(range) => LpError::at(
+                    &doc.file.named,
+                    range,
+                    message,
+                    "the document does not parse",
+                ),
                 None => LpError::plain(message),
             };
             return Err(err.with_help(
@@ -205,13 +228,10 @@ pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
     // A document that only holds fragments is legitimate when another document
     // (or chapter) carries the roots, so "no roots" is a property of the whole
     // invocation, not of each file.
-    if !docs
-        .iter()
-        .any(|doc| !ChunkSet::new(doc).roots().is_empty())
-    {
+    if ChunkSet::new(docs).roots().is_empty() {
         let listed = docs
             .iter()
-            .map(|doc| doc.path.display().to_string())
+            .map(|doc| doc.file.path.display().to_string())
             .collect::<Vec<_>>()
             .join(", ");
         return Err(
@@ -226,52 +246,75 @@ pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
         texts: BTreeMap::new(),
         produced: BTreeSet::new(),
         warnings: Vec::new(),
+        sources: Vec::new(),
     };
 
     for doc in docs {
-        let set = ChunkSet::new(doc);
-        let roots = set.roots();
+        if !plan.sources.iter().any(|file| Arc::ptr_eq(file, &doc.file)) {
+            plan.sources.push(Arc::clone(&doc.file));
+        }
+    }
 
-        let referenced: BTreeSet<String> = doc.blocks.iter().flat_map(refs_of).collect();
-        for name in set.names() {
-            if !is_root(name) && !referenced.contains(name) {
-                let line = set
-                    .get(name)
-                    .and_then(|blocks| blocks.first())
-                    .map_or(0, |block| block.fence_line);
-                plan.warnings.push(format!(
-                    "{}:{line}: chunk <<{name}>> is never referenced",
-                    doc.path.display()
-                ));
-            }
+    let set = ChunkSet::new(docs);
+    let referenced: BTreeSet<String> = docs
+        .iter()
+        .flat_map(|doc| doc.blocks.iter())
+        .flat_map(refs_of)
+        .collect();
+    for name in set.names() {
+        if !is_root(name) && !referenced.contains(name) {
+            let block = set.get(name).and_then(|blocks| blocks.first());
+            let where_ = block.map_or_else(String::new, |block| {
+                format!("{}:{}: ", block.file.path.display(), block.fence_line)
+            });
+            plan.warnings
+                .push(format!("{where_}chunk <<{name}>> is never referenced"));
+        }
+    }
+
+    for root in set.roots() {
+        check_output_path(root)?;
+        let lang = set
+            .get(root)
+            .and_then(|blocks| blocks.first())
+            .and_then(|block| block.lang.clone());
+        let tangled = expand(&set, root, &plan.sources)?;
+
+        if !plan.produced.insert(root.to_string()) {
+            return Err(LpError::plain(format!("output {root} is produced twice")));
         }
 
-        for root in roots {
-            check_output_path(root)?;
-            let lang = doc
-                .blocks
-                .iter()
-                .find(|block| block.name == root)
-                .and_then(|block| block.lang.clone());
-            let tangled = expand(doc, &set, root)?;
+        // Each output names only the source files its own lines came from, and the
+        // line entries index into that shorter list.
+        let used: BTreeSet<usize> = tangled.lines.iter().map(|entry| entry[2]).collect();
+        let sources: Vec<String> = used
+            .iter()
+            .map(|index| plan.sources[*index].path.display().to_string())
+            .collect();
+        let remapped: BTreeMap<usize, usize> = used
+            .iter()
+            .enumerate()
+            .map(|(position, index)| (*index, position))
+            .collect();
+        let lines = tangled
+            .lines
+            .iter()
+            .map(|entry| [entry[0], entry[1], remapped[&entry[2]]])
+            .collect();
 
-            if !plan.produced.insert(root.to_string()) {
-                return Err(LpError::plain(format!("output {root} is produced twice")));
-            }
-            let entry = FileMap {
-                typ: doc.path.display().to_string(),
-                lang,
-                lines: tangled.lines,
-                chunks: tangled.chunks,
-            };
-            let (dir, name) = split(root);
-            plan.maps
-                .entry(PathBuf::from(dir))
-                .or_default()
-                .files
-                .insert(name.to_string(), entry);
-            plan.texts.insert(root.to_string(), tangled.text);
-        }
+        let entry = FileMap {
+            sources,
+            lang,
+            lines,
+            chunks: tangled.chunks,
+        };
+        let (dir, name) = split(root);
+        plan.maps
+            .entry(PathBuf::from(dir))
+            .or_default()
+            .files
+            .insert(name.to_string(), entry);
+        plan.texts.insert(root.to_string(), tangled.text);
     }
     Ok(plan)
 }
@@ -340,7 +383,7 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
             outcome.unchanged.push(output);
         } else if check {
             outcome.stale.push(drift_report(
-                &entry.typ,
+                entry.sources.first().map(String::as_str).unwrap_or("-"),
                 root,
                 existing.as_deref(),
                 &entry.lines,
@@ -370,7 +413,7 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
             map.set_docs(
                 map.files
                     .values()
-                    .map(|file| file.typ.clone())
+                    .flat_map(|file| file.sources.iter().cloned())
                     .collect::<Vec<_>>(),
             );
             map.write_if_changed(&out.join(&dir))?;
@@ -413,7 +456,7 @@ fn drift_report(
     typ: &str,
     root: &str,
     existing: Option<&str>,
-    lines: &[[usize; 2]],
+    lines: &[[usize; 3]],
     text: &str,
 ) -> String {
     match first_difference(existing, text) {

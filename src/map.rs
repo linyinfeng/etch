@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::diag::LpError;
 
 pub const MAP_FILE: &str = ".lpmap.json";
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LpMap {
@@ -29,11 +29,13 @@ pub struct LpMap {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMap {
-    /// The `.typ` document this file was tangled from.
-    pub typ: String,
+    /// The source files this output's lines came from, in the order the line
+    /// entries refer to them. Usually one; a document split across files, or a
+    /// chunk defined in two of them, makes it more.
+    pub sources: Vec<String>,
     pub lang: Option<String>,
-    /// `[output line, .typ line]`, 1-based, in output order.
-    pub lines: Vec<[usize; 2]>,
+    /// `[output line, line in sources[i], i]`, 1-based, in output order.
+    pub lines: Vec<[usize; 3]>,
     /// Chunks that contributed lines to this file, in document order.
     pub chunks: Vec<ChunkEntry>,
 }
@@ -128,7 +130,12 @@ impl LpMap {
 impl FileMap {
     /// Where did this output line come from? Falls back to the closest earlier
     /// line so blank lines and generated separators still report something.
-    pub fn locate(&self, line: usize) -> Option<[usize; 2]> {
+    /// The source file a line entry points at.
+    pub fn source(&self, entry: [usize; 3]) -> Option<&str> {
+        self.sources.get(entry[2]).map(String::as_str)
+    }
+
+    pub fn locate(&self, line: usize) -> Option<[usize; 3]> {
         let exact = self.lines.iter().find(|entry| entry[0] == line);
         exact
             .or_else(|| self.lines.iter().rev().find(|entry| entry[0] < line))

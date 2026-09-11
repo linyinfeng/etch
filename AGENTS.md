@@ -23,7 +23,8 @@ tests/flow.rs     跑真二进制的端到端测试
 - **正交性**：算法里不得出现目标语言知识。语言差异只能是**数据表**（扩展名 → typst lang tag、将来可选的行指令模板）。
 - **生成物不入库**：`examples/demo/build/` 之类一律 gitignore；CI 用 `lp tangle --check` 守漂移。`.typ` 是唯一真相。
 - **报错必须指回 `.typ`**：新错误一律用 `LpError::at`（带 span），不要拼裸字符串。
-- **解析只用 `typst-syntax`**（ADR D6）；`typst eval` 只当测试 oracle。
+- **解析只用 `typst-syntax`**（ADR D6）；`typst eval` 只当测试 oracle 与（将来）可选的结构元数据阶段。
+- **一个 chunk 的行可以来自多个文件**：`Block.file` 是 `Arc<FileText>`，报错用 `block.file.named`；映射里 per-line 记 `sources` 下标（schema v3）。
 - **未处置即错误，删除必须显式**（ADR D10）：`--out` 整个目录里的每个文件都要被 chunk 产出或被 `.lpignore` 声明，否则 `lp tangle` 失败并列出（两条出路：声明 / `lp unaccounted --delete`）。`lp` 从不自行删除。豁免只有 `.lpignore` 与 `.lpmap.json` 两个控制文件，无 git 特例。改这块前先看 `tests/owned.rs`。
 - **写盘只写变化的字节**（ADR D9）：不要无脑重写生成物或 `.lpmap.json`；有语法错误时不得 tangle。改这两条行为前先看 `tests/lazy.rs`。
 

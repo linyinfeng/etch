@@ -14,25 +14,58 @@
 
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use miette::NamedSource;
 use typst_syntax::{DiagSpanKind, LinkedNode, Source, SyntaxKind, ast};
 
 use crate::diag::LpError;
 
+/// One file read while loading a document: the text it was parsed from, plus the
+/// name to show in diagnostics. Shared, because every block points back at it.
+pub struct FileText {
+    pub path: PathBuf,
+    pub text: String,
+    pub named: NamedSource<String>,
+}
+
+impl FileText {
+    fn load(path: &Path) -> Result<Self, LpError> {
+        let text = std::fs::read_to_string(path).map_err(|err| LpError::io(path, err))?;
+        Ok(Self {
+            path: path.to_path_buf(),
+            named: NamedSource::new(path.display().to_string(), text.clone()),
+            text,
+        })
+    }
+
+    /// Byte range of a 1-based line, without its newline.
+    pub fn line_range(&self, line: usize) -> Option<Range<usize>> {
+        let mut offset = 0;
+        for (index, text) in self.text.split_inclusive('\n').enumerate() {
+            if index + 1 == line {
+                return Some(offset..offset + text.trim_end_matches('\n').len());
+            }
+            offset += text.len();
+        }
+        None
+    }
+}
+
 pub struct Block {
     pub name: String,
     pub lang: Option<String>,
     pub text: String,
-    /// 1-based line of the opening fence.
+    /// 1-based line of the opening fence, in [`Self::file`].
     pub fence_line: usize,
     pub span: Range<usize>,
+    /// The file this chunk was written in. A document may span several when it is
+    /// tangled from more than one file, and diagnostics have to name the right one.
+    pub file: Arc<FileText>,
 }
 
 pub struct Doc {
-    pub path: PathBuf,
-    pub text: String,
-    pub src: NamedSource<String>,
+    pub file: Arc<FileText>,
     pub blocks: Vec<Block>,
     /// Syntax errors, straight from Typst's parser. Tangling refuses to run with
     /// these: a half-typed construct can silently change the chunk structure.
@@ -46,8 +79,9 @@ pub struct Diagnostic {
 
 impl Doc {
     pub fn load(path: &Path) -> Result<Self, LpError> {
-        let text = std::fs::read_to_string(path).map_err(|e| LpError::io(path, e))?;
-        let src = NamedSource::new(path.display().to_string(), text.clone());
+        let file = Arc::new(FileText::load(path)?);
+        let text = file.text.clone();
+        let src = file.named.clone();
         let source = Source::detached(text.clone());
 
         // `errors_and_warnings` is the parser's own diagnostic list: it catches
@@ -71,30 +105,16 @@ impl Doc {
                 &source,
                 &text,
                 &src,
+                &file,
                 &mut blocks,
             )?;
         }
 
         Ok(Self {
-            path: path.to_path_buf(),
-            text,
-            src,
+            file,
             blocks,
             errors,
         })
-    }
-
-    /// Byte range of a 1-based line, without its newline. Used to point
-    /// diagnostics at whole lines.
-    pub fn line_range(&self, line: usize) -> Option<Range<usize>> {
-        let mut offset = 0;
-        for (i, text) in self.text.split_inclusive('\n').enumerate() {
-            if i + 1 == line {
-                return Some(offset..offset + text.trim_end_matches('\n').len());
-            }
-            offset += text.len();
-        }
-        None
     }
 }
 
@@ -111,6 +131,7 @@ fn walk(
     src: &Source,
     text: &str,
     named: &NamedSource<String>,
+    file: &Arc<FileText>,
     out: &mut Vec<Block>,
 ) -> Result<(), LpError> {
     if let Some(raw) = node.get().cast::<ast::Raw>()
@@ -125,6 +146,7 @@ fn walk(
             .join("\n");
 
         out.push(Block {
+            file: Arc::clone(file),
             name,
             lang: raw.lang().map(|l| l.get().to_string()),
             text: body,
@@ -134,7 +156,7 @@ fn walk(
     }
 
     for child in node.children() {
-        walk(&child, src, text, named, out)?;
+        walk(&child, src, text, named, file, out)?;
     }
     Ok(())
 }

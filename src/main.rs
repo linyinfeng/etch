@@ -167,10 +167,11 @@ fn run() -> Result<i32, LpError> {
                 let mut hits = 0;
                 for (dir, map) in &maps {
                     for (name, entry) in &map.files {
-                        if entry.typ != doc && !entry.typ.ends_with(doc.as_str()) {
-                            continue;
-                        }
-                        for [out_line, typ_line] in &entry.lines {
+                        for [out_line, typ_line, source] in &entry.lines {
+                            let from = entry.source([0, 0, *source]).unwrap_or_default();
+                            if from != doc && !from.ends_with(doc.as_str()) {
+                                continue;
+                            }
                             if *typ_line == line {
                                 println!("{}:{out_line}", map::join(dir, name));
                                 hits += 1;
@@ -191,12 +192,13 @@ fn run() -> Result<i32, LpError> {
             };
             let (dir, name, entry) = map::resolve(&maps, &file)?;
             let rel = map::join(dir, name);
-            let Some([mapped_line, typ_line]) = entry.locate(line) else {
+            let Some([mapped_line, typ_line, source]) = entry.locate(line) else {
                 return Err(LpError::plain(format!("{rel}:{line}: not in the line map")));
             };
+            let typ = entry.source([0, 0, source]).unwrap_or_default().to_string();
 
-            println!("{}:{typ_line}", entry.typ);
-            if let Some(text) = std::fs::read_to_string(&entry.typ).ok().and_then(|doc| {
+            println!("{typ}:{typ_line}");
+            if let Some(text) = std::fs::read_to_string(&typ).ok().and_then(|doc| {
                 doc.lines()
                     .nth(typ_line - 1)
                     .map(str::trim_end)
@@ -239,30 +241,30 @@ fn run() -> Result<i32, LpError> {
 
 fn list(path: &Path) -> Result<(), LpError> {
     let doc = Doc::load(path)?;
-    let set = tangle::ChunkSet::new(&doc);
+    let set = tangle::ChunkSet::new(std::slice::from_ref(&doc));
     let referenced: BTreeSet<String> = doc.blocks.iter().flat_map(tangle::refs_of).collect();
 
     for error in doc.errors.iter().take(3) {
         match &error.range {
             Some(range) => {
-                let line = doc.text[..range.start].matches('\n').count() + 1;
+                let line = doc.file.text[..range.start].matches('\n').count() + 1;
                 let err = LpError::at(
-                    &doc.src,
+                    &doc.file.named,
                     range.clone(),
                     error.message.clone(),
                     "syntax error",
                 );
                 eprintln!(
                     "{}:{line}: {:?}",
-                    doc.path.display(),
+                    doc.file.path.display(),
                     miette::Report::new(err)
                 );
             }
-            None => eprintln!("{}: {}", doc.path.display(), error.message),
+            None => eprintln!("{}: {}", doc.file.path.display(), error.message),
         }
     }
 
-    println!("{}: {} chunks", doc.path.display(), doc.blocks.len());
+    println!("{}: {} chunks", doc.file.path.display(), doc.blocks.len());
     let mut blocks = doc.blocks.iter().collect::<Vec<_>>();
     blocks.sort_by_key(|block| block.fence_line);
     for block in blocks {
