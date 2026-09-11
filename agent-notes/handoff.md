@@ -72,6 +72,7 @@
 
 - **环境不在仓库里**（flake 已移除，D21）：`typst` 必须在 PATH（或 `LP_TYPST`；tangle 与 `cargo test` 都要它），Rust 侧要**含链接器**的完整工具链（只给 cargo 会失败在 `linker cc not found`）。
 - **自用脚本**：`agent-notes/dev.sh gates`（或 `test`/`fmt`/`clippy`/`check`/`demo`/`weave`/`bootstrap`，或 `dev.sh <任意命令>`）。它是临时的，环境有别的着落时删掉即可。
+- **内层提交由 agent 管**：`tangled/` 有自己的历史，当前一代已落第一个 commit（`git -C tangled log`）。何时提交是用户的判断，书里只**推荐**「一代一 commit」；本仓库按 diff 需要由 agent 提交，提交前先 `./tangled/target/debug/lp tangle lp.typ` 保证树是这一代的。树的 `.gitignore`（`/.lp`、`/target`、`/.lpmap.json`、示例的 build 目录）与 `/.git` 一样是**内层仓库的设置**，已在保护清单里声明。
 - **输出目录**：默认是文档旁边的 `tangled/`，并且它**是一个 git repo**（bootstrap 里 `git init tangled`，幂等）——生成的代码有独立的历史，`tangled/.lpignore` 里的 `/.git` 就是这句话。`cargo` 的命令要带 `--manifest-path tangled/Cargo.toml`。
 - **包是自包含的**：工具把内置包解压到 `<doc>/.lp/{local/lp/0.1.0}/` 并传给 `typst --package-path`；纯 `typst` 的步骤（weave、LSP）要自己设 `TYPST_PACKAGE_PATH=<doc>/.lp`。
 - **`--out` 就是仓库根**：`lp tangle lp.typ --out . --check` 是干跑、随时可跑；`lp unaccounted … --delete` 等于对全仓库动刀，看清单再动手。
