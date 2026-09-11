@@ -265,11 +265,11 @@ impl LpError {
 The file needs one import, and the error itself is two fields — a message and an optional
 help. The reason there is no third field for a position is the subject of this section.
 
-#chunk("diag: the imports", ````
+#chunk("diag: the imports", ````rust
 use std::fmt;
 ````)
 
-#chunk("diag: what an error carries", ````
+#chunk("diag: what an error carries", ````rust
 /// A user-facing error: what went wrong, and what to do about it.
 ///
 /// No source spans. Typst gives no source positions, so a span could only come
@@ -290,7 +290,7 @@ own context without dropping what a lower layer already said. `io` exists becaus
 only interesting part of an I/O error here: the file that could not be read or written is exactly
 what the reader needs, and the rest is noise.
 
-#chunk("diag: a plain error", ````
+#chunk("diag: a plain error", ````rust
 pub fn plain(message: impl Into<String>) -> Self {
     Self {
         message: message.into(),
@@ -299,7 +299,7 @@ pub fn plain(message: impl Into<String>) -> Self {
 }
 ````)
 
-#chunk("diag: adding advice", ````
+#chunk("diag: adding advice", ````rust
 /// Add advice. Repeated calls append, so a caller can add its own context
 /// without dropping what the error already said.
 pub fn with_help(mut self, help: impl Into<String>) -> Self {
@@ -312,7 +312,7 @@ pub fn with_help(mut self, help: impl Into<String>) -> Self {
 }
 ````)
 
-#chunk("diag: the io case", ````
+#chunk("diag: the io case", ````rust
 pub fn io(path: &std::path::Path, err: std::io::Error) -> Self {
     Self::plain(format!("{}: {err}", path.display()))
 }
@@ -324,7 +324,7 @@ Three trait implementations and nothing else: `Display` writes the message, `Err
 error, and `Diagnostic` hands miette the help that was collected. The fancy rendering is one call
 in `main.rs`; this file only promises that there is something to render.
 
-#chunk("diag: what a terminal needs", ````
+#chunk("diag: what a terminal needs", ````rust
 impl fmt::Display for LpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.message)
@@ -332,11 +332,11 @@ impl fmt::Display for LpError {
 }
 ````)
 
-#chunk("diag: the standard error trait", ````
+#chunk("diag: the standard error trait", ````rust
 impl std::error::Error for LpError {}
 ````)
 
-#chunk("diag: what miette needs", ````
+#chunk("diag: what miette needs", ````rust
 impl miette::Diagnostic for LpError {
     fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
         self.help
@@ -420,7 +420,7 @@ a serde error at runtime, reported with the raw output that Typst actually print
 the weakest joint in the program, and it is a joint by construction: two languages, two
 files, one agreement.
 
-#chunk("metadata: the module note", ````
+#chunk("metadata: the module note", ````rust
 //! What the document declares its chunks to be.
 //!
 //! Typst is Turing-complete: a chunk can come from a loop, a branch, a function
@@ -443,7 +443,7 @@ files, one agreement.
 //! from the source afterwards — which is why the sources are not read at all.
 ````)
 
-#chunk("metadata: the imports", ````
+#chunk("metadata: the imports", ````rust
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -452,7 +452,7 @@ use serde::Deserialize;
 use crate::diag::LpError;
 ````)
 
-#chunk("metadata: the one query", ````
+#chunk("metadata: the one query", ````rust
 /// Every declaration, in the order the document produced them.
 const QUERY: &str = "query(<lp-decl>).map(declaration => declaration.value)";
 ````)
@@ -465,7 +465,7 @@ the fence, and the text. The kind is not free-form — the package emits `"chunk
 metadata, and it is an error rather than a default. A third kind would mean the package grew
 a feature the tool has not learned yet, which is not something to guess at.
 
-#chunk("metadata: what a declaration says", ````
+#chunk("metadata: what a declaration says", ````rust
 #[derive(Debug, Clone, Deserialize)]
 pub struct Decl {
     /// `"chunk"` or `"file"`.
@@ -479,7 +479,7 @@ pub struct Decl {
 }
 ````)
 
-#chunk("metadata: the two kinds", ````
+#chunk("metadata: the two kinds", ````rust
 /// What the two declaration functions mean.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -490,7 +490,7 @@ pub enum Kind {
 }
 ````)
 
-#chunk("metadata: a kind we do not know", ````
+#chunk("metadata: a kind we do not know", ````rust
 /// A declaration that says something else is a mistake in the package or in
 /// whatever emitted the metadata — not a fragment by default.
 pub fn kind(&self) -> Result<Kind, LpError> {
@@ -512,7 +512,7 @@ The binary is a hard dependency: without it there are no declarations to read. A
 override first, then `PATH`, and if neither works the error says what to do rather than
 failing later with a confusing message.
 
-#chunk("metadata: finding typst", ````
+#chunk("metadata: finding typst", ````rust
 /// Locate the `typst` binary: an explicit override, then `PATH`.
 pub fn binary() -> Result<PathBuf, LpError> {
     if let Some(path) = std::env::var_os("LP_TYPST") {
@@ -534,7 +534,7 @@ pub fn binary() -> Result<PathBuf, LpError> {
 Four fragments, and together they are the whole interaction with the outside world: make the
 paths absolute, decide where the wrapper lives, run Typst, and report what came back.
 
-#chunk("metadata: absolute documents, and where we are", ````
+#chunk("metadata: absolute documents, and where we are", ````rust
 let cwd = std::env::current_dir()
     .map_err(|err| LpError::plain(format!("cannot read the working directory: {err}")))?;
 let docs: Vec<PathBuf> = docs
@@ -543,7 +543,7 @@ let docs: Vec<PathBuf> = docs
     .collect();
 ````)
 
-#chunk("metadata: where the wrapper goes", ````
+#chunk("metadata: where the wrapper goes", ````rust
 // Typst refuses to read outside its project root, and a document may import a
 // package from outside its own directory, so the root has to cover the working
 // directory *and* every document. The wrapper lives next to the documents (it
@@ -562,7 +562,7 @@ directory *and* every document, and the wrapper has to live inside that root to 
 at all. Hence a wrapper next to the documents, including them relatively, with the root
 computed as the deepest directory that contains everything involved.
 
-#chunk("metadata: ask typst, and let the wrapper go", ````
+#chunk("metadata: ask typst, and let the wrapper go", ````rust
 let wrapper = Wrapper::write(&common_ancestor(&docs), &docs)?;
 let output = Command::new(typst)
     .arg("eval")
@@ -576,7 +576,7 @@ let output = Command::new(typst)
 drop(wrapper);
 ````)
 
-#chunk("metadata: when the document does not evaluate", ````
+#chunk("metadata: when the document does not evaluate", ````rust
 let output =
     output.map_err(|err| LpError::plain(format!("cannot run {}: {err}", typst.display())))?;
 if !output.status.success() {
@@ -592,14 +592,14 @@ The failure is reported with Typst's own message, because that is the message th
 wrote the document needs to see — a missing bracket in a chunk is a document error, not a
 tool error.
 
-#chunk("metadata: read the answer", ````
+#chunk("metadata: read the answer", ````rust
 let declarations: Vec<Decl> = serde_json::from_slice(&output.stdout).map_err(|err| {
     LpError::plain(format!("cannot read the document's declarations: {err}"))
         .with_help(String::from_utf8_lossy(&output.stdout).to_string())
 })?;
 ````)
 
-#chunk("metadata: a document that declares nothing", ````
+#chunk("metadata: a document that declares nothing", ````rust
 if declarations.is_empty() {
     return Err(LpError::plain("the document declares no chunks").with_help(
         "import the package and declare them: `#import \"lp.typ\": chunk, file`, then `#chunk(\"name\", ```…```)` or `#file(\"src/main.rs\", ```…```)`",
@@ -607,7 +607,7 @@ if declarations.is_empty() {
 }
 ````)
 
-#chunk("metadata: every kind is checked here", ````
+#chunk("metadata: every kind is checked here", ````rust
 for declaration in &declarations {
     declaration.kind()?;
 }
@@ -620,7 +620,7 @@ line. It is removed when it goes out of scope, and that includes the failing and
 paths: a leftover `.lp-decl-*.typ` in someone's directory would surface as an unaccounted file
 on the next pass, which is a bug in the user's tree caused by a tool that forgot to clean up.
 
-#chunk("metadata: the wrapper document", ````
+#chunk("metadata: the wrapper document", ````rust
 /// A wrapper document, removed when it goes out of scope — including when the
 /// evaluation fails, and including on panic.
 struct Wrapper {
@@ -628,7 +628,7 @@ struct Wrapper {
 }
 ````)
 
-#chunk("metadata: writing the wrapper", ````
+#chunk("metadata: writing the wrapper", ````rust
 fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
     let path = root.join(format!(".lp-decl-{}.typ", std::process::id()));
     let mut text = String::new();
@@ -650,7 +650,7 @@ fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
 The paths are quoted and their backslashes and quotes escaped: a file name must not be able to
 break the wrapper open, and on some systems a file name may contain a quote.
 
-#chunk("metadata: removing it, whatever happens", ````
+#chunk("metadata: removing it, whatever happens", ````rust
 impl Drop for Wrapper {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.path);
@@ -666,7 +666,7 @@ until every path fits — is easy to get subtly wrong, and the failure mode is q
 written outside the root is simply refused by Typst, with a message about a path, not about
 this function.
 
-#chunk("metadata: the deepest directory that contains every document", ````
+#chunk("metadata: the deepest directory that contains every document", ````rust
 /// The deepest directory that contains every document.
 fn common_ancestor(docs: &[PathBuf]) -> PathBuf {
     let mut root = docs
@@ -687,7 +687,7 @@ fn common_ancestor(docs: &[PathBuf]) -> PathBuf {
 }
 ````)
 
-#chunk("metadata: the wrapper's directory, pinned", ````
+#chunk("metadata: the wrapper's directory, pinned", ````rust
 #[cfg(test)]
 mod tests {
     use super::common_ancestor;
@@ -813,6 +813,8 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
     <<tangle: a document with no files>>
 
     <<tangle: fragments nobody uses>>
+
+    <<tangle: declarations with no language>>
 
     let mut maps: BTreeMap<PathBuf, LpMap> = BTreeMap::new();
     let mut texts: BTreeMap<String, String> = BTreeMap::new();
@@ -1219,6 +1221,11 @@ if set.roots().is_empty() {
 Fragments nobody references are a warning rather than an error, because a document may
 legitimately hold a fragment for a chapter that is still being written — but a fragment that
 was declared and then renamed away is almost always a mistake, and this is what catches it.
+A declaration with no language tag is warned about for the same kind of reason: the tag is data
+that downstream tools read and that this program refuses to guess from a file name, so a gap is
+reported rather than quietly filled. The two checks are separate fragments for a reason this
+project keeps running into: a blank line inside a fragment that is referenced from an indented
+place turns into a line of spaces, and whitespace is not layout.
 
 #chunk("tangle: fragments nobody uses", ````rust
 let mut warnings = Vec::new();
@@ -1231,6 +1238,22 @@ let file_names: BTreeSet<&str> = blocks
 for name in set.names() {
     if !file_names.contains(name) && !referenced.contains(name) {
         warnings.push(format!("chunk ⟪{name}⟫ is never referenced"));
+    }
+}
+````)
+
+#chunk("tangle: declarations with no language", ````rust
+// The language tag is data: the map records it, the woven page shows it, and downstream
+// tools read it. It cannot be recovered from a file name — and this program will not try,
+// because a guess dressed as data is worse than a gap — so a declaration that does not
+// carry one is said out loud. It is a warning rather than an error: a `.lpignore` has no
+// language to declare (D18).
+for name in set.names() {
+    let missing = set
+        .get(name)
+        .is_some_and(|blocks| blocks.iter().any(|block| block.lang.is_none()));
+    if missing {
+        warnings.push(format!("chunk ⟪{name}⟫ is declared without a language"));
     }
 }
 ````)
@@ -2618,7 +2641,7 @@ The watched documents, the output directory, the debounce window, and an optiona
 run after a pass that changed something. Nothing here knows about `lp` itself; this is the
 part of the program that touches the outside world.
 
-#chunk("watch: the module note", ````
+#chunk("watch: the module note", ````rust
 //! `lp watch`: keep the generated files in step with the document while it is
 //! being edited, and fuse the check loop in.
 //!
@@ -2638,7 +2661,7 @@ part of the program that touches the outside world.
 //! profile on a book-sized document.
 ````)
 
-#chunk("watch: the imports", ````
+#chunk("watch: the imports", ````rust
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -2650,7 +2673,7 @@ use crate::diag::LpError;
 use crate::tangle;
 ````)
 
-#chunk("watch: what the command line passes in", ````
+#chunk("watch: what the command line passes in", ````rust
 pub struct Options {
     pub docs: Vec<PathBuf>,
     pub out: PathBuf,
@@ -2666,7 +2689,7 @@ pub struct Options {
 Three fragments: the debouncer and its channel, the directories to watch, and the line that says
 what is being watched.
 
-#chunk("watch: one debouncer, one channel", ````
+#chunk("watch: one debouncer, one channel", ````rust
 let (tx, rx) = mpsc::channel();
 let mut debouncer = new_debouncer(
     options.debounce,
@@ -2680,7 +2703,7 @@ let mut debouncer = new_debouncer(
 .map_err(|err| LpError::plain(format!("cannot start the file watcher: {err}")))?;
 ````)
 
-#chunk("watch: the directories, not the files", ````
+#chunk("watch: the directories, not the files", ````rust
 // Watch the containing directories, not the files: editors save by renaming a
 // temporary file over the target, which drops a file-level watch.
 let mut watched: Vec<PathBuf> = Vec::new();
@@ -2705,7 +2728,7 @@ writing a temporary file and renaming it over the target, which silently kills a
 file itself. Watching the directory is also why the first pass matters — the loop has to be
 correct *before* the first event arrives, since the document may already be out of step.
 
-#chunk("watch: say what is being watched", ````
+#chunk("watch: say what is being watched", ````rust
 eprintln!(
     "watching {} -> {}",
     options
@@ -2718,7 +2741,7 @@ eprintln!(
 );
 ````)
 
-#chunk("watch: pass once, then wait", ````
+#chunk("watch: pass once, then wait", ````rust
 pass(&options, true, &rx);
 while rx.recv().is_ok() {
     pass(&options, false, &rx);
@@ -2730,7 +2753,7 @@ while rx.recv().is_ok() {
 A pass is four decisions in a row: drop the events our own writes caused, tangle, decide what to
 report, and run the check command only if something actually moved.
 
-#chunk("watch: the events our own writes caused", ````
+#chunk("watch: the events our own writes caused", ````rust
 // Drop events queued while we were working (our own writes included) so a
 // single edit cannot trigger a second, useless pass.
 while events.try_recv().is_ok() {}
@@ -2740,7 +2763,7 @@ The drain is the part that is easy to miss: a pass writes files, the watcher see
 writes, and without emptying the queue first every pass would trigger one more. This is also
 where the design's honesty shows: the tool's own output is nobody's edit.
 
-#chunk("watch: one pass, through tangle", ````
+#chunk("watch: one pass, through tangle", ````rust
 let outcome = match tangle::run(&options.docs, &options.out, false) {
     Ok(outcome) => outcome,
     Err(err) => {
@@ -2754,7 +2777,7 @@ A failed pass does not end the loop — the error is printed and the pass return
 writing anything, which is the half-written document case. The alternative, exiting, would
 turn a moment of typing into a dead process.
 
-#chunk("watch: the warnings, and how long it took", ````
+#chunk("watch: the warnings, and how long it took", ````rust
 for warning in &outcome.warnings {
     eprintln!("warning: {warning}");
 }
@@ -2762,7 +2785,7 @@ let ms = started.elapsed().as_secs_f64() * 1000.0;
 let dormant = outcome.changed.is_empty();
 ````)
 
-#chunk("watch: nothing to do", ````
+#chunk("watch: nothing to do", ````rust
 if dormant {
     if initial {
         eprintln!(
@@ -2774,7 +2797,7 @@ if dormant {
 }
 ````)
 
-#chunk("watch: say what happened, then check", ````
+#chunk("watch: say what happened, then check", ````rust
 // Report even when nothing was written: deleting a root chunk leaves a file
 // behind without changing any other output.
 eprintln!(
@@ -2799,13 +2822,13 @@ Running the check only when something was rewritten is the fusion that makes `--
 worth having: a compiler invoked on every save would spend the user's morning rebuilding
 nothing, and a warning printed on every save is a warning nobody reads.
 
-#chunk("watch: no check command, no check", ````
+#chunk("watch: no check command, no check", ````rust
 let Some(command) = &options.check_cmd else {
     return;
 };
 ````)
 
-#chunk("watch: run the command, whatever it is", ````
+#chunk("watch: run the command, whatever it is", ````rust
 let output = match std::process::Command::new("sh")
     .arg("-c")
     .arg(command)
@@ -2819,7 +2842,7 @@ let output = match std::process::Command::new("sh")
 };
 ````)
 
-#chunk("watch: its output, both streams", ````
+#chunk("watch: its output, both streams", ````rust
 let text = format!(
     "{}{}",
     String::from_utf8_lossy(&output.stdout),
@@ -2831,7 +2854,7 @@ Both streams, because compilers are not consistent about which one carries the d
 cargo writes errors to stderr and notes to stdout, and a filter that reads one of them is
 wrong half the time.
 
-#chunk("watch: the same translation as lp explain", ````
+#chunk("watch: the same translation as lp explain", ````rust
 // Same translation as `lp explain`, reading the maps we just wrote.
 let _ = crate::explain::run(&options.out, "generic", &text);
 ````)
@@ -2842,7 +2865,7 @@ Three lines, and the point of them is that they are not a special case: printing
 the renderer installed in `main` and staying alive is what a watcher has to do with every failure
 that is not the user's syntax error.
 
-#chunk("watch: the last resort", ````
+#chunk("watch: the last resort", ````rust
 fn report(err: LpError) {
     eprintln!("{:?}", miette::Report::new(err));
 }
@@ -2916,7 +2939,7 @@ The declarations are the contract, so they are also where the help text lives: t
 in this file are `lp --help`. Each command gets its own fragment, because each one is a
 promise about what the tool does.
 
-#chunk("main: the modules, and what they are called", ````
+#chunk("main: the modules, and what they are called", ````rust
 mod diag;
 mod explain;
 mod map;
@@ -2934,7 +2957,7 @@ use clap::{Parser, Subcommand};
 use diag::LpError;
 ````)
 
-#chunk("main: the surface, as clap sees it", ````
+#chunk("main: the surface, as clap sees it", ````rust
 #[derive(Parser)]
 #[command(name = "lp", version, about = "Typst-based literate programming")]
 struct Cli {
@@ -2943,7 +2966,7 @@ struct Cli {
 }
 ````)
 
-#chunk("main: tangle", ````
+#chunk("main: tangle", ````rust
 /// Expand a .typ document into its source files
 Tangle {
     /// Documents to tangle, e.g. examples/demo/literate.typ
@@ -2958,7 +2981,7 @@ Tangle {
 },
 ````)
 
-#chunk("main: map", ````
+#chunk("main: map", ````rust
 /// Tell which chunk produced a line of a generated file (or the reverse)
 Map {
     /// Generated file, relative to --out (a unique basename also works)
@@ -2975,7 +2998,7 @@ Map {
 },
 ````)
 
-#chunk("main: explain", ````
+#chunk("main: explain", ````rust
 /// Rewrite diagnostics so they name the chunk that produced the line
 Explain {
     #[arg(long, default_value = "out")]
@@ -2986,7 +3009,7 @@ Explain {
 },
 ````)
 
-#chunk("main: watch", ````
+#chunk("main: watch", ````rust
 /// Keep the generated files in step while the document is edited
 Watch {
     /// Documents to watch, e.g. examples/demo/literate.typ
@@ -3004,7 +3027,7 @@ Watch {
 },
 ````)
 
-#chunk("main: list", ````
+#chunk("main: list", ````rust
 /// List the chunks a document declares
 List { doc: PathBuf },
 ````)
@@ -3014,7 +3037,7 @@ rather than for the build. They answer the questions a reader of this document a
 time — which chunks exist, in what order, and what does Typst actually hand over — and they do
 it without writing anything.
 
-#chunk("main: metadata", ````
+#chunk("main: metadata", ````rust
 /// Ask the documents which chunks they have, in order
 Metadata {
     /// Documents to ask, e.g. book.typ chapter.typ
@@ -3023,7 +3046,7 @@ Metadata {
 },
 ````)
 
-#chunk("main: unaccounted", ````
+#chunk("main: unaccounted", ````rust
 /// List (or delete) files under the output directory that nothing accounts for
 Unaccounted {
     /// Documents that decide what counts as produced
@@ -3043,7 +3066,7 @@ Every error in this program is an `LpError`, and this is the only place it becom
 report handler is installed once, so no module has to think about rendering; and the exit
 status is 1 for every failure, which is all a shell needs to know.
 
-#chunk("main: how an error is printed", ````
+#chunk("main: how an error is printed", ````rust
 let _ = miette::set_hook(Box::new(|_| {
     Box::new(miette::GraphicalReportHandler::new_themed(
         miette::GraphicalTheme::unicode(),
@@ -3051,7 +3074,7 @@ let _ = miette::set_hook(Box::new(|_| {
 }));
 ````)
 
-#chunk("main: the exit status", ````
+#chunk("main: the exit status", ````rust
 match run() {
     Ok(code) => std::process::exit(code),
     Err(err) => {
@@ -3067,7 +3090,7 @@ Each arm is short on purpose: parse the arguments, call the module, print. Where
 a decision, that decision belongs in the module it calls, and the arm gets thinner or the
 module gets a new function.
 
-#chunk("main: tangle, and what it reports", ````
+#chunk("main: tangle, and what it reports", ````rust
 Command::Tangle { docs, out, check } => {
     let outcome = tangle::run(&docs, &out, check)?;
     for output in &outcome.changed {
@@ -3108,7 +3131,7 @@ already right, what drifted, what was warned about, and what nothing accounts fo
 status is 1 when there is drift and 0 otherwise, so `--check` is usable from a script without
 parsing anything.
 
-#chunk("main: watch, and its options", ````
+#chunk("main: watch, and its options", ````rust
 Command::Watch {
     docs,
     out,
@@ -3125,7 +3148,7 @@ Command::Watch {
 }
 ````)
 
-#chunk("main: the map arm", ````
+#chunk("main: the map arm", ````rust
 Command::Map {
     file,
     typ,
@@ -3139,7 +3162,7 @@ Command::Map {
 it scans every run in every file, which is a linear search — acceptable because it runs when
 a person asks, not in a loop.
 
-#chunk("main: map, in reverse", ````
+#chunk("main: map, in reverse", ````rust
     if let Some(chunk) = typ {
         // Reverse: which generated lines came from this chunk?
         let mut hits = 0;
@@ -3165,7 +3188,7 @@ a person asks, not in a loop.
 Forward, it resolves the file to one map (the search from the map chapter, including its
 refusal to guess) and then asks that map for the run covering the line.
 
-#chunk("main: map, forward", ````
+#chunk("main: map, forward", ````rust
     let (Some(file), Some(line)) = (file, line) else {
         return Err(LpError::plain("lp map --file needs a --line").with_help(
             "use `lp map --file src/main.rs --line 42` for a generated line, or `lp map --typ <chunk>` the other way",
@@ -3180,7 +3203,7 @@ refusal to guess) and then asks that map for the run covering the line.
     };
 ````)
 
-#chunk("main: map, the answer", ````
+#chunk("main: map, the answer", ````rust
     // Where to edit: the chunk, and how far into it this line is. Typst
     // exposes no source positions, so a name is the pointer (ADR D14).
     println!("chunk ⟪{}⟫, line {offset} of it", run.chunk);
@@ -3188,7 +3211,7 @@ refusal to guess) and then asks that map for the run covering the line.
     Ok(0)
 ````)
 
-#chunk("main: explain, a filter on stdin", ````
+#chunk("main: explain, a filter on stdin", ````rust
 Command::Explain { out, format } => {
     let mut input = String::new();
     std::io::stdin()
@@ -3206,14 +3229,14 @@ Reading standard input rather than taking a file means the command composes: any
 prints diagnostics can be piped in, and the note about nothing matching goes to stderr so the
 pipeline's stdout stays exactly what it was.
 
-#chunk("main: list, one document", ````
+#chunk("main: list, one document", ````rust
 Command::List { doc } => {
     list(std::slice::from_ref(&doc))?;
     Ok(0)
 }
 ````)
 
-#chunk("main: metadata, the stream itself", ````
+#chunk("main: metadata, the stream itself", ````rust
 Command::Metadata { docs } => {
     let typst = metadata::binary()?;
     for declaration in metadata::declarations(&typst, &docs)? {
@@ -3229,7 +3252,7 @@ Command::Metadata { docs } => {
 }
 ````)
 
-#chunk("main: unaccounted, which needs a plan", ````
+#chunk("main: unaccounted, which needs a plan", ````rust
 Command::Unaccounted { docs, out, delete } => {
     let plan = tangle::plan(&docs)?;
     status::run(&out, &tangle::produced(&plan), delete)
@@ -3244,13 +3267,13 @@ referenced, which `plan` computes internally and does not expose. Widening `Plan
 debug command seemed the worse trade, so the three lines are repeated here — a wart, kept
 deliberately, and this is where it is recorded.
 
-#chunk("main: plan, and who is referenced", ````
+#chunk("main: plan, and who is referenced", ````rust
 let plan = tangle::plan(docs)?;
 let set = tangle::ChunkSet::new(&plan.blocks);
 let referenced: BTreeSet<String> = plan.blocks.iter().flat_map(tangle::refs_of).collect();
 ````)
 
-#chunk("main: one row per declaration", ````
+#chunk("main: one row per declaration", ````rust
 for doc in docs {
     println!("{}", doc.display());
 }
@@ -3270,7 +3293,7 @@ for block in &plan.blocks {
 }
 ````)
 
-#chunk("main: the outputs at the end", ````
+#chunk("main: the outputs at the end", ````rust
 let roots = set.roots();
 println!(
     "\noutputs: {}",
@@ -3339,6 +3362,7 @@ what the *same* document produces in different situations.
 <<flow: cycle_is_reported>>
 
 <<flow: an_empty_chunk_is_an_error>>
+<<flow: a_declaration_without_a_language_warns>>
 
 <<flow: a_file_declaration_can_name_a_nested_path>>
 
@@ -3369,6 +3393,7 @@ The cases, in the order they appear:
 - `dangling_reference_quotes_the_line` — an undefined name is an error that quotes the line and names the chunk it was in
 - `cycle_is_reported` — the error is the chain, not a bare `cycle detected`
 - `an_empty_chunk_is_an_error` — a declaration with no body is refused rather than tangled away
+- `a_declaration_without_a_language_warns` — a fence with no language tag is reported, and the pass still succeeds
 - `a_file_declaration_can_name_a_nested_path` — `src/main.rs` is created under the output directory, directories and all
 - `unsafe_paths_are_rejected` — `../escape.txt` and its relatives cannot leave the output directory
 - `map_names_the_chunk_a_generated_line_came_from` — `lp map --file --line` answers with the chunk and how far into it the line is
@@ -3377,11 +3402,11 @@ The cases, in the order they appear:
 - `a_chunk_built_by_code_is_attributed_to_itself` — roots declared by a loop are attributed to the declarations the loop produced
 - `the_declaration_is_where_the_line_lives` — the answer includes the `rg` command that finds the declaration
 
-#chunk("flow: the file's purpose", ````
+#chunk("flow: the file's purpose", ````rust
 //! End-to-end tests: they run the real binary against throwaway documents.
 ````)
 
-#chunk("flow: the fixtures and helpers", ````
+#chunk("flow: the fixtures and helpers", ````rust
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -3468,7 +3493,7 @@ fn line_of(text: &str, needle: &str) -> usize {
 }
 ````)
 
-#chunk("flow: tangle_writes_files_with_concat_and_indentation", ````
+#chunk("flow: tangle_writes_files_with_concat_and_indentation", ````rust
 #[test]
 fn tangle_writes_files_with_concat_and_indentation() {
     let (_guard, dir, _) = project(DOC);
@@ -3481,7 +3506,7 @@ fn tangle_writes_files_with_concat_and_indentation() {
 }
 ````)
 
-#chunk("flow: tangle_records_which_chunk_every_line_came_from", ````
+#chunk("flow: tangle_records_which_chunk_every_line_came_from", ````rust
 #[test]
 fn tangle_records_which_chunk_every_line_came_from() {
     let (_guard, dir, _) = project(DOC);
@@ -3508,7 +3533,7 @@ fn tangle_records_which_chunk_every_line_came_from() {
 }
 ````)
 
-#chunk("flow: indentation_follows_the_reference_site", ````
+#chunk("flow: indentation_follows_the_reference_site", ````rust
 #[test]
 fn indentation_follows_the_reference_site() {
     let body = "#file(\"main.py\", ```py\nif True:\n    <<body>>\n```)\n\n#chunk(\"body\", ```py\nprint(1)\n```)\n";
@@ -3525,7 +3550,7 @@ fn indentation_follows_the_reference_site() {
 }
 ````)
 
-#chunk("flow: a_chunk_written_indented_in_the_document_is_still_dedented", ````
+#chunk("flow: a_chunk_written_indented_in_the_document_is_still_dedented", ````rust
 #[test]
 fn a_chunk_written_indented_in_the_document_is_still_dedented() {
     let body = "#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n\n- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n";
@@ -3539,7 +3564,7 @@ fn a_chunk_written_indented_in_the_document_is_still_dedented() {
 }
 ````)
 
-#chunk("flow: a_chapter_can_hold_the_fragment_another_file_references", ````
+#chunk("flow: a_chapter_can_hold_the_fragment_another_file_references", ````rust
 #[test]
 fn a_chapter_can_hold_the_fragment_another_file_references() {
     // Documents are chapters of one program: prose in one, the fragment in another,
@@ -3597,7 +3622,7 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
 }
 ````)
 
-#chunk("flow: maps_live_next_to_the_files_they_explain", ````
+#chunk("flow: maps_live_next_to_the_files_they_explain", ````rust
 #[test]
 fn maps_live_next_to_the_files_they_explain() {
     let body =
@@ -3639,7 +3664,7 @@ fn maps_live_next_to_the_files_they_explain() {
 }
 ````)
 
-#chunk("flow: an_ambiguous_file_name_is_an_error_not_a_guess", ````
+#chunk("flow: an_ambiguous_file_name_is_an_error_not_a_guess", ````rust
 #[test]
 fn an_ambiguous_file_name_is_an_error_not_a_guess() {
     let body = "#file(\"one/b.py\", ```py\nprint('a')\n```)\n\n#file(\"two/b.py\", ```py\nprint('b')\n```)\n";
@@ -3669,7 +3694,7 @@ fn an_ambiguous_file_name_is_an_error_not_a_guess() {
 }
 ````)
 
-#chunk("flow: check_names_the_chunk_of_the_first_difference", ````
+#chunk("flow: check_names_the_chunk_of_the_first_difference", ````rust
 #[test]
 fn check_names_the_chunk_of_the_first_difference() {
     let (_guard, dir, _) = project(DOC);
@@ -3706,7 +3731,7 @@ fn check_names_the_chunk_of_the_first_difference() {
 }
 ````)
 
-#chunk("flow: the_map_follows_the_document_even_when_no_output_byte_changes", ````
+#chunk("flow: the_map_follows_the_document_even_when_no_output_byte_changes", ````rust
 #[test]
 fn the_map_follows_the_document_even_when_no_output_byte_changes() {
     let (_guard, dir, _) = project(DOC);
@@ -3744,7 +3769,7 @@ fn the_map_follows_the_document_even_when_no_output_byte_changes() {
 }
 ````)
 
-#chunk("flow: dangling_reference_quotes_the_line", ````
+#chunk("flow: dangling_reference_quotes_the_line", ````rust
 #[test]
 fn dangling_reference_quotes_the_line() {
     let body = "#file(\"main.py\", ```py\n<<missing>>\n```)\n";
@@ -3767,7 +3792,7 @@ fn dangling_reference_quotes_the_line() {
 }
 ````)
 
-#chunk("flow: cycle_is_reported", ````
+#chunk("flow: cycle_is_reported", ````rust
 #[test]
 fn cycle_is_reported() {
     let body = "#file(\"main.py\", ```py\n<<a>>\n```)\n\n#chunk(\"a\", ```py\n<<b>>\n```)\n\n#chunk(\"b\", ```py\n<<a>>\n```)\n";
@@ -3782,7 +3807,22 @@ fn cycle_is_reported() {
 }
 ````)
 
-#chunk("flow: an_empty_chunk_is_an_error", ````
+#chunk("flow: a_declaration_without_a_language_warns", ````rust
+#[test]
+fn a_declaration_without_a_language_warns() {
+    let body = "#file(\"main.py\", ```\nprint(1)\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("chunk ⟪main.py⟫ is declared without a language"),
+        "{}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: an_empty_chunk_is_an_error", ````rust
 #[test]
 fn an_empty_chunk_is_an_error() {
     let body = "#file(\"main.py\", ```py\n```)\n";
@@ -3793,7 +3833,7 @@ fn an_empty_chunk_is_an_error() {
 }
 ````)
 
-#chunk("flow: a_file_declaration_can_name_a_nested_path", ````
+#chunk("flow: a_file_declaration_can_name_a_nested_path", ````rust
 #[test]
 fn a_file_declaration_can_name_a_nested_path() {
     let body = "#file(\"src/main.rs\", ```rust\nfn main() {}\n```)\n";
@@ -3807,7 +3847,7 @@ fn a_file_declaration_can_name_a_nested_path() {
 }
 ````)
 
-#chunk("flow: unsafe_paths_are_rejected", ````
+#chunk("flow: unsafe_paths_are_rejected", ````rust
 #[test]
 fn unsafe_paths_are_rejected() {
     let body = "#file(\"../escape.txt\", ```text\nx\n```)\n";
@@ -3822,7 +3862,7 @@ fn unsafe_paths_are_rejected() {
 }
 ````)
 
-#chunk("flow: map_names_the_chunk_a_generated_line_came_from", ````
+#chunk("flow: map_names_the_chunk_a_generated_line_came_from", ````rust
 #[test]
 fn map_names_the_chunk_a_generated_line_came_from() {
     let (_guard, dir, _) = project(DOC);
@@ -3858,7 +3898,7 @@ fn map_names_the_chunk_a_generated_line_came_from() {
 }
 ````)
 
-#chunk("flow: explain_rewrites_diagnostics_to_the_chunk", ````
+#chunk("flow: explain_rewrites_diagnostics_to_the_chunk", ````rust
 #[test]
 fn explain_rewrites_diagnostics_to_the_chunk() {
     let (_guard, dir, _) = project(DOC);
@@ -3892,7 +3932,7 @@ fn explain_rewrites_diagnostics_to_the_chunk() {
 }
 ````)
 
-#chunk("flow: list_reports_declarations", ````
+#chunk("flow: list_reports_declarations", ````rust
 #[test]
 fn list_reports_declarations() {
     let (_guard, dir, _) = project(DOC);
@@ -3909,7 +3949,7 @@ fn list_reports_declarations() {
 }
 ````)
 
-#chunk("flow: a_chunk_built_by_code_is_attributed_to_itself", ````
+#chunk("flow: a_chunk_built_by_code_is_attributed_to_itself", ````rust
 #[test]
 fn a_chunk_built_by_code_is_attributed_to_itself() {
     // The declaration is written once, inside a loop. There is no line to point at
@@ -3933,7 +3973,7 @@ fn a_chunk_built_by_code_is_attributed_to_itself() {
 }
 ````)
 
-#chunk("flow: the_declaration_is_where_the_line_lives", ````
+#chunk("flow: the_declaration_is_where_the_line_lives", ````rust
 #[test]
 fn the_declaration_is_where_the_line_lives() {
     // A sanity check that the document text itself is what the chunk quotes back,
@@ -3974,13 +4014,13 @@ The cases, in the order they appear:
 - `map_works_in_both_directions` — `lp map` answers forwards and backwards
 - `unused_fragment_warns_without_failing` — a fragment nobody references is a warning, not a failure
 
-#chunk("lazy: the file's purpose", ````
+#chunk("lazy: the file's purpose", ````rust
 //! The lazy contract: a pass touches only what actually changed, refuses to
 //! tangle a document that does not evaluate, and keeps the line map usable in
 //! both directions.
 ````)
 
-#chunk("lazy: the fixtures and helpers", ````
+#chunk("lazy: the fixtures and helpers", ````rust
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -4057,7 +4097,7 @@ fn modified(path: &Path) -> std::time::SystemTime {
 }
 ````)
 
-#chunk("lazy: a_pass_does_not_touch_files_that_did_not_change", ````
+#chunk("lazy: a_pass_does_not_touch_files_that_did_not_change", ````rust
 #[test]
 fn a_pass_does_not_touch_files_that_did_not_change() {
     let (_guard, dir) = project();
@@ -4090,7 +4130,7 @@ fn a_pass_does_not_touch_files_that_did_not_change() {
 }
 ````)
 
-#chunk("lazy: only_the_affected_output_is_rewritten", ````
+#chunk("lazy: only_the_affected_output_is_rewritten", ````rust
 #[test]
 fn only_the_affected_output_is_rewritten() {
     let (_guard, dir) = project();
@@ -4122,7 +4162,7 @@ fn only_the_affected_output_is_rewritten() {
 }
 ````)
 
-#chunk("lazy: a_half_written_document_is_not_tangled", ````
+#chunk("lazy: a_half_written_document_is_not_tangled", ````rust
 #[test]
 fn a_half_written_document_is_not_tangled() {
     let (_guard, dir) = project();
@@ -4155,7 +4195,7 @@ fn a_half_written_document_is_not_tangled() {
 }
 ````)
 
-#chunk("lazy: map_works_in_both_directions", ````
+#chunk("lazy: map_works_in_both_directions", ````rust
 #[test]
 fn map_works_in_both_directions() {
     let (_guard, dir) = project();
@@ -4188,7 +4228,7 @@ fn map_works_in_both_directions() {
 }
 ````)
 
-#chunk("lazy: unused_fragment_warns_without_failing", ````
+#chunk("lazy: unused_fragment_warns_without_failing", ````rust
 #[test]
 fn unused_fragment_warns_without_failing() {
     let (_guard, dir) = project();
@@ -4245,14 +4285,14 @@ The cases, in the order they appear:
 - `a_declaration_of_an_unknown_kind_is_an_error` — a metadata record with an unknown kind is refused instead of defaulting
 - `a_document_without_declarations_says_what_to_do` — a document with no declarations is told to import the package
 
-#chunk("metadata: the file's purpose", ````
+#chunk("metadata: the file's purpose", ````rust
 //! The declaration side: what the document says its chunks are.
 //!
 //! These tests need the `typst` binary (the tool asks the document, it does not
 //! read it), so they skip cleanly when it is not on PATH.
 ````)
 
-#chunk("metadata: the fixtures and helpers", ````
+#chunk("metadata: the fixtures and helpers", ````rust
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -4294,7 +4334,7 @@ fn write(dir: &Path, name: &str, body: &str) {
 }
 ````)
 
-#chunk("metadata: a_styling_show_rule_does_not_hide_a_chunk", ````
+#chunk("metadata: a_styling_show_rule_does_not_hide_a_chunk", ````rust
 #[test]
 fn a_styling_show_rule_does_not_hide_a_chunk() {
     // The declaration is what the tool reads, and it is emitted before the block
@@ -4322,7 +4362,7 @@ fn a_styling_show_rule_does_not_hide_a_chunk() {
 }
 ````)
 
-#chunk("metadata: a_chapter_is_tangled_without_being_listed", ````
+#chunk("metadata: a_chapter_is_tangled_without_being_listed", ````rust
 #[test]
 fn a_chapter_is_tangled_without_being_listed() {
     // Typst merges #include'd content, so the tool does not need to be told about
@@ -4370,7 +4410,7 @@ fn a_chapter_is_tangled_without_being_listed() {
 }
 ````)
 
-#chunk("metadata: the_document_reports_chunks_no_parser_could_find", ````
+#chunk("metadata: the_document_reports_chunks_no_parser_could_find", ````rust
 #[test]
 fn the_document_reports_chunks_no_parser_could_find() {
     if !typst_available() {
@@ -4405,7 +4445,7 @@ fn the_document_reports_chunks_no_parser_could_find() {
 }
 ````)
 
-#chunk("metadata: a_document_that_does_not_evaluate_says_so", ````
+#chunk("metadata: a_document_that_does_not_evaluate_says_so", ````rust
 #[test]
 fn a_document_that_does_not_evaluate_says_so() {
     if !typst_available() {
@@ -4432,7 +4472,7 @@ fn a_document_that_does_not_evaluate_says_so() {
 }
 ````)
 
-#chunk("metadata: a_document_outside_the_working_directory_can_be_tangled", ````
+#chunk("metadata: a_document_outside_the_working_directory_can_be_tangled", ````rust
 #[test]
 fn a_document_outside_the_working_directory_can_be_tangled() {
     // The wrapper document has to live where Typst's root can reach the file it
@@ -4481,7 +4521,7 @@ fn a_document_outside_the_working_directory_can_be_tangled() {
 }
 ````)
 
-#chunk("metadata: a_declaration_of_an_unknown_kind_is_an_error", ````
+#chunk("metadata: a_declaration_of_an_unknown_kind_is_an_error", ````rust
 #[test]
 fn a_declaration_of_an_unknown_kind_is_an_error() {
     // Only `chunk` and `file` exist; anything else means the package and the tool
@@ -4509,7 +4549,7 @@ fn a_declaration_of_an_unknown_kind_is_an_error() {
 }
 ````)
 
-#chunk("metadata: a_document_without_declarations_says_what_to_do", ````
+#chunk("metadata: a_document_without_declarations_says_what_to_do", ````rust
 #[test]
 fn a_document_without_declarations_says_what_to_do() {
     if !typst_available() {
@@ -4581,7 +4621,7 @@ The cases, in the order they appear:
 - `without_a_declaration_a_stray_is_still_an_error` — with no `.lpignore` at all, strays are still errors
 - `a_missing_output_directory_is_not_an_io_error` — a missing output file is drift, not an I/O failure
 
-#chunk("owned: the file's purpose", ````
+#chunk("owned: the file's purpose", ````rust
 //! Nothing under the output directory may go unaccounted for.
 //!
 //! A file is either produced by a declaration, declared in a `.lpignore`, or an
@@ -4590,7 +4630,7 @@ The cases, in the order they appear:
 //! silently.
 ````)
 
-#chunk("owned: the fixtures and helpers", ````
+#chunk("owned: the fixtures and helpers", ````rust
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -4666,7 +4706,7 @@ fn without_b() -> String {
 }
 ````)
 
-#chunk("owned: a_dropped_declaration_is_an_error_until_it_is_resolved", ````
+#chunk("owned: a_dropped_declaration_is_an_error_until_it_is_resolved", ````rust
 #[test]
 fn a_dropped_declaration_is_an_error_until_it_is_resolved() {
     let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
@@ -4733,7 +4773,7 @@ fn a_dropped_declaration_is_an_error_until_it_is_resolved() {
 }
 ````)
 
-#chunk("owned: declared_files_are_accounted_for", ````
+#chunk("owned: declared_files_are_accounted_for", ````rust
 #[test]
 fn declared_files_are_accounted_for() {
     let (_guard, dir) = tangled(
@@ -4762,7 +4802,7 @@ fn declared_files_are_accounted_for() {
 }
 ````)
 
-#chunk("owned: the_pattern_language_is_gitignores", ````
+#chunk("owned: the_pattern_language_is_gitignores", ````rust
 #[test]
 fn the_pattern_language_is_gitignores() {
     let (_guard, dir) = tangled(
@@ -4779,7 +4819,7 @@ fn the_pattern_language_is_gitignores() {
 }
 ````)
 
-#chunk("owned: a_deeper_ignore_file_can_take_a_file_back", ````
+#chunk("owned: a_deeper_ignore_file_can_take_a_file_back", ````rust
 #[test]
 fn a_deeper_ignore_file_can_take_a_file_back() {
     let (_guard, dir) = tangled(
@@ -4802,7 +4842,7 @@ fn a_deeper_ignore_file_can_take_a_file_back() {
 }
 ````)
 
-#chunk("owned: control_files_survive_and_other_dotfiles_are_ordinary_files", ````
+#chunk("owned: control_files_survive_and_other_dotfiles_are_ordinary_files", ````rust
 #[test]
 fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
     let (_guard, dir) = tangled("kept.dot\n", &[("kept.dot", "x")]);
@@ -4827,7 +4867,7 @@ fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
 }
 ````)
 
-#chunk("owned: a_git_directory_is_ordinary_content", ````
+#chunk("owned: a_git_directory_is_ordinary_content", ````rust
 #[test]
 fn a_git_directory_is_ordinary_content() {
     // Nothing is special-cased, not even a repository: built here rather than by
@@ -4853,7 +4893,7 @@ fn a_git_directory_is_ordinary_content() {
 }
 ````)
 
-#chunk("owned: check_reports_a_stray_without_removing_it", ````
+#chunk("owned: check_reports_a_stray_without_removing_it", ````rust
 #[test]
 fn check_reports_a_stray_without_removing_it() {
     let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
@@ -4873,7 +4913,7 @@ fn check_reports_a_stray_without_removing_it() {
 }
 ````)
 
-#chunk("owned: deleting_a_foreign_subtree_takes_one_line_and_one_command", ````
+#chunk("owned: deleting_a_foreign_subtree_takes_one_line_and_one_command", ````rust
 #[test]
 fn deleting_a_foreign_subtree_takes_one_line_and_one_command() {
     let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
@@ -4899,7 +4939,7 @@ fn deleting_a_foreign_subtree_takes_one_line_and_one_command() {
 }
 ````)
 
-#chunk("owned: without_a_declaration_a_stray_is_still_an_error", ````
+#chunk("owned: without_a_declaration_a_stray_is_still_an_error", ````rust
 #[test]
 fn without_a_declaration_a_stray_is_still_an_error() {
     let (_guard, dir) = tangled("", &[]);
@@ -4912,7 +4952,7 @@ fn without_a_declaration_a_stray_is_still_an_error() {
 }
 ````)
 
-#chunk("owned: a_missing_output_directory_is_not_an_io_error", ````
+#chunk("owned: a_missing_output_directory_is_not_an_io_error", ````rust
 #[test]
 fn a_missing_output_directory_is_not_an_io_error() {
     let dir = TempDir::new().expect("temp dir");
@@ -4949,16 +4989,16 @@ The cases, in the order they appear:
 
 - `the_document_regenerates_the_sources_we_are_running` — the binary reproduces the sources it was built from, byte for byte
 
-#chunk("self: the file's purpose", ````
+#chunk("self: the file's purpose", ````rust
 //! Self-reproduction: the document has to regenerate the crate it ships.
 ````)
 
-#chunk("self: the fixtures and helpers", ````
+#chunk("self: the fixtures and helpers", ````rust
 use std::path::Path;
 use std::process::Command;
 ````)
 
-#chunk("self: the_document_regenerates_the_sources_we_are_running", ````
+#chunk("self: the_document_regenerates_the_sources_we_are_running", ````rust
 /// The document is the source of the files that are compiled, so `--check` in the
 /// crate root has to be clean. This is the permanent half of the fixed point:
 /// Stage 1 also required the output to equal the frozen seed in `seed/`,
@@ -5075,7 +5115,7 @@ output directory is the repository root, so what this document does *not* produc
 whatever is not the crate, the package, the example or a control file — and the lock
 files cargo and nix maintain, which no chunk has any business owning.
 
-#file(".lpignore", ````
+#file(".lpignore", ````gitignore
 # What the working tree carries besides the document's output.
 #
 # Matching here means *protect* (ADR D10): every file under the output directory is
@@ -5107,7 +5147,7 @@ The crate, the package, the example and the two control files above are all gene
 so none of them is tracked. What remains in git is the document, the seed, the notes,
 and the two pointers.
 
-#file(".gitignore", ````
+#file(".gitignore", ````gitignore
 # Everything here is generated from lp.typ by `lp tangle lp.typ --out .`.
 # Tracked: README.md, AGENTS.md, lp.typ, seed/, agent-notes/.
 
@@ -5492,20 +5532,20 @@ echo "== restore =="
 "${LP[@]}" tangle "$DOC" --out "$OUT" --check && echo "document and generated code agree"
 ````)
 
-#file("examples/demo/expected.txt", ````
+#file("examples/demo/expected.txt", ````text
 <<demo: what the output must be>>
 ````)
 
-#chunk("demo: what the output must be", ````
+#chunk("demo: what the output must be", ````text
 add(2, 3) = 5
 square(5) = 25
 ````)
 
-#file("examples/demo/build/.lpignore", ````
+#file("examples/demo/build/.lpignore", ````gitignore
 <<demo: what cargo owns in the build directory>>
 ````)
 
-#chunk("demo: what cargo owns in the build directory", ````
+#chunk("demo: what cargo owns in the build directory", ````gitignore
 # This directory belongs to lp: a file here that no chunk produces is removed.
 # These are the ones other tools own, plus the weave output.
 Cargo.lock
@@ -5662,7 +5702,7 @@ Neither is more literate than the other. What is *not* a matter of taste is that
 - **Chunk names are global to the whole document.** Two chapters that both call a fragment `the imports` do not get two fragments: the declarations concatenate, into whichever file references that name. Prefix a private fragment with the file it belongs to (`map: the imports`) and give a genuinely shared one the name of the idea.
 - **A blank line belongs in the skeleton, not in a fragment that is referenced from an indented place.** The reference's indentation is added to every line of the body, and a line of spaces is not a blank line to anything that checks whitespace: `cargo fmt --check` will report a diff over it. Splitting a function at its blank lines is cheap; a stray whitespace-only line is not.
 - **A fragment never contains the brace that closes the frame it sits in.** The brace has to be in the skeleton, or the reference's indentation moves it out of place.
-- The fence's language tag is data (the tangled file's language, and the input to the language check). Nothing in `lp` parses it.
+- The fence's language tag is data (the tangled file's language, and what the map records). Nothing in `lp` parses it, and nothing guesses it from a file name: `lp tangle` warns about a declaration that carries no tag.
 - **To quote the syntax itself, escape it**: a line `@<<name>>` tangles out as `<<name>>` — the `@` is dropped and the line is never expanded, never counted as a reference. That is how a document can show what a reference looks like (this file is carried by `lp.typ` and does exactly that).
 - Block content is verbatim: keep it flush left, and **use four backticks as the fence** whenever the code contains three (Typst fixtures, Markdown fences, heredocs).
 - Keep the document evaluable at every save; a document Typst cannot evaluate tangles nothing, and `lp watch` keeps the last good output instead of half of a new one.
