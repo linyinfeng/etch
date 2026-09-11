@@ -1,4 +1,0 @@
-hello, literate
-chunk order follows the document, not the file
-tangled from hello.py
-running under cpython

@@ -5160,7 +5160,6 @@ outside this document: it is what the person reading has, not something the docu
 #file("Cargo.toml", ````toml
 <<env: what the package is>>
 
-<<env: which worlds it keeps out>>
 
 <<env: the runtime dependencies>>
 
@@ -5180,13 +5179,6 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 description = "Typst-based literate programming: tangle source files out of a .typ document"
-````)
-
-#chunk("env: which worlds it keeps out", ````toml
-# The old probes are their own little worlds: nothing here depends on them, and
-# saying so keeps the resolver out of their manifests.
-[workspace]
-exclude = ["agent-notes/experiments/*"]
 ````)
 
 #chunk("env: the runtime dependencies", ````toml
@@ -5239,22 +5231,25 @@ files cargo and nix maintain, which no chunk has any business owning.
 
 Everything under `tangled/` is generated, so the whole directory is ignored: the crate, the
 package, the example, the protect list and the maps. What is tracked at the root is the document,
-the notes, the pointer — and one `.gitignore`, because a file that ignores the output directory
-cannot be inside it. `README.md` is that pointer, and there is one of it: a second name for the same
-text is a second name that can drift, which is the whole reason this file's text is a pointer. The
-`.gitignore` is written as the list itself — ignore everything, then allow these — so it cannot fall
-out of step with what the repository is. The notes are the other half of the repository, and the
-conventions for working in
-it are a note: `agent-notes/README.md` is the index, `agent-notes/decisions/` holds the records
-behind the rules, `agent-notes/working-agreements.md` the process — worktrees, the borrowed
-toolchain, what a note is for. The seed is not tracked in the working tree either: it is the
+the pointer, and this file. `README.md` is that pointer, and there is one of it: a second name for
+the same text is a second name that can drift, which is the whole reason this file's text is a
+pointer. The `.gitignore` is written as the list itself — ignore everything, then allow these — so it
+cannot fall out of step with what the repository is.
+
+The notes are not one of the three: they live on their own branch, `agent-notes`, which is where the
+records behind the rules and the conventions for working here are kept —
+`agent-notes/README.md` is the index, `agent-notes/decisions/` holds the decisions,
+`agent-notes/working-agreements.md` the process: worktrees, the borrowed toolchain, what a note is
+for. A worktree of that branch is where they are read and written, and it carries the gates script
+too, since that script belongs to the working habits rather than to the document. The seed is not tracked in the working tree either: it is the
 `tangled` branch of this same repository, which is the one place output can live without being a file next to the
 document.
 
 = Starting from nothing
 
-A fresh clone holds four things and nothing else: this document, the notes, the pointer at the root
-that leads here, and the `.gitignore`, which says exactly that — ignore everything, allow these.
+A fresh clone holds three things and nothing else: this document, the pointer at the root that
+leads here, and the `.gitignore`, which says exactly that — ignore everything, allow these. The
+notes are a branch, not a directory here; the seed is a branch too; everything else is produced.
 Everything else is produced
 by tangling — except the one thing this document cannot produce for itself, the binary that reads
 it, because the package has to exist before the document can be evaluated at all.
@@ -5336,6 +5331,9 @@ to a ceremony — tangle the document, then commit the tree to the branch:
 ./tangled/target/debug/lp tangle lp.typ      # the tree is this generation now
 agent-notes/dev.sh tangled                   # ... and the branch carries it
 ```
+
+Both of those are run from the notes worktree, where the gates script lives; it acts on this tree
+by itself, and says so when it does.
 
 The task is four plumbing commands: a temporary index, a temporary work tree filled from
 `tangled/`'s own repository, `git commit-tree` with the previous seed as parent, and
