@@ -46,6 +46,7 @@ src/main.rs:6:38: error[E0425]: cannot find function `ad` in module `math`
 
 1. **只写变化的字节**：`tangle::run` 不再自己打印，而是返回 `Outcome { changed, unchanged, stale, warnings }`；比较的是"展开结果 vs 磁盘内容"。未变化的文件 **mtime 不动**，所以 cargo / rust-analyzer 不会被无谓唤醒。这条有测试守着（`tests/lazy.rs::a_pass_does_not_touch_files_that_did_not_change`，断言三个文件的 mtime 完全相等）。
 2. **无变化时连 `.lpmap.json` 都不重写**（否则 map 本身就是个"每次都变"的抖动源）。
+   ⚠️ **2026-09-11 修正**：这句话一开始被理解成"输出没变就不写 map"，那是错的——map 的内容取决于**文档**（插入一行散文就平移所有映射），输出字节完全不变。正确做法是比较 map 自身的内容（`LpMap::write_if_changed`），并用测试锁住“只加散文也要更新映射”（`tests/flow.rs::the_map_follows_the_document_even_when_no_output_byte_changes`）。当时 `lp map` 报了 93 行而实际在 95 行，而且指向一个空行——正是这个 bad case。
 3. **合并编辑事件**：`notify-debouncer-full` 做时间窗口合并；一轮开始前把已排队事件抽干（`try_recv`），避免自己的写盘反过来触发下一轮。监听的是**文档所在目录**（NonRecursive）而不是文件本身——编辑器保存是"写临时文件 + rename"，盯文件的 watch 会掉。
 4. **半写状态的文档不 tangle**：`SyntaxNode::errors_and_warnings()` 是权威的解析诊断来源（只找 `SyntaxKind::Error` 节点会漏掉未闭合字符串这类错误，我在测试里踩到了）。有语法错误就打印诊断、跳过本轮，**保留上一份好产物**——这在实时回路里比"尽量凑合"重要得多。
 5. **check 回路融合**：`--check-cmd 'cargo build --message-format=short'` 只在一轮真的改写了文件后执行（无变化的事件不会去跑 cargo），输出走与 `lp explain` 完全相同的回译路径。

@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::diag::LpError;
-use crate::map::{ChunkEntry, FileMap, LpMap, MAP_FILE};
+use crate::map::{ChunkEntry, FileMap, LpMap};
 use crate::parse::{Block, Doc, check_output_path, is_root};
 
 pub struct ChunkSet<'a> {
@@ -259,10 +259,11 @@ pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
         }
     }
 
-    // Leave the map alone when nothing moved, so a watching file system sees no
-    // spurious writes (which would send cargo/rust-analyzer back to work).
-    if !check && (!outcome.changed.is_empty() || !out.join(MAP_FILE).exists()) {
-        map.write(out)?;
+    // The map tracks the *document*, so it can be stale even when no output byte
+    // moved (a line of prose shifts every mapping). Compare its content rather
+    // than the output files'.
+    if !check {
+        map.write_if_changed(out)?;
     }
     Ok(outcome)
 }
