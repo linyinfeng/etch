@@ -19,7 +19,9 @@
 
 This is the whole of `lp`: the program, the package it is written with, and the example it ships.
 There is no second source — the crate, the package and the example in this repository are the
-output of tangling this file, and `typst compile lp.typ` renders what you are reading.
+output of tangling this file, and `typst compile lp.typ` renders what you are reading — with the
+package path the tangle unpacked next to it in scope (`TYPST_PACKAGE_PATH=.lp`; the example chapter
+shows the same line for its own weave).
 
 It is a literate program, and that is not a remark about its formatting. The document is
 where the thinking lives; the code is quoted into it as the evidence that makes the
@@ -40,7 +42,7 @@ of them without the others.
 3. *A program is written as literature.* Prose is not a comment on the code; it is where the
    thinking lives, and the code is the evidence that the thinking is real.
 4. *The woven document is worth having on its own.* Here that is `typst compile lp.typ`: the same
-   declarations, rendered as the page you are reading.
+   declarations, rendered as the page you are reading, once the package path is in scope.
 
 This document takes the first claim literally and argues for the other three by being an example
 of them. The case against all four is worth stating at its strongest, because most of it is
