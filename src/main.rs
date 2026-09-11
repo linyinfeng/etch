@@ -1,6 +1,8 @@
 mod diag;
 mod explain;
+mod locate;
 mod map;
+mod metadata;
 mod parse;
 mod status;
 mod tangle;
@@ -74,6 +76,12 @@ enum Command {
     },
     /// List the chunks in a document, with their .typ lines
     List { doc: PathBuf },
+    /// Ask the documents which chunks they have, in order
+    Metadata {
+        /// Documents to ask, e.g. book.typ chapter.typ
+        #[arg(required = true)]
+        docs: Vec<PathBuf>,
+    },
     /// List (or delete) files under the output directory that nothing accounts for
     Unaccounted {
         /// Documents that decide what counts as produced
@@ -226,6 +234,23 @@ fn run() -> Result<i32, LpError> {
         }
         Command::List { doc } => {
             list(&doc)?;
+            Ok(0)
+        }
+        Command::Metadata { docs } => {
+            let typst = metadata::binary()?;
+            let cwd = std::env::current_dir().map_err(|err| LpError::plain(err.to_string()))?;
+            let events = metadata::events(&typst, &docs, &cwd)?;
+            for event in &events {
+                match event.kind.as_str() {
+                    "heading" => println!("heading  level {}", event.level.unwrap_or(0)),
+                    _ => println!(
+                        "chunk    {:<28} {:<8} {}",
+                        event.label().unwrap_or("(unlabelled)"),
+                        event.lang.as_deref().unwrap_or("-"),
+                        event.text().lines().next().unwrap_or("")
+                    ),
+                }
+            }
             Ok(0)
         }
         Command::Unaccounted { docs, out, delete } => {

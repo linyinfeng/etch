@@ -45,6 +45,7 @@ lp map    --file src/main.rs --line 42         # 生成文件的第 42 行来自
 lp map    --typ doc.typ --line 92              # 反向：这一行 .typ 产生了哪些生成位置
 lp explain [--out DIR]                         # 把 file:line:col 诊断翻译回 .typ（读 stdin）
 lp list   <doc.typ>                            # 列出 chunk：根/片段、语言、源行号、是否被引用
+lp metadata <doc>...                           # 让 Typst 求值并打印它的有序事件流（调试用）
 lp unaccounted <doc>... [--out DIR] [--delete]  # 列出（或显式删除）既没有 chunk 产出、也没被声明的文件
 ```
 
@@ -123,6 +124,22 @@ lp unaccounted doc.typ --out out --delete   # 显式删掉它们（这就是那�
 ```
 
 `lines` 是 `[该目录内的生成文件行, 源文件行, sources 下标]`，指向**定义处**而不是引用处。`sources` 通常只有一个元素；当一本书拆成多章、某个输出文件的正文来自两个文件时才不止一个，诊断因此总能指到**真正含那一行的文件**。查询时按"最具体的目录优先"解析：`lp map --file src/main.rs` 用 `src/` 的映射；只给文件名（`--file main.rs`）而多个目录都有同名文件时，报歧义而不是猜。生成物不入库：CI 跑 `lp tangle --check`，漂移即失败。
+
+## 为什么 chunk 由 Typst 求值决定（进行中的架构切换）
+
+Typst 是图灵完备的：代码块可以来自 `#for` 循环、`#if` 分支、函数，或者被 `#include` 进来的文件。实测一个只有三行的文档：
+
+```typ
+#for i in range(3) [
+  #raw("print(" + str(i) + ")", lang: "py", block: true) #label("built-" + str(i))
+]
+```
+
+`lp metadata`（Typst 求值）看到 `built-0/1/2` 三个 chunk，文本是 `print(0/1/2)`——而这些文本**在源文件里一行都没有**。静态解析只会看到一行模板，甚至什么都看不到。
+
+所以架构是两段式：**Typst 决定"是什么"**（集合、顺序、文本、语言），**纯文本搜索决定"在哪里"**（Typst 不暴露源位置）。定位分四层，可信度递减，最后一层如实说"没有字面位置"而不是编一个行号：字面块 → 模板文本 → label 的字面前缀（生成器那一行）→ 未知。
+
+`lp metadata` 现在就可以用；把 `lp tangle` 切到这条管线是紧接着的一步（之后 `typst` 会成为 tangle 的硬依赖，`typst-syntax` 从依赖里删掉）。细节见 `agent-notes/decisions/2026-09-11-typst-is-the-authority.md`。
 
 ## 多章文档
 
