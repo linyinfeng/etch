@@ -45,10 +45,9 @@ of them without the others.
    declarations, rendered as the page you are reading.
 
 This document takes the first claim literally and argues for the other three by being an example
-of them. The objections to all four — that the payoff falls as a language gets more expressive,
-that tooling friction kept literate programming niche, that reading code just got cheap — are
-stated in full in the skill's own reference file, `thinking.md`, which this document also
-produces. A stance that cannot state its opposition is not an argument.
+of them. The objections to all four are stated at their strongest in the skill's own reference
+file, `thinking.md`, which this document also produces. A stance that cannot state its opposition
+is not an argument.
 
 = The package: what a declaration is
 
@@ -864,10 +863,10 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError
 
 == A chunk, and the error that quotes it
 
-A `Block` is a declaration after the metadata layer has normalised it: whether it is a root,
-its name, the language from the fence, and the text. The one method on it exists because
-errors here cannot point at a place: an error about a chunk line quotes that line and says
-which line of which chunk it was.
+A `Block` is the record the previous chapter described, after the metadata layer has normalised
+it — plus the one thing that layer had already resolved and this one needs: whether the
+declaration is a root. The one method on it exists because errors here cannot point at a place:
+an error about a chunk line quotes that line and says which line of which chunk it was.
 
 #chunk("tangle: the module note", ````rust
 //! Tangling: expand chunks into whole files, write them, and record where every
@@ -5072,9 +5071,9 @@ tempfile = "3"
 
 `lp` treats its output directory as its own and refuses to guess: every file under it
 is produced by a declaration or listed in the `.lpignore` of its directory. Here the
-output directory is the repository root, so the list of what this document does not
-produce is short — the document itself, the seed, the notes, the two one-line files
-that point at the document, and the lock files cargo and nix maintain.
+output directory is the repository root, so what this document does *not* produce is
+whatever is not the crate, the package, the example or a control file — and the lock
+files cargo and nix maintain, which no chunk has any business owning.
 
 #file(".lpignore", ````
 # What the working tree carries besides the document's output.
@@ -5746,8 +5745,8 @@ Two files, no framework, written in the shape the skill asks for — and run, wi
 kept. An example that is not executed is a plausible lie; this one was tangled, compiled and
 run, and the output in the file is what came out.
 
-It is also the case that proves the escape's reason for existing: a chapter that shows what a
-reference looks like has to write a line that looks exactly like one.
+It is also what the escape is for: the example quotes this syntax, so it is the file that has to
+write reference-shaped lines literally.
 
 #file(".agents/skills/literate-programming/references/example.md", ````markdown
 <<example: what the file is>>
