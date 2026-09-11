@@ -58,7 +58,7 @@ discipline. A stance that cannot state its opposition is not an argument.
 = The package: what a declaration is
 
 This document is written with three functions — `chunk`, `file` and `rule` — and none of them is
-built into the tool. They are declared in `lit/lp.typ`, which this document produces: the syntax
+built into the tool. They are declared in `typst/lp.typ`, which this document produces: the syntax
 and the tool that reads it share one source, so there is no second opinion about what a
 declaration looks like.
 
@@ -75,11 +75,11 @@ as it likes afterwards.
 
 == The shape of the package
 
-#file("lit/typst.toml", ````toml
+#file("typst/typst.toml", ````toml
 <<package: the manifest>>
 ````)
 
-#file("lit/lp.typ", ````typst
+#file("typst/lp.typ", ````typst
 <<package: what this file is>>
 
 <<package: what a reference looks like>>
@@ -450,7 +450,7 @@ files, one agreement.
 //!
 //! Typst is Turing-complete: a chunk can come from a loop, a branch, a function
 //! or an `#include`d file, so the only authority is evaluation. The document
-//! declares its chunks through the `lp` package (`lit/lp.typ`), whose `chunk` and
+//! declares its chunks through the `lp` package (`typst/lp.typ`), whose `chunk` and
 //! `file` functions take the code block as an argument and emit one metadata
 //! record each:
 //!
@@ -541,8 +541,8 @@ failing later with a confusing message.
 /// The package this tool is written with, compiled into the binary: a document should not have
 /// to ship a copy of it to be tangled, or find one (D21). `include_str!` is the whole
 /// mechanism — the standard library, no dependency, checked at compile time.
-const PACKAGE_MANIFEST: &str = include_str!("../lit/typst.toml");
-const PACKAGE_ENTRY: &str = include_str!("../lit/lp.typ");
+const PACKAGE_MANIFEST: &str = include_str!("../typst/typst.toml");
+const PACKAGE_ENTRY: &str = include_str!("../typst/lp.typ");
 
 /// The directory, next to a document, that the package is unpacked into. It belongs to the tool,
 /// so the ownership check treats it like a control file rather than content.
@@ -3603,7 +3603,7 @@ use std::process::{Command, Output};
 
 use tempfile::TempDir;
 
-const PKG: &str = include_str!("../lit/lp.typ");
+const PKG: &str = include_str!("../typst/lp.typ");
 
 /// A document in the real authoring form: the package is imported, its rules are
 /// installed, and the body declares chunks.
@@ -4238,7 +4238,7 @@ use std::process::{Command, Output};
 
 use tempfile::TempDir;
 
-const PKG: &str = include_str!("../lit/lp.typ");
+const PKG: &str = include_str!("../typst/lp.typ");
 
 /// The two references are spliced in: a line that is exactly `<<name>>` would be
 /// expanded when this file is tangled (ADR D15).
@@ -4513,7 +4513,7 @@ use std::process::{Command, Output};
 
 use tempfile::TempDir;
 
-const PKG: &str = include_str!("../lit/lp.typ");
+const PKG: &str = include_str!("../typst/lp.typ");
 
 fn typst_available() -> bool {
     Command::new("typst")
@@ -4880,7 +4880,7 @@ use std::process::{Command, Output};
 
 use tempfile::TempDir;
 
-const PKG: &str = include_str!("../lit/lp.typ");
+const PKG: &str = include_str!("../typst/lp.typ");
 
 const DOC: &str = "\
 = Demo
