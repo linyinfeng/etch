@@ -35,7 +35,7 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
-    /// Translate a line of a generated file back to the .typ document
+    /// Tell which chunk produced a line of a generated file (or the reverse)
     Map {
         /// Generated file, relative to --out (a unique basename also works)
         #[arg(long, conflicts_with = "typ")]
@@ -49,7 +49,7 @@ enum Command {
         #[arg(long, default_value = "out")]
         out: PathBuf,
     },
-    /// Rewrite diagnostics so they point into the .typ document
+    /// Rewrite diagnostics so they name the chunk that produced the line
     Explain {
         #[arg(long, default_value = "out")]
         out: PathBuf,

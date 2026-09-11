@@ -13,6 +13,8 @@
 
 ## 索引
 
+- `handoff.md` — **接手先读这份**：项目现状、行为契约、铁规矩、已知脏点、下一步候选、环境陷阱。
+
 - `decisions/2026-09-11-mvp-decisions.md` — **已拍板的 5 个决定**（场景=多文件工程，形态=纯 `.typ`，实现=Rust 原型→自举，生成物不入库，错误定位=D1）+ 落选方案与理由。
 - `decisions/2026-09-11-engine-and-deps.md` — **D6 解析引擎：`typst-syntax` 为主、`typst eval` 降为 oracle**（实测：能用官方 parser 拿到精确 span，不必自己扫 fence）、**D7 依赖策略：用成熟库**（clap/notify/miette/cargo_metadata…，并推翻原 plan 的手写倾向）。
 - `decisions/2026-09-11-chunk-labels.md` — **D8 chunk 命名**：Typst 的 `<...>` 不允许 `/`（实测），平面名字用 `<name>`、带目录的用 `#label("src/main.rs")`，不用自定义 `:` 编码。
