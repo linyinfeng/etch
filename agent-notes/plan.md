@@ -24,14 +24,12 @@
 
 **下一步起点**：`src/` 是普通 Rust 工程（`cargo test` 全绿）；演示与回归入口是 `examples/demo/run.sh`（tangle → 构建运行 → weave → `--check` → map → explain 回译 → 复原）。
 
-### M2 — 多文件工程 + watch + explain
-- 多根 chunk → 目录结构（`src/`、`tests/`）；`--out` 与文档内相对路径的语义定死（相对 `.typ` 所在目录）。
-- `lp watch <doc.typ>`：`notify` + `notify-debouncer-full`，正确处理编辑器原子写；出错只打印不退出。
-- `lp explain`：读诊断（stdin 或文件）→ 翻译成 `.typ` 位置，`miette` 渲染。
-  - 后端 1：`cargo_metadata` 解析 `cargo build --message-format=json`（自举时天天用）。
-  - 后端 2：`regex` 表处理通用 `file:line:col:` 形式。
-  - 纯查表 + 通用解析，**不含目标语言算法**。
-- 负向测试：手改生成物 → `--check` 失败；`.typ` 引用写错 → 报错行号正确。
+### M2 — 多文件工程 + watch + explain（进行中）
+- ✅ 多根 chunk → 目录结构（`src/`、`tests/`）；输出路径相对 `--out`。
+- ✅ `lp watch <doc.typ>`：`notify` + `notify-debouncer-full`；只写字节变化的输出、语法错误不 tangle、出错只打印不退出。**行为契约见 ADR D9**，实测见 `research/2026-09-11-lazy-tangle.md`。
+- ✅ `lp explain` 的通用后端（`regex` 表处理 `file:line:col:`），纯查表 + 通用解析，**不含目标语言算法**。
+- ✅ `lp map` 双向（`--file` / `--typ`）。
+- ⏳ 剩下：`lp explain --format cargo`（`cargo_metadata` 解析 `--message-format=json`，自举时天天用）、诊断列位置精确到 span（现在高亮整行）、`ci.sh`（typst compile + cargo test + `tangle --check`）。
 
 ### M3 — 自举（bootstrap → self-host）
 - 原型冻结为 `bootstrap/`（仍可编译可跑），工具自身源码改写为 `self.typ`（literate 文档）。

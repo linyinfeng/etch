@@ -14,7 +14,9 @@ examples/demo/    可跑的多文件示例；run.sh 是端到端回归入口
 tests/flow.rs     跑真二进制的端到端测试
 ```
 
-常用命令：`nix develop -c cargo test`、`nix develop -c examples/demo/run.sh`、`nix develop -c cargo clippy`。
+常用命令：`nix develop -c cargo test`、`nix develop -c examples/demo/run.sh`（端到端）、`nix develop -c cargo clippy`。
+
+实时回路（手测）：`nix develop -c cargo run -- watch examples/demo/literate.typ --out examples/demo/build --check-cmd "cargo build --manifest-path examples/demo/build/Cargo.toml --message-format=short"`，然后在另一个终端改 `.typ`。
 
 ## 硬规则
 
@@ -22,6 +24,7 @@ tests/flow.rs     跑真二进制的端到端测试
 - **生成物不入库**：`examples/demo/build/` 之类一律 gitignore；CI 用 `lp tangle --check` 守漂移。`.typ` 是唯一真相。
 - **报错必须指回 `.typ`**：新错误一律用 `LpError::at`（带 span），不要拼裸字符串。
 - **解析只用 `typst-syntax`**（ADR D6）；`typst eval` 只当测试 oracle。
+- **写盘只写变化的字节**（ADR D9）：不要无脑重写生成物或 `.lpmap.json`；有语法错误时不得 tangle。改这两条行为前先看 `tests/lazy.rs`。
 
 - **语言**：与用户交流用中文；代码、标识符、注释用英文。注释只解释"为什么"（全局规则见 `~/.pi/agent/AGENTS.md`）。
 - **调研优先**：本项目当前处于调研/设计阶段。任何"某方案可行/不可行"的结论要么附可复现命令，要么标 **未验证**。
