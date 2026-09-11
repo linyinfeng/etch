@@ -166,9 +166,8 @@ pub struct Outcome {
     pub unchanged: Vec<Output>,
     /// Drift reports, filled only when `check` is set.
     pub stale: Vec<String>,
-    /// Files a previous pass generated that no chunk produces any more.
-    pub orphans: Vec<String>,
-    /// Orphans that a sweep or `--prune` removed.
+    /// Stale files a sweep removed because a declared directory produced them no
+    /// more.
     pub pruned: Vec<String>,
     /// Directories that declared ownership with a `.lpignore`.
     pub managed: Vec<String>,
@@ -177,25 +176,16 @@ pub struct Outcome {
 
 /// Tangle every document into `out`; with `check`, write nothing and only report
 /// drift against what is already there.
-pub fn run(docs: &[Doc], out: &Path, check: bool, prune: bool) -> Result<Outcome, LpError> {
+pub fn run(docs: &[Doc], out: &Path, check: bool) -> Result<Outcome, LpError> {
     let names = docs
         .iter()
         .map(|d| d.path.display().to_string())
         .collect::<Vec<_>>();
 
-    // The map is a ledger of what `lp` has written, not just a view of the last
-    // pass: an entry survives the deletion of its chunk so that a later pass (or
-    // `--prune`) still knows the file is ours. Entries whose file is gone are
-    // dropped.
+    // The map is a line map: what this pass produced, nothing more. Ownership of
+    // files that no chunk produces any more is a directory question, answered by
+    // `.lpignore` (see `sweep.rs`), not by remembering the past here.
     let mut map = LpMap::new(&names);
-    // No map (first run) simply means nothing is known to be ours yet.
-    if let Ok(previous) = LpMap::read(out) {
-        map.files = previous
-            .files
-            .into_iter()
-            .filter(|(rel, _)| out.join(rel).exists())
-            .collect();
-    }
     let mut produced: BTreeSet<String> = BTreeSet::new();
     let mut outcome = Outcome::default();
 
@@ -275,7 +265,8 @@ pub fn run(docs: &[Doc], out: &Path, check: bool, prune: bool) -> Result<Outcome
                 chunks: tangled.chunks,
             };
             if map.files.insert(root.to_string(), entry).is_some() {
-                // Overwriting a ledger entry is normal; a fresh duplicate is not.
+                // The same output produced by two roots is a mistake; a repeat
+                // pass overwriting its own entry is not.
                 if !produced.insert(root.to_string()) {
                     return Err(LpError::plain(format!("output {root} is produced twice")));
                 }
@@ -285,46 +276,19 @@ pub fn run(docs: &[Doc], out: &Path, check: bool, prune: bool) -> Result<Outcome
         }
     }
 
-    // Two ownership records, in order of strength: a `.lpignore` in the tree says
-    // "this directory is mine" (everything unlisted and unproduced goes), and the
-    // ledger says "this file was mine" (used elsewhere, and only with `--prune`).
+    // Deleting a root chunk leaves a file behind. Removing it is the job of a
+    // directory that declared itself ours, so a sweep runs wherever a `.lpignore`
+    // says so — and nowhere else.
     let sweep = sweep::run(out, &produced, !check)?;
     outcome.managed = sweep.roots.clone();
-    let mut gone: BTreeSet<String> = BTreeSet::new();
     for rel in sweep.removed {
         if check {
             outcome
                 .stale
                 .push(format!("ORPHAN {rel} (would be removed)"));
         } else {
-            outcome.pruned.push(rel.clone());
-            gone.insert(rel);
-        }
-    }
-
-    for rel in map
-        .files
-        .keys()
-        .filter(|rel| !produced.contains(*rel))
-        .cloned()
-        .collect::<Vec<_>>()
-    {
-        if gone.contains(&rel) || !out.join(&rel).exists() {
-            continue;
-        }
-        if prune {
-            let path = out.join(&rel);
-            std::fs::remove_file(&path).map_err(|e| LpError::io(&path, e))?;
-            gone.insert(rel.clone());
             outcome.pruned.push(rel);
-        } else if check {
-            outcome.stale.push(format!("ORPHAN {rel}"));
-        } else {
-            outcome.orphans.push(rel);
         }
-    }
-    for rel in &gone {
-        map.files.remove(rel);
     }
 
     // The map tracks the *document*, so it can be stale even when no output byte

@@ -114,8 +114,8 @@ cargo's `target/` and `Cargo.lock`, the woven PDF, the PNGs. Delete a root chunk
 here and its file follows, instead of lingering for `cargo` to compile.
 
 `lp tangle --check` is the dry run: it names what a sweep would remove and
-deletes nothing. Without a `.lpignore` in the tree, only files `lp` wrote itself
-are ever considered, and only with `--prune`.
+deletes nothing. Without a `.lpignore` in the tree `lp` removes nothing at all —
+it keeps no record of what it wrote, so the directory has to say what is its.
 
 == When it breaks
 

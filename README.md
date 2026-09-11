@@ -36,10 +36,9 @@ def greet(name):
 ## 命令
 
 ```
-lp tangle <doc.typ>... [--out DIR] [--check] [--prune]
-                                               # 展开；--check 不写文件、发现漂移（含孤儿）则退出码 1
-                                               # --prune 删掉账本里记过但已无 chunk 产出的文件
-lp watch  <doc.typ>... [--out DIR] [--debounce MS] [--check-cmd CMD] [--prune]
+lp tangle <doc.typ>... [--out DIR] [--check]
+                                               # 展开；--check 不写文件、发现漂移则退出码 1
+lp watch  <doc.typ>... [--out DIR] [--debounce MS] [--check-cmd CMD]
                                                # 编辑时自动同步，只重写真正变了的文件；
                                                # 有变化时跑 CMD 并把诊断回译到 .typ
 lp map    --file src/main.rs --line 42         # 生成文件的第 42 行来自哪一行 .typ
@@ -82,17 +81,17 @@ src/main.rs:6:38: error[E0425]: cannot find function `ad` in module `math`
 
 ## 删除与目录所有权
 
-删掉（或改名）一个根 chunk 后，它产出的文件会变成孤儿：`lp tangle` 会报告 `orphan <file>`，`--prune` 删除它，`--check` 把它当漂移（退出码 1）。
+删掉（或改名）一个根 chunk 后，它产出的文件会留在磁盘上。**删不删由目录声明决定**：在声明目录里会被自动清掉，没声明就一个字都不动（`--check` 会把声明目录里"会被删"的列出来，一个文件也不删）。
 
 要让一个目录完全归 `lp` 管，在里面放一份 `.lpignore`：**规则就是 gitignore 的**（glob、`!`、`**`、`dir/`、嵌套文件与"深层覆盖浅层"的优先级都由 `ignore` crate 处理，一次遍历搞定）。该目录下任何**没有 chunk 产出且未被规则匹配**的文件会被删除；匹配上的文件留下。demo 里 `examples/demo/build/.lpignore` 就是例子（cargo 的 `target/`、`Cargo.lock`、weave 出来的 PDF 都列在里面）。
 
-两点要说清：**匹配语法和优先级与 gitignore 相同，但"匹配上了"的含义相反**——gitignore 里匹配=不跟踪，这里匹配=**保护**（把它当"要保留什么"的清单来读就对了）。豁免的只有两个控制文件 `.lpmap.json` 与 `.lpignore`，其余包括点文件都是普通内容；`.git` 目录永不进入。
+两点要说清：**匹配语法和优先级与 gitignore 相同，但"匹配上了"的含义相反**——gitignore 里匹配=不跟踪，这里匹配=**保护**（把它当"要保留什么"的清单来读就对了）。豁免的只有两个控制文件 `.lpmap.json` 与 `.lpignore`，其余包括点文件都是普通内容——没有 `git` 特例，要留 `.git` 就写一条 `.git/`。
 
-干跑用 `lp tangle --check`：它列出会被删的东西，一个文件也不动。没有任何 `.lpignore` 时，`lp` 只考虑自己写过的文件（账本），且必须显式 `--prune`；`--check` 与 `--prune` 互斥。
+干跑用 `lp tangle --check`：它列出会被删的东西，一个文件也不动。没有任何 `.lpignore` 时 `lp` 不删任何东西——它不保留"我以前写过什么"的记录，授权只来自目录声明。
 
 ## 行号映射
 
-`lp tangle` 在每个 `--out` 目录里写一份 `.lpmap.json`。它是**账本**而不是当前状态的快照：一条记录会一直保留到它对应的文件被删除为止，所以 `--prune` 在任何一次 tangle 之后都还能认出孤儿。
+`lp tangle` 在每个 `--out` 目录里写一份 `.lpmap.json`：**当前产物**的行号映射（生成行 → `.typ` 行，指向定义处），`lp map` / `lp explain` 只读它。它不承担所有权职责。
 
 ```json
 {

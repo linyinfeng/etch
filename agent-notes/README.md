@@ -17,7 +17,7 @@
 - `decisions/2026-09-11-engine-and-deps.md` — **D6 解析引擎：`typst-syntax` 为主、`typst eval` 降为 oracle**（实测：能用官方 parser 拿到精确 span，不必自己扫 fence）、**D7 依赖策略：用成熟库**（clap/notify/miette/cargo_metadata…，并推翻原 plan 的手写倾向）。
 - `decisions/2026-09-11-chunk-labels.md` — **D8 chunk 命名**：Typst 的 `<...>` 不允许 `/`（实测），平面名字用 `<name>`、带目录的用 `#label("src/main.rs")`，不用自定义 `:` 编码。
 - `decisions/2026-09-11-watch-contract.md` — **D9 实时同步契约**：只写字节变化的输出（mtime 不变）、语法错误不 tangle（保留上一份好产物）、事件合并、`--check-cmd` 只在真改写后跑。
-- `decisions/2026-09-11-output-ownership.md` — **D10 输出目录所有权**：删掉根 chunk 不再留孤儿（`.lpmap.json` 当账本 + 目录里的 `.lpignore` 声明所有权，扫描删除无 chunk 产出的文件，点文件永不删，`--check` 是干跑）。
+- `decisions/2026-09-11-output-ownership.md` — **D10 输出目录所有权**：删除只由目录里的 `.lpignore` 授权（规则即 gitignore，一次 walk 交给 `ignore` 库，匹配=保护）；`.lpmap.json` 只管行号映射，不做所有权记忆；没有声明就什么都不删；无 git 特例；`--check` 是干跑。
 - `plan.md` — M0–M3 实施计划：CLI 表面、依赖预算、测试策略、自举不变量、明确不做的清单。
 - `research/2026-09-11-prior-art.md` — 现有 literate programming 工具盘点（noweb/littst/Entangled/Ravel/typst-unlit/Calepin/org-babel/…），Typst 生态现状，以及 AI 时代的四篇相关工作。含"我们的差异化在哪"。
 - `research/2026-09-11-typst-engine-facts.md` — **只用 typst 自己当解析器**这套架构的全部实测事实：`typst eval` / `query`、label 当 chunk 名（含 §8 的字符集限制）、raw info string 的坑、plugin 不能写文件、show rule 里的 label/link 语义。所有结论都附可复现命令。
@@ -32,6 +32,6 @@
 - 核心假设已验证：`.typ` 里的 fenced raw block + label 就是 chunk，`typst-syntax` 就是 tangle 的解析器（拿得到精确 span），weave 就是 `typst compile`。不需要自写 Typst 解析器，也不需要给文档加预处理语法。
 - 已能跑通的完整链路（一次性）：`nix develop -c examples/demo/run.sh` —— tangle 多文件 crate → `cargo run` 输出与文档一致 → weave PDF → `--check` 无漂移 → `lp map` 定位一行 → 故意写错后把 rustc 报错回译到 `.typ:92` 并渲染源码片段 → 复原。
 - 已能跑通的实时链路：`lp watch <doc> --check-cmd 'cargo build --message-format=short'` —— 只重写真正变了的文件（1 改写 / 2 原样），检查命令只在真改写后跑，诊断自动指回 `.typ`。契约见 ADR D9，实测见 `research/2026-09-11-lazy-tangle.md`。
-- 下一步：`lp explain --format cargo`（cargo_metadata）、诊断列位置精确到 span、`ci.sh`（typst compile + cargo test + `tangle --check`）；之后 M3 自举。**孤儿/删除语义已在 D10 定下**（`orphan` 报告 / `--prune` / `.lpignore` 目录声明）。见 `plan.md`。
+- 下一步：`lp explain --format cargo`（cargo_metadata）、诊断列位置精确到 span、`ci.sh`（typst compile + cargo test + `tangle --check`）；之后 M3 自举。**删除语义已在 D10 定下**（`.lpignore` 目录声明 / `--check` 干跑）。见 `plan.md`。
 - 主要差异化：**tangled 文件里的报错映射回 `.typ` 行号**（D5/`lp explain`）+ 生成物漂移检测。littst / typst-unlit 都不解决这两点。
 - 长期目标（D3）：原型冻结为 bootstrap，工具自身源码改写成 literate `.typ` 并自举；固定点测试保证 bootstrap 与自举产物逐字节一致。

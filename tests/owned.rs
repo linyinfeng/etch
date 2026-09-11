@@ -176,19 +176,27 @@ fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
 }
 
 #[test]
-fn a_git_store_inside_the_output_directory_is_never_touched() {
-    let (_guard, dir) = managed(
-        IGNORES,
-        &[(".git/config", "[core]\n"), (".git/objects/ab", "blob")],
-    );
+fn a_git_directory_is_ordinary_content() {
+    // Nothing is special-cased, not even a repository: if one ends up in the
+    // output directory it is kept because the rules say so, not because the tool
+    // knows what `.git` is.
+    let (_guard, dir) = managed(IGNORES, &[(".git/config", "[core]\n")]);
     let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
-    assert!(dir.join("out/.git/config").exists());
-    assert!(dir.join("out/.git/objects/ab").exists());
+    assert!(
+        !dir.join("out/.git/config").exists(),
+        "unlisted, so it goes: {}",
+        stdout(&output)
+    );
+
+    let (_guard, dir) = managed(".git/\n", &[(".git/config", "[core]\n")]);
+    assert!(dir.join("out/.git/config").exists(), "listed, so it stays");
 }
 
 #[test]
-fn without_an_ignore_file_nothing_outside_the_ledger_is_touched() {
+fn without_a_declaration_nothing_is_ever_removed() {
+    // No `.lpignore` anywhere: the output directory never said it was ours, so
+    // even the file of a deleted chunk stays — and nothing is reported as gone.
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
     let path = dir.path().to_path_buf();
@@ -201,43 +209,14 @@ fn without_an_ignore_file_nothing_outside_the_ledger_is_touched() {
     std::fs::write(path.join("out/precious.py"), "by hand").expect("file");
     std::fs::write(path.join("doc.typ"), without_b(DOC)).expect("doc");
 
-    let output = lp(&path, &["tangle", "doc.typ", "--out", "out", "--prune"]);
+    let output = lp(&path, &["tangle", "doc.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
+    assert!(!stdout(&output).contains("pruned"), "{}", stdout(&output));
+    assert!(path.join("out/precious.py").exists());
     assert!(
-        !path.join("out/src/b.py").exists(),
-        "the ledger knows this one was ours"
+        path.join("out/src/b.py").exists(),
+        "stale, but never declared ours"
     );
-    assert!(
-        path.join("out/precious.py").exists(),
-        "but not this one: {}",
-        stdout(&output)
-    );
-}
-
-#[test]
-fn ledger_orphans_are_reported_and_need_prune_without_an_ignore_file() {
-    let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("doc.typ"), DOC).expect("doc");
-    let path = dir.path().to_path_buf();
-    assert!(
-        lp(&path, &["tangle", "doc.typ", "--out", "out"])
-            .status
-            .success()
-    );
-    std::fs::write(path.join("doc.typ"), without_b(DOC)).expect("doc");
-
-    let reported = lp(&path, &["tangle", "doc.typ", "--out", "out"]);
-    assert!(reported.status.success(), "{}", stderr(&reported));
-    assert!(
-        stderr(&reported).contains("orphan src/b.py"),
-        "{}",
-        stderr(&reported)
-    );
-    assert!(path.join("out/src/b.py").exists(), "reported, not deleted");
-
-    let pruned = lp(&path, &["tangle", "doc.typ", "--out", "out", "--prune"]);
-    assert!(pruned.status.success(), "{}", stderr(&pruned));
-    assert!(!path.join("out/src/b.py").exists());
 }
 
 #[test]

@@ -9,20 +9,20 @@
 //! `!` re-inclusion, `**`, directory-only patterns, nested ignore files and the
 //! precedence between them all come from the `ignore` crate (the engine behind
 //! ripgrep). A single walk of the output directory applies every `.lpignore` in
-//! the tree, deepest file winning — no discovery pass, no reimplementation.
+//! the tree, deepest file winning — no discovery pass, no reimplementation. The
+//! tool never looks at git itself, for anything.
 //!
-//! Three deliberate differences from a work tree:
+//! Two deliberate differences from a plain ignore-file walk:
 //!
 //! * Patterns only ever decide what `lp` **keeps**, never what it takes: a file
 //!   is a candidate for removal only when a directory above it declared
-//!   ownership, and deletion always requires that declaration. Without one, the
-//!   ledger in `tangle.rs` is the only record of what is ours.
-//! * `.git` is never entered, so a repository living inside the output directory
-//!   is not content (git does not track its own store either).
+//!   ownership, and deletion always requires that declaration. Nowhere else does
+//!   `lp` remove anything, and it keeps no memory of what it wrote.
 //! * `.lpmap.json` and `.lpignore` are control files, never content — deleting
-//!   the ledger, or the rules that decide what may be deleted, would be a
-//!   self-inflicted wound. Everything else, dotfiles included, is an ordinary
-//!   file: list it in `.lpignore` or lose it.
+//!   the line map, or the rules that decide what may be deleted, would be a
+//!   self-inflicted wound. Everything else is an ordinary file, whatever its
+//!   name: list it in `.lpignore` or lose it. There is exactly one hardcoded
+//!   exception, and that is these two files.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -57,9 +57,7 @@ pub fn run(out: &Path, produced: &BTreeSet<String>, delete: bool) -> Result<Swee
         .standard_filters(false)
         .hidden(false)
         .parents(false)
-        .require_git(false)
-        .add_custom_ignore_filename(IGNORE_FILE)
-        .filter_entry(|entry| entry.file_name() != ".git");
+        .add_custom_ignore_filename(IGNORE_FILE);
 
     for entry in builder.build() {
         let entry =

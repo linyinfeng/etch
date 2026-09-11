@@ -33,11 +33,8 @@ enum Command {
         #[arg(long, default_value = "out")]
         out: PathBuf,
         /// Write nothing; fail if the generated files are out of date
-        #[arg(long, conflicts_with = "prune")]
-        check: bool,
-        /// Delete files a previous pass generated that no chunk produces any more
         #[arg(long)]
-        prune: bool,
+        check: bool,
     },
     /// Translate a line of a generated file back to the .typ document
     Map {
@@ -74,9 +71,6 @@ enum Command {
         /// 'cargo build --message-format=short'; its diagnostics get translated
         #[arg(long)]
         check_cmd: Option<String>,
-        /// Delete files a previous pass generated that no chunk produces any more
-        #[arg(long)]
-        prune: bool,
     },
     /// List the chunks in a document, with their .typ lines
     List { doc: PathBuf },
@@ -99,17 +93,12 @@ fn main() {
 
 fn run() -> Result<i32, LpError> {
     match Cli::parse().command {
-        Command::Tangle {
-            docs,
-            out,
-            check,
-            prune,
-        } => {
+        Command::Tangle { docs, out, check } => {
             let docs = docs
                 .iter()
                 .map(|path| Doc::load(path))
                 .collect::<Result<Vec<_>, _>>()?;
-            let outcome = tangle::run(&docs, &out, check, prune)?;
+            let outcome = tangle::run(&docs, &out, check)?;
             for output in &outcome.changed {
                 println!(
                     "wrote  {}  ({} lines, {})",
@@ -129,11 +118,6 @@ fn run() -> Result<i32, LpError> {
                     eprintln!("managed {root} (by .lpignore)");
                 }
             }
-            for rel in &outcome.orphans {
-                eprintln!(
-                    "orphan {rel} (no chunk produces it any more; run `lp tangle --prune` to delete it)"
-                );
-            }
             for line in &outcome.stale {
                 eprintln!("{line}");
             }
@@ -147,14 +131,12 @@ fn run() -> Result<i32, LpError> {
             out,
             debounce,
             check_cmd,
-            prune,
         } => {
             watch::run(watch::Options {
                 docs,
                 out,
                 debounce: std::time::Duration::from_millis(debounce),
                 check_cmd,
-                prune,
             })?;
             Ok(0)
         }
