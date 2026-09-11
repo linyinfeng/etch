@@ -2713,7 +2713,7 @@ part of the program that touches the outside world.
 //!    writes means one pass per burst, not one per keystroke.
 //!
 //! ponytail: every pass re-reads and re-parses the whole document and re-expands
-//! every root (measured: ~1ms for 2k lines, see agent-notes). Reverse-reachability
+//! every root (measured: ~1ms for 2k lines). Reverse-reachability
 //! and `typst-syntax`'s reparser are only worth it if that ever shows up in a
 //! profile on a book-sized document.
 ````)
@@ -3498,7 +3498,7 @@ fn document(body: &str) -> String {
 ///
 /// The two references are spliced in rather than written on lines of their own:
 /// a line that is exactly `<<name>>` would be expanded when this file is tangled
-/// (ADR D15, `agent-notes/decisions/2026-09-11-self-hosting-layout.md`).
+/// (ADR D15).
 const DOC: &str = concat!(
     "\
 = Demo
@@ -5234,22 +5234,16 @@ package, the example, the protect list and the maps. What is tracked at the root
 the pointer, and this file. `README.md` is that pointer, and there is one of it: a second name for
 the same text is a second name that can drift, which is the whole reason this file's text is a
 pointer. The `.gitignore` is written as the list itself — ignore everything, then allow these — so it
-cannot fall out of step with what the repository is.
-
-The notes are not one of the three: they live on their own branch, `agent-notes`, which is where the
-records behind the rules and the conventions for working here are kept —
-`agent-notes/README.md` is the index, `agent-notes/decisions/` holds the decisions,
-`agent-notes/working-agreements.md` the process: worktrees, the borrowed toolchain, what a note is
-for. A worktree of that branch is where they are read and written, and it carries the gates script
-too, since that script belongs to the working habits rather than to the document. The seed is not tracked in the working tree either: it is the
+cannot fall out of step with what the repository is. The seed is not tracked in the working tree
+either: it is the
 `tangled` branch of this same repository, which is the one place output can live without being a file next to the
 document.
 
 = Starting from nothing
 
 A fresh clone holds three things and nothing else: this document, the pointer at the root that
-leads here, and the `.gitignore`, which says exactly that — ignore everything, allow these. The
-notes are a branch, not a directory here; the seed is a branch too; everything else is produced.
+leads here, and the `.gitignore`, which says exactly that — ignore everything, allow these. The seed
+is a branch as well, and there is nothing else: everything beyond these is produced.
 Everything else is produced
 by tangling — except the one thing this document cannot produce for itself, the binary that reads
 it, because the package has to exist before the document can be evaluated at all.
@@ -5269,16 +5263,6 @@ cargo test --manifest-path tangled/Cargo.toml
 
 A clone is enough; there is no second remote to fetch from. `origin/tangled` is the fallback for the
 case where the clone knows the branch only by that name.
-
-The gates script is not in this tree — it lives with the notes, on their branch, because it belongs to
-the working habits and not to the document. Take a worktree of that branch and call it from there; it
-acts on this tree by itself, and says so when it does:
-
-```sh
-git branch agent-notes origin/agent-notes     # a clone knows the branch only by that name
-git worktree add ../notes agent-notes
-../notes/agent-notes/dev.sh gates
-```
 
 These commands assume `typst` and `cargo` are on the path. This repository does not carry an
 environment of its own: a flake in it would be a tracked file that the document could not produce,
@@ -5339,13 +5323,10 @@ to a ceremony — tangle the document, then commit the tree to the branch:
 
 ```sh
 ./tangled/target/debug/lp tangle lp.typ      # the tree is this generation now
-agent-notes/dev.sh tangled                   # ... and the branch carries it
+git commit-tree … -p tangled                 # ... and the branch carries it
 ```
 
-Both of those are run from the notes worktree, where the gates script lives; it acts on this tree
-by itself, and says so when it does.
-
-The task is four plumbing commands: a temporary index, a temporary work tree filled from
+Committing the tree is four plumbing commands: a temporary index, a temporary work tree filled from
 `tangled/`'s own repository, `git commit-tree` with the previous seed as parent, and
 `git update-ref` on `refs/heads/tangled`. It never touches the working tree of `main`, and the branch
 is never checked out anywhere: a worktree of it would be stale the moment the next generation is
@@ -5381,8 +5362,7 @@ branch.
 
 = The rules
 
-These are not style preferences; each one was paid for. The decisions behind them are in
-`agent-notes/decisions/`.
+These are not style preferences; each one was paid for.
 
 - *Elegance is an admission requirement.* If the only way to build a feature is to
   search source text heuristically, or to parse Typst a second time, the feature is not
@@ -5397,7 +5377,7 @@ These are not style preferences; each one was paid for. The decisions behind the
 - *Generated files stay out of git*, and only this document is edited: the crate, the package,
   the example, the control files. The seed is output too, and lives on the `tangled` branch for
   bootstrap reasons — a fresh clone has no binary to tangle with. It is the same guarded tree, one
-  `dev.sh tangled` behind.
+  generation behind.
 - *An error points at a declaration*, never at a bare string: which chunk, and which
   line inside it.
 - *Unexplained files are errors, deletion is explicit.* Everything under the output
