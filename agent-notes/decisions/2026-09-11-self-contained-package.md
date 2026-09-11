@@ -56,3 +56,14 @@
 - **它自己的仓库由流程建立，不由工具建立**：`git init tangled` 写在 bootstrap 与 `dev.sh bootstrap` 里（幂等），`tangled/.lpignore` 里写一行 `/.git`。理由：工具在别人的输出目录里悄悄 `git init` 是越界；而且 ADR D10 明定了**没有 git 特例**（`.git/` 是普通内容，`tests/owned.rs` 里有用例钉着）。这样文档仓库管源、`tangled/` 管产物。
 - **代价**：根上多一个 tracked 文件——`.gitignore`（3 行，`/tangled/`），因为忽略输出目录的文件不可能在输出目录里面；`cargo` 的命令带 `--manifest-path tangled/Cargo.toml`。
 - **种子**：随之为 out 形状（`seed/tangled/{Cargo.toml,Cargo.lock,src,tests,lit}`），`cp -r seed/. .` 照旧铺下整棵树。
+
+## 种子搬到 `seed` 分支（2026-09-11 同日晚）
+
+用户提议：用一个特别的 git branch 放 seed，它实质上就是"跟随 main 更新"的 main 的 tangle 产物。采纳。
+
+- **main 的树回到纯源**：文档 + 手记 + 两个指针 + 根 `.gitignore`，没有 `seed/`。种子是**输出**，输出该住在分支上（这是唯一能不占工作树、又能被 clone 取到的地方）。
+- **bootstrap**：`seed_ref=$(git rev-parse --verify --quiet seed || git rev-parse --verify --quiet origin/seed)` + `git archive "$seed_ref" | tar -x -C tangled`。clone 只带来 `origin/seed`，所以两种名字都试；不需要第二个 remote。
+- **刷新**：`dev.sh seed`。踩到的事实：**git 不能 `add` 含 `.git` 的目录**（把它当嵌套仓库、静默跳过——第一次尝试因此得到一个空树）。所以用临时索引 + 从 `git -C tangled archive HEAD` 填出来的临时工作树 + `commit-tree`（父提交 = 上一个 seed）+ `update-ref`；工作树全程不动。
+- **不变量**：seed 分支的树哈希必须等于 `tangled/` 自己 HEAD 的树哈希——"seed 就是这一代产物"的可检查形式；`dev.sh seed` 断言它，不等就 `MISMATCH` 非零退出。
+- **何时刷新**：属于一次改动，不属于仪式。要求只有一条：seed 必须是**能读懂当前文档**的一代；落后一代就够，等于当前更好。`--check` 管不了这件事（它守树，不守分支）。
+- **同时**：内层 `.gitignore` 的规则改成不锚定（`.lp`/`.lpmap.json`/`target` 落在树里任何位置都算工具状态——示例目录下也会出现），`[workspace] exclude` 去掉 `seed`。
