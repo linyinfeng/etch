@@ -12,7 +12,7 @@
 // and `@<<name>>` is how you write such a line without it being one (D17). The prose is Typst,
 // not Markdown: emphasis is *one star*.
 
-#import "lit/lp.typ": chunk, file, rule
+#import "@local/lp:0.1.0": chunk, file, rule
 #show: rule
 
 = The tool, in its own words
@@ -68,6 +68,10 @@ metadata is attached where the declaration is written, and rendering is free to 
 as it likes afterwards.
 
 == The shape of the package
+
+#file("lit/typst.toml", ````toml
+<<package: the manifest>>
+````)
 
 #file("lit/lp.typ", ````typst
 <<package: what this file is>>
@@ -202,6 +206,21 @@ declared" and the tool records nothing.
 // A fence without an info string has no `lang` field at all. The tag is data rather than
 // a promise (ADR D18): missing means "not declared", and the tool records nothing.
 #let lang-of(code) = code.at("lang", default: none)
+````)
+
+== The manifest
+
+A local package is a directory with a manifest and an entry point, so the manifest is part of
+what this document produces: name, version, and the file Typst should read. Its name and version
+are the other half of the import at the top of this file — `@local/lp:0.1.0` — and the only
+thing tying the two together is that a wrong pair fails loudly, with Typst saying it cannot find
+the package.
+
+#chunk("package: the manifest", ````toml
+[package]
+name = "lp"
+version = "0.1.0"
+entrypoint = "lib.typ"
 ````)
 
 == The two declarations
@@ -513,6 +532,36 @@ override first, then `PATH`, and if neither works the error says what to do rath
 failing later with a confusing message.
 
 #chunk("metadata: finding typst", ````rust
+/// The package this tool is written with, compiled into the binary: a document should not have
+/// to ship a copy of it to be tangled, or find one (D21). `include_str!` is the whole
+/// mechanism — the standard library, no dependency, checked at compile time.
+const PACKAGE_MANIFEST: &str = include_str!("../lit/typst.toml");
+const PACKAGE_ENTRY: &str = include_str!("../lit/lp.typ");
+
+/// The directory, next to a document, that the package is unpacked into. It belongs to the tool,
+/// so the ownership check treats it like a control file rather than content.
+pub const PACKAGE_ROOT: &str = ".lp";
+
+/// Where a document's import (`@local/lp:0.1.0`) resolves inside that directory: namespace,
+/// name, version.
+const PACKAGE_DIR: &str = "local/lp/0.1.0";
+
+/// Write the embedded package to `<root>/.lp/…` so Typst can resolve what the document imports,
+/// and hand back the directory to point `--package-path` at. Only changed bytes are written, so
+/// a pass in a loop does not touch the disk.
+fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
+    let packages = root.join(PACKAGE_ROOT);
+    let dir = packages.join(PACKAGE_DIR);
+    std::fs::create_dir_all(&dir).map_err(|err| LpError::io(&dir, err))?;
+    for (name, text) in [("typst.toml", PACKAGE_MANIFEST), ("lib.typ", PACKAGE_ENTRY)] {
+        let path = dir.join(name);
+        if std::fs::read_to_string(&path).ok().as_deref() != Some(text) {
+            std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
+        }
+    }
+    Ok(packages)
+}
+
 /// Locate the `typst` binary: an explicit override, then `PATH`.
 pub fn binary() -> Result<PathBuf, LpError> {
     if let Some(path) = std::env::var_os("LP_TYPST") {
@@ -549,9 +598,10 @@ let docs: Vec<PathBuf> = docs
 // directory *and* every document. The wrapper lives next to the documents (it
 // must be inside the root to be readable) and includes them relatively.
 let root = common_ancestor(
-    &[cwd.clone()]
-        .into_iter()
-        .chain(docs.iter().cloned())
+    &docs
+        .iter()
+        .cloned()
+        .chain([cwd.clone()])
         .collect::<Vec<_>>(),
 );
 ````)
@@ -563,6 +613,7 @@ at all. Hence a wrapper next to the documents, including them relatively, with t
 computed as the deepest directory that contains everything involved.
 
 #chunk("metadata: ask typst, and let the wrapper go", ````rust
+let packages = unpack_package(&common_ancestor(&docs))?;
 let wrapper = Wrapper::write(&common_ancestor(&docs), &docs)?;
 let output = Command::new(typst)
     .arg("eval")
@@ -571,6 +622,8 @@ let output = Command::new(typst)
     .arg(&wrapper.path)
     .arg("--root")
     .arg(&root)
+    .arg("--package-path")
+    .arg(&packages)
     .current_dir(&cwd)
     .output();
 drop(wrapper);
@@ -2206,6 +2259,14 @@ for entry in builder.build() {
         continue;
     }
     let rel = relative(out, path);
+    // The directory the package is unpacked into is the tool's own scratch space, like the two
+    // control files: a document does not have to declare it, and neither does a project (D21).
+    if rel
+        .split('/')
+        .any(|part| part == crate::metadata::PACKAGE_ROOT)
+    {
+        continue;
+    }
     let (dir, name) = crate::map::split(&rel);
     if produced.get(dir).is_some_and(|names| names.contains(name)) {
         continue;
@@ -2246,10 +2307,13 @@ Ok(found
 == Two files that are never content
 
 The map and the ignore file are the two names `lp` reserves, and they are exempt from the
-report: a file that exists to explain the others is not one of them.
+report: a file that exists to explain the others is not one of them. The directory the package
+is unpacked into is exempt for the same reason — it is the tool's own scratch space, and a
+document that had to declare it would not be self-contained.
 
 #chunk("status: lp's own control files are never content", ````rust
-/// `lp`'s own control files are never content.
+/// `lp`'s own control files are never content, and neither is the directory it unpacks its
+/// package into.
 fn is_control_file(path: &Path) -> bool {
     path.file_name()
         .is_some_and(|name| name == MAP_FILE || name == IGNORE_FILE)
@@ -4606,6 +4670,7 @@ what `--check` and `--delete` each do.
 <<owned: without_a_declaration_a_stray_is_still_an_error>>
 
 <<owned: a_missing_output_directory_is_not_an_io_error>>
+<<owned: the_unpacked_package_is_not_content>>
 ````)
 
 The cases, in the order they appear:
@@ -4620,6 +4685,7 @@ The cases, in the order they appear:
 - `deleting_a_foreign_subtree_takes_one_line_and_one_command` — one compressed entry, one `--delete`, and a subtree is gone
 - `without_a_declaration_a_stray_is_still_an_error` — with no `.lpignore` at all, strays are still errors
 - `a_missing_output_directory_is_not_an_io_error` — a missing output file is drift, not an I/O failure
+- `the_unpacked_package_is_not_content` — the directory the tool unpacks its package into is never reported
 
 #chunk("owned: the file's purpose", ````rust
 //! Nothing under the output directory may go unaccounted for.
@@ -4952,6 +5018,14 @@ fn without_a_declaration_a_stray_is_still_an_error() {
 }
 ````)
 
+#chunk("owned: the_unpacked_package_is_not_content", ````rust
+#[test]
+fn the_unpacked_package_is_not_content() {
+    let (_guard, dir) = tangled("", &[(".lp/local/lp/0.1.0/lib.typ", "the package")]);
+    assert!(dir.join("out/.lp/local/lp/0.1.0/lib.typ").exists());
+}
+````)
+
 #chunk("owned: a_missing_output_directory_is_not_an_io_error", ````rust
 #[test]
 fn a_missing_output_directory_is_not_an_io_error() {
@@ -5153,6 +5227,7 @@ and the two pointers.
 
 /Cargo.toml
 /Cargo.lock
+.lp/
 /src/
 /tests/
 /lit/
@@ -5304,7 +5379,7 @@ The last section is the one to keep in mind while reading the rest of this docum
 points at a chunk is the difference between a generator and a tool you can debug.
 
 #chunk("demo: the document's opening", ````typst
-#import "../../lit/lp.typ": chunk, file, rule
+#import "@local/lp:0.1.0": chunk, file, rule
 #show: rule
 
 #set page(width: 15cm, height: auto, margin: 2cm)
@@ -5481,6 +5556,11 @@ The files in `examples/demo/build/` are the demonstration's own territory, and i
 says which of them other tools own — cargo's directory and lock file, the PDF, the frames
 `run.sh` produces for the transcript.
 
+Two of its steps are plain `typst` rather than `lp`, and those need the package path that the
+tangle unpacked: `TYPST_PACKAGE_PATH` is set to it for the weave and for the probe of the
+renderer. That is the one place a user of this tool has to know about the unpacking at all, and
+it is the same line their editor would need.
+
 #file("examples/demo/run.sh", ````bash
 <<demo: the harness>>
 ````)
@@ -5497,6 +5577,10 @@ LP=(cargo run --quiet --)
 DOC=examples/demo/literate.typ
 OUT=examples/demo/build
 
+# The weave below is plain `typst`, not `lp`, so it needs the package path the tangle unpacked
+# (`lp` passes it to its own Typst call; a user's editor has to set it the same way).
+export TYPST_PACKAGE_PATH="$PWD/examples/demo/.lp"
+
 echo "== tangle =="
 "${LP[@]}" tangle "$DOC" --out "$OUT"
 
@@ -5510,7 +5594,7 @@ typst compile --root . "$DOC" "$OUT/demo.pdf"
 # A reference line's indentation decides the indentation of the expanded chunk, so
 # the woven document has to show it (regression: it used to render flush left).
 echo "== weave: references keep their indentation =="
-indent=$(typst eval '{ import "lit/lp.typ": ref-indent; ref-indent("    <<print-results>>") }')
+indent=$(typst eval '{ import "@local/lp:0.1.0": ref-indent; ref-indent("    <<print-results>>") }')
 if [ "$indent" != '"    "' ]; then
     echo "FAIL: reference indentation is lost when weaving (got $indent)" >&2
     exit 1
@@ -5830,7 +5914,7 @@ just as well). The document below is the actual source; it was tangled and run o
 ## The document (`calc.typ`)
 
 ````
-#import "lit/lp.typ": chunk, file, rule
+#import "@local/lp:0.1.0": chunk, file, rule
 #show: rule
 
 = An RPN calculator
