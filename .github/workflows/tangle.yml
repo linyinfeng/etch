@@ -43,7 +43,7 @@ jobs:
           ./tangled/target/debug/lp tangle lp.typ --check
 
       - name: weave the document
-        run: typst compile --package-path .lp lp.typ lp.pdf
+        run: ./tangled/target/debug/lp weave lp.typ lp.pdf
 
       - uses: actions/upload-artifact@v7
         with:
