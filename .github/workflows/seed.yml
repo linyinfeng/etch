@@ -1,0 +1,91 @@
+name: seed
+
+# main generates the tree and hands it to the seed branch. The branch is checked where it is
+# published, not here: this pipeline only writes it after everything has passed.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: seed
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the seed lives on another branch
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # Tangling asks the document for its declarations, so typst is a hard dependency.
+      - name: typst
+        run: |
+          curl -fsSL https://github.com/typst/typst/releases/latest/download/typst-x86_64-unknown-linux-musl.tar.xz \
+            | sudo tar -xJ --strip-components=1 -C /usr/local/bin
+          typst --version
+
+      # The seed is the previous generation: with no binary on the machine, it is what makes one.
+      - name: unpack the seed
+        run: |
+          set -euo pipefail
+          if ! ref=$(git rev-parse --verify --quiet origin/tangled); then
+            echo "::error::no seed on origin/tangled — push the first generation by hand; this pipeline cannot start from nothing"
+            exit 1
+          fi
+          mkdir -p tangled
+          git archive "$ref" | tar -x -C tangled
+
+      - name: build the seed
+        run: cargo build --manifest-path tangled/Cargo.toml
+
+      - name: tangle the document, then check it against the tree
+        run: |
+          set -euo pipefail
+          ./tangled/target/debug/lp tangle lp.typ
+          ./tangled/target/debug/lp tangle lp.typ --check
+
+      - name: gates
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path tangled/Cargo.toml --check
+          cargo clippy --manifest-path tangled/Cargo.toml --all-targets
+          cargo test --manifest-path tangled/Cargo.toml
+          bash tangled/examples/demo/run.sh
+
+      # Everything passed, so this is the generation. A seed carries exactly what the tree's own
+      # repository commits — its `.gitignore` is part of the generation — so the index decides, not a
+      # list here.
+      - name: hand the generation to the seed branch
+        run: |
+          set -euo pipefail
+          root=$PWD
+          git init -q tangled
+          git -C tangled add -A
+
+          tmp=$(mktemp -d)
+          idx=$(mktemp)
+          rm -f "$idx"
+          git -C tangled ls-files -z | tar -C tangled --null -T - -cf - | tar -C "$tmp" -xf -
+          (cd "$tmp" && GIT_DIR="$root/.git" GIT_WORK_TREE="$tmp" GIT_INDEX_FILE="$idx" git add -A .)
+          tree=$(GIT_DIR="$root/.git" GIT_INDEX_FILE="$idx" git write-tree)
+          rm -rf "$tmp" "$idx"
+
+          parent=$(git rev-parse origin/tangled)
+          if [ "$(git rev-parse "$parent^{tree}")" = "$tree" ]; then
+            echo "the seed is unchanged"
+            exit 0
+          fi
+          commit=$(git -c user.name=github-actions -c user.email=github-actions@github.com \
+            commit-tree "$tree" -p "$parent" -m "The generation main writes ($GITHUB_SHA)")
+          git push origin "$commit:refs/heads/tangled"
+          echo "pushed $(git rev-parse --short "$commit") to tangled"

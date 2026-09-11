@@ -5231,7 +5231,7 @@ files cargo and nix maintain, which no chunk has any business owning.
 
 Everything under `tangled/` is generated, so the whole directory is ignored: the crate, the
 package, the example, the protect list and the maps. What is tracked at the root is the document,
-the pointer, and this file. `README.md` is that pointer, and there is one of it: a second name for
+the pointer, the pipeline, and this file. `README.md` is that pointer, and there is one of it: a second name for
 the same text is a second name that can drift, which is the whole reason this file's text is a
 pointer. The `.gitignore` is written as the list itself — ignore everything, then allow these — so it
 cannot fall out of step with what the repository is. The seed is not tracked in the working tree
@@ -5241,9 +5241,10 @@ document.
 
 = Starting from nothing
 
-A fresh clone holds three things and nothing else: this document, the pointer at the root that
-leads here, and the `.gitignore`, which says exactly that — ignore everything, allow these. The seed
-is a branch as well, and there is nothing else: everything beyond these is produced.
+A fresh clone holds four things and nothing else: this document, the pointer at the root that leads
+here, the `.gitignore`, which says exactly that — ignore everything, allow these — and the pipeline
+that hands each generation to the seed branch. The seed is a branch as well, and there is nothing
+else: everything beyond these is produced.
 Everything else is produced
 by tangling — except the one thing this document cannot produce for itself, the binary that reads
 it, because the package has to exist before the document can be evaluated at all.
@@ -5319,8 +5320,9 @@ matter — that text is whatever its language says it is.
 
 The seed only ever reads, and it is output: the same tree the tangle writes, committed at the root
 of its own branch instead of being kept in the working tree. Keeping it in step is part of building
-this repository rather than part of using the tool: the document changes, the tree is written again,
-and the branch is handed the result. What this document can state is the property that has to hold —
+this repository rather than part of using the tool: the pipeline does it on every change to the
+document — it takes the previous generation as the seed, builds it, tangles this document, runs the
+gates, and only then hands the branch the result. What this document can state is the property that has to hold —
 the branch carries a generation that can read the document, and a generation only ever reads.
 
 So it is output in the strict sense: never edited, never checked out, never worked in. A worktree of
