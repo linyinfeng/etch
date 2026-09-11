@@ -73,7 +73,7 @@
 
 - **测试 49 个**（7 单元 + 19 flow + 5 lazy + 7 metadata + 10 owned + 1 self），fmt/clippy 干净，`examples/demo/run.sh` 全绿。
 - **工具只管机制**：引用可解析、无环、非空、`--check`、输出目录被解释；顺序自由、lang 不检查（D18）。引用转义 `@<<name>>`（D17）。
-- **skill 也是生成物**：`.agents/skills/literate-programming/`（SKILL.md + 两个 reference）由 `self.typ` 声明；改 skill = 改文档。skill 的骨干是七条“论证守则”（承诺、术语、不说假话、说出未做到的部分、先改开头、交付前读文章）。
+- **skill 也是生成物**：`.agents/skills/literate-programming/`（SKILL.md + 两个 reference）由 `self.typ` 声明；改 skill = 改文档。skill 的第一句是**文档的主语是思想、代码是证据**，接着八条纪律（每节是一个主张 / 代码是证据 / 写 rejected 与为什么 / 散文不是 caption / 名字是想法不是实现 / 一个名字一个概念 / 说出未做到的部分 / 先改思路、最后读一遍），然后才是 lp 机制。
 - **自举 Stage 1 已验**：种子 `bootstrap/target/debug/lp tangle self.typ --out . --check` 全 ok，且 `diff -r bootstrap/{src,tests} .` 逐字节相同；`tests/self.rs` 守永久不变量（自己构的二进制自复现）。
 - 规模：`self.typ` 3778 行（17 个根 chunk：Cargo.toml + `src/` + `tests/` + skill 三个文件）；生成的 `src/` 1890 行 + `lit/lp.typ` 86 行；`bootstrap/` 是同一批字节的冻结副本。
 - 上一轮审计后**剩余**的脏点（按程度）：

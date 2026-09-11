@@ -3287,26 +3287,29 @@ fn the_document_regenerates_the_sources_we_are_running() {
 #file(".agents/skills/literate-programming/SKILL.md", `````markdown
 ---
 name: literate-programming
-description: Write a program as an article - one Typst document that argues the design in prose and, from that same text, tangles into real source files and weaves into a PDF. Use when writing or editing any program lp carries (including this repository's own self.typ), adding or reorganising chunks, or asked to write a literate document. The document is read front to back, so it has to go from idea to detail and stay logically self-consistent; lp enforces the structure, the argument is the writer's job.
+description: Write a program as an exposition - one Typst document whose subject is the thinking (the problem, the alternatives, the choice and why), with the code quoted in as the evidence that makes it checkable and tangled out of it into real source files and a woven PDF. Use when writing or editing any program lp carries (including this repository's own self.typ), adding or reorganising chunks, or asked to write a literate document. Reading front to back has to go from idea to detail; the tool checks only the mechanism, so the thinking is the writer's job.
 ---
 
 # Literate programming
 
-The program is an article. One source — a Typst document — and two products: **tangle** (the machine's copy: real source files) and **weave** (the reader's copy: a typeset document). Neither is the original; the article is.
+Literate means the document is **about the thinking**. A literate program is an exposition — what the problem is, what was tried, what was chosen and why — and the code is the evidence that makes those decisions run. The code is quoted *into* the argument; it is never the subject of it.
 
-Read front to back it has to be **progressive disclosure**: the first sections give the idea and the shape, later sections fill in what the earlier ones named. A reader who has to jump around — or who meets a detail before the name that explains why it exists — is reading a document that was not finished.
+One source, two products: **tangle** (the machine's copy: real source files) and **weave** (the reader's copy: a typeset document). Neither is the original; the exposition is.
 
-## Your job is the argument; the tool only checks the structure
+So the question is never "what code goes here" but "what am I saying here, and what does it need to show". Read front to back, the document has to be **progressive disclosure**: each section states its thought, and the ones that follow take it further. A reader who has to jump around, or who meets a detail before the idea that made it necessary, is reading a document that was not finished.
 
-`lp` can refuse a document whose *structure* contradicts this (table below). It cannot read. The part that matters is therefore on you:
+## The discipline: the thinking is the subject
 
-1. **Every section follows from the previous one.** Before writing one, answer: what has the reader been promised so far, and what does this section add? If the answer is "some other topic", the document is a list, not an argument.
-2. **A name is a promise, and the body keeps it exactly.** `<<the operation table>>` tells the reader what is coming and why it exists; when the body arrives it must be that thing — not more, not less, and not something the prose just described differently.
-3. **Make no claim the code contradicts.** Every sentence about behaviour has to be checkable in the chunk it describes. If the code does something the prose does not mention, either mention it or change the code.
-4. **One name for one thing.** Prose and chunks use the same word for the same concept; drifting synonyms are how a document starts lying.
-5. **Say what is not true yet.** Planned work, known limits, trade-offs taken: put them where the reader will meet them. A document that hides its gaps is not self-consistent, it is incomplete while pretending otherwise.
-6. **When the design changes, revise the beginning.** The top goes stale first, and a stale opening makes everything after it wrong.
-7. **Before saying done, read the article, not the diff.** Front to back, asking of each section what it promised and whether the next one kept it — then run the checks. A diff review cannot see an argument that stopped making sense three sections earlier.
+`lp` can check the mechanism (table below). It cannot read. The part that matters is on you:
+
+1. **Every section is a claim.** Be able to say it in one sentence before you write the section. If you cannot, it is not a thought yet — it is a place to put code.
+2. **The code is evidence, never the subject.** It appears so the reader can check the claim, not so the file can exist. A chunk written because "the file needs it" means the idea that needs it has not been written down.
+3. **Write the why: the constraint, the alternative, and the moment of choice.** A reader can reconstruct what the code does; they cannot reconstruct what you rejected, or why the obvious design was wrong. That part exists only if you write it.
+4. **Prose the thinking; captions are not prose.** "An operator consumes the two numbers produced before it" is a thought. "We call `pop` twice" is a caption for code, and captions belong in code.
+5. **Name ideas, not implementations.** `<<apply one token>>` is a step in an argument; `<<pop two operands>>` is an implementation detail. When a name could be a function name, the idea above it is missing.
+6. **One idea per paragraph, one promise per chunk.** A body keeps exactly the promise its name made: not more, not less, and not something the prose described differently. One name per concept, in the prose and in the chunks alike.
+7. **Say what is not true yet.** Limits, planned work, trade-offs taken, the case the code does not handle: put them where the reader meets them.
+8. **Revise the thinking first, and read for it before saying done.** When the design changes the opening is what goes stale; and the last pass is reading the exposition front to back — can someone rebuild the design from the reasoning? — not reviewing the diff. Then run the checks.
 
 The failure mode to avoid is prose that *sounds* explained. A confident paragraph that does not match its chunk is worse than no paragraph: it stops the next reader — human or agent — from looking at the code.
 
@@ -3318,11 +3321,13 @@ The failure mode to avoid is prose that *sounds* explained. A confident paragrap
 | Every file under `--out` is produced by a chunk or declared | `nothing accounts for these files` |
 | The generated files still equal the document | `--check` prints `STALE` |
 
-That is the whole list, and it is deliberately about *mechanism*: the tool can tell that a reference points at something and that the output still matches the text. It cannot tell whether the order is the best one for a reader, and it does not try — the order is yours (see below). None of these checks can tell whether the prose is *true* either.
+That is the whole list, and it is deliberately about *mechanism*: the tool can tell that a reference points at something and that the output still matches the text. It cannot tell whether a section states a thought, whether the order suits a reader, or whether the prose is true — mechanism is all it knows (see below).
 
-## The shape: every file is a skeleton
+## The shape: a file is the list of thoughts the reader already has
 
-A root chunk (`#file`) is written as a skeleton — a few lines that name their parts. Fragments (`#chunk`) are the parts, each declared in the section that explains it, in the order a reader wants them. Depth is whatever the explanation needs: a step can itself be a skeleton of steps.
+When the ideas come first, the file's shape falls out of them. A root chunk (`#file`) is a skeleton — a few lines that name the parts; fragments (`#chunk`) are those parts, each explained in the section that belongs to it. Depth is whatever the explanation needs: a step can itself be a skeleton of steps.
+
+The line between a skeleton and a dump is the line between ideas: if you cannot say what a fragment is *for* in the argument, it is too small, or not yet thought through.
 
 ````
 #file("src/calc.py", ```python
@@ -3434,10 +3439,13 @@ A fresh clone has no `src/`: build the frozen seed in `bootstrap/`, then tangle 
 #file(".agents/skills/literate-programming/references/example.md", `````markdown
 # Worked example: an RPN calculator
 
-Two files, no framework, written in the shape the skill asks for: the roots are skeletons that
-name their parts, and every part is declared in the section that explains it. The document below
-is the actual source; it was tangled and run on 2026-09-11 with `lp` 0.1.0, typst 0.15.1, and a
-tool that already enforced the order and language rules. The transcript at the end is real output.
+Two files, no framework, and an exposition you can check. The first paragraph is the design
+decision — why reverse Polish notation makes the grammar disappear — and everything after it
+exists to make that decision inspectable: the code is what the decision looks like when it has
+to run. The roots are skeletons that name their parts, and each part is explained in its own
+section (skeleton-first is one of the two legitimate shapes; pieces-first, assembly-last would do
+just as well). The document below is the actual source; it was tangled and run on 2026-09-11 with
+`lp` 0.1.0 and typst 0.15.1. The transcript at the end is real output.
 
 ## What the document decides
 
@@ -3705,6 +3713,9 @@ repository.
 
 ## The stance
 
+- **The subject is the thinking, not the code.** A literate document is an exposition: the problem,
+  the alternatives, the choice and why. The code is quoted into it as the evidence that makes the
+  claims checkable. "Literate" is about what is being said — the code is what the saying produces.
 - A program is a piece of literature addressed to human beings (Knuth): *"The main idea is to
   treat a program as a piece of literature, addressed to human beings rather than to a
   computer."* One source, two products — **tangle** for the machine, **weave** for the reader —
@@ -3712,18 +3723,19 @@ repository.
 - **The order belongs to the reader.** The whole point of named references is that the text can
   be arranged in the order the design is understood, not the order the machine runs it (noweb:
   *"tools let you arrange the parts of a program in any order and extract documentation and code
-  from the same source file"*).
-- **The article is the centre; chunks are its parts.** A fragment exists because a section of the
-  argument needed a name for something. When a chunk name and a function name compete, the chunk
-  is usually the coarser thing, because it belongs to a sentence.
-- **Reading front to back is the contract**: idea → shape → steps → details. `lp` enforces the
-  structure of the mechanism (references resolve, no cycles, generated files equal the text). The
-  other half — the order, and whether the prose is *true* and the argument *holds* — cannot be
-  checked by a tool, and that is what [`../SKILL.md`](../SKILL.md) is for.
-- **In an agent workflow** this is the point: the article is the complete context for the code
+  from the same source file"*). Where a fragment is declared — before or after it is first used —
+  is part of that arrangement, and the tool does not vote (D18).
+- **Chunks are parts of sentences and paragraphs, not of files.** A fragment exists because a
+  section of the argument needed a name for something. When a chunk name and a function name
+  compete, the chunk is usually the coarser thing, because it belongs to a thought.
+- **Reading front to back is the contract**: idea → shape → steps → details. `lp` checks the
+  mechanism only (references resolve, no cycles, generated files equal the text). Whether a
+  section states a thought, whether the order suits a reader, whether the prose is *true* — none
+  of that is checkable, and it is what [`../SKILL.md`](../SKILL.md) is for.
+- **In an agent workflow** this is the point: the exposition is the complete context for the code
   (nothing is implemented that the text does not explain), and the checks are what stop the two
-  from drifting. Writing prose is no longer the expensive part of literate programming — being
-  right is.
+  from drifting. Writing prose is no longer the expensive part of literate programming — knowing
+  what is true, and saying it clearly, is.
 
 ## The case against, in its strongest form
 

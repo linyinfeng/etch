@@ -52,4 +52,4 @@
 - 下一步候选与代价见 `handoff.md` §6（cargo JSON 后端 + `ci.sh` 是小尾巴；自举 M3 是大头）。**删除语义已在 D10 定下**（`.lpignore` 目录声明 / `--check` 干跑）。
 - 差异化：**chunk 级出处 + 生成物漂移检测与归属**——报错给到"哪个声明、在它里面第几行"，chunk 名一步 `rg` 到声明；littst / typst-unlit 都不解决这两点。
 - 长期目标（D3）：原型冻结为 bootstrap，工具自身源码改写成 literate `.typ` 并自举；固定点测试保证 bootstrap 与自举产物逐字节一致。
-- **agent skill**：`.agents/skills/literate-programming/` —— `SKILL.md`（写作者的七条论证守则 + lp 机制 + 错误对照表）+ `references/example.md`（深嵌套形态的两文件例子，真跑过）+ `references/thinking.md`（立场、反方批评、证据强度）。**它由 `self.typ` 生成**（与 crate 一样是生成物）：要改 skill 就改文档。
+- **agent skill**：`.agents/skills/literate-programming/` —— `SKILL.md`（第一句：**文档的主语是思想、代码是证据**；接着八条写给写作者的纪律 + lp 机制 + 错误对照表）+ `references/example.md`（深嵌套形态的两文件例子，真跑过）+ `references/thinking.md`（立场、反方批评、证据强度）。**它由 `self.typ` 生成**（与 crate 一样是生成物）：要改 skill 就改文档。
