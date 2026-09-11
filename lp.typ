@@ -5202,10 +5202,10 @@ description = "Typst-based literate programming: tangle source files out of a .t
 ````)
 
 #chunk("env: which worlds it keeps out", ````toml
-# The seed and the old probes are their own little worlds: nothing here depends on
-# them, and saying so keeps the resolver out of their manifests.
+# The old probes are their own little worlds: nothing here depends on them, and
+# saying so keeps the resolver out of their manifests.
 [workspace]
-exclude = ["seed", "agent-notes/experiments/*"]
+exclude = ["agent-notes/experiments/*"]
 ````)
 
 #chunk("env: the runtime dependencies", ````toml
@@ -5258,28 +5258,33 @@ files cargo and nix maintain, which no chunk has any business owning.
 
 Everything under `tangled/` is generated, so the whole directory is ignored: the crate, the
 package, the example, the protect list and the maps. What is tracked at the root is the document,
-the seed, the notes, the two pointers — and one `.gitignore`, because a file that ignores the
-output directory cannot be inside it.
+the notes, the two pointers — and one `.gitignore`, because a file that ignores the output
+directory cannot be inside it. The seed is not tracked in the working tree either: it is a branch
+of this same repository, which is the one place output can live without being a file next to the
+document.
 
 = Starting from nothing
 
-A fresh clone holds six things and nothing else: this document, the seed, the notes, the two
-one-line files that point here, and the `.gitignore` that keeps the output out of git. Everything
-else is produced by tangling:
+A fresh clone holds five things and nothing else: this document, the notes, the two one-line files
+that point here, and the `.gitignore` that keeps the output out of git. Everything else is produced
+by tangling — except the one thing this document cannot produce for itself, the binary that reads
+it, because the package has to exist before the document can be evaluated at all.
 
-The seed is a whole older generation — a built crate and the package it is built with — laid out
-the way the document expects to write it: under `tangled/`. So the first move is to copy it into
-place. It covers the one thing this document cannot produce for itself, since the package has to
-exist before the document can be evaluated at all — and the tool carries its own copy, so even that
-is a fallback rather than a requirement (D21).
+That is the seed, and it is not a file in the tree: it is a branch. One whole older generation — a
+crate and the package it is built with — sits at its root, ready to unpack:
 
 ```sh
-cp -r seed/. .                                     # the previous generation, into tangled/
-git init tangled                                   # the generated code gets its own history
+seed_ref=$(git rev-parse --verify --quiet seed || git rev-parse --verify --quiet origin/seed)
+mkdir -p tangled
+git archive "$seed_ref" | tar -x -C tangled        # the previous generation, into tangled/
+git init -q tangled                                # the generated code gets its own history
 cargo build --manifest-path tangled/Cargo.toml
 ./tangled/target/debug/lp tangle lp.typ            # writes to tangled/, next to the document
 cargo test --manifest-path tangled/Cargo.toml
 ```
+
+A clone is enough; there is no second remote to fetch from. `origin/seed` is the fallback for the
+case where the clone knows the branch only by that name.
 
 These commands assume `typst` and `cargo` are on the path. This repository does not carry an
 environment of its own: a flake in it would be a tracked file that the document could not produce,
@@ -5303,9 +5308,21 @@ far as the recommendation goes. Nothing here commits, and nothing here should: w
 worth keeping is the writer's call, not the tool's.
 
 The one thing that tree needs from you is its own `.gitignore`, because the root's does not reach
-inside it: `/.lp` and `/target` are the tool's state and cargo's, not a program. Write it, declare
-it in the protect list above next to `/.git` — they are the same kind of file, settings of the
-inner repository rather than content of this document — and the tangle leaves it alone.
+inside it. The tool's state and cargo's are not a program:
+
+```gitignore
+# The tool's own state, and what cargo builds — wherever in the tree they land.
+.lp
+.lpmap.json
+target
+
+# The example's build directory is a nested document's output; that document says what is inside.
+examples/demo/build
+```
+
+Write it, declare it in the protect list above next to `/.git` — they are the same kind of file,
+settings of the inner repository rather than content of this document — and the tangle leaves it
+alone.
 
 After that the loop is the ordinary one: edit this document, tangle, test. While writing,
 
@@ -5321,23 +5338,27 @@ One thing that trips people up once: this prose is Typst, not Markdown. Emphasis
 star (`*like this*`); a doubled star is a warning, not bold. Inside a fence it does not
 matter — that text is whatever its language says it is.
 
-= Replacing the seed
+= Keeping the seed branch in step
 
-The seed only ever reads, and it is only replaced on purpose: when this document starts
-using syntax the seed cannot read — which has already happened once, with the escape in
-D17 — the current generation becomes the next seed. It is a copy, not a build step:
+The seed only ever reads, and it is output: the same tree the tangle writes, committed at the root
+of its own branch instead of being kept in the working tree. Refreshing it belongs to a change, not
+to a ceremony — tangle the document, then commit the tree to the branch:
 
 ```sh
-cp -f Cargo.toml Cargo.lock seed/
-rm -rf seed/src seed/tests seed/lit
-mkdir -p seed/src seed/tests seed/lit
-cp src/*.rs seed/src/
-cp tests/*.rs seed/tests/
-cp lit/lp.typ lit/typst.toml seed/lit/
+./tangled/target/debug/lp tangle lp.typ      # the tree is this generation now
+agent-notes/dev.sh seed                      # ... and the branch carries it
 ```
 
-The seed is then one generation behind again, which is all it has to be: old enough to
-read this document, complete enough to be built.
+The task is four plumbing commands: a temporary index, a temporary work tree filled from
+`tangled/`'s own repository, `git commit-tree` with the previous seed as parent, and
+`git update-ref` on `refs/heads/seed`. It never touches the working tree of `main` — and it cannot
+simply add `tangled/`, because a directory holding a `.git` is a repository, and git will not add
+what is inside one.
+
+Only one property is required of the seed: it must be a generation that can read this document, and
+one generation behind is enough. Being the current one is better, so refresh it whenever the tree
+changes — which is exactly what `--check` cannot tell you, since it guards the tree, not the
+branch.
 
 = The rules
 
@@ -5355,8 +5376,9 @@ These are not style preferences; each one was paid for. The decisions behind the
 - *Orthogonality.* No knowledge of any target language in the algorithms; language
   differences are data (the fence tag), never code.
 - *Generated files stay out of git*, and only this document is edited: the crate, the package,
-  the example, the control files. One thing is declared here and tracked anyway, for bootstrap
-  reasons: the seed, a frozen copy of an older generation. `--check` guards it.
+  the example, the control files. The seed is output too, and lives on its own branch for bootstrap
+  reasons — a fresh clone has no binary to tangle with. It is the same guarded tree, one
+  `dev.sh seed` behind.
 - *An error points at a declaration*, never at a bare string: which chunk, and which
   line inside it.
 - *Unexplained files are errors, deletion is explicit.* Everything under the output
