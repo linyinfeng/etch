@@ -252,7 +252,7 @@ fn an_ambiguous_file_name_is_an_error_not_a_guess() {
     );
     assert!(!output.status.success());
     assert!(
-        stderr(&output).contains("which line map?"),
+        stderr(&output).contains("which map?"),
         "{}",
         stderr(&output)
     );

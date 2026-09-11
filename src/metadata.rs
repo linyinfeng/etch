@@ -16,9 +16,8 @@
 //! ```)
 //! ```
 //!
-//! A declaration carries name, language and text, so nothing has to be
-//! recovered from the source afterwards. What the source is needed for is the
-//! line, and there the declaration is its own anchor (`locate.rs`).
+//! A declaration carries name, language and text, so nothing has to be recovered
+//! from the source afterwards — which is why the sources are not read at all.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

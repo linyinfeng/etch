@@ -1,9 +1,9 @@
 //! Turning a toolchain's diagnostics into chunk references.
 //!
 //! `lp explain` is a filter: it echoes what it reads and, for every
-//! `file:line:col:` it can find in a line map, prints which chunk that generated
-//! line came from and how far into it the line is. Find that chunk in the
-//! document — `rg '#chunk("print-results"'` — and you are at the place to edit.
+//! `file:line:col:` it can find in a map, prints which chunk that generated line
+//! came from and how far into it the line is. Find that chunk in the document —
+//! `rg '#chunk("print-results"'` — and you are at the place to edit.
 //!
 //! It knows nothing about any language, and it does not know `.typ` line numbers
 //! either: Typst does not expose source positions (ADR D14).

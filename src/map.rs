@@ -1,4 +1,4 @@
-//! Where the lines of a generated file came from.
+//! Which chunk produced which lines of a generated file.
 //!
 //! Not line numbers: Typst exposes no source positions, and recovering them would
 //! mean searching the source or parsing Typst again — neither is worth doing for
@@ -192,7 +192,7 @@ pub fn resolve_all<'a>(
             .flat_map(|(dir, map)| map.files.keys().map(move |name| join(dir, name)))
             .collect::<Vec<_>>()
             .join(", ");
-        return Err(LpError::plain(format!("{file}: not in the line map"))
+        return Err(LpError::plain(format!("{file}: no map knows this file"))
             .with_help(format!("known files: {known}")));
     };
     if candidates
@@ -204,8 +204,9 @@ pub fn resolve_all<'a>(
             .map(|(dir, name, _)| join(dir, name))
             .collect::<Vec<_>>()
             .join(", ");
-        return Err(LpError::plain(format!("{file}: which line map?"))
-            .with_help(format!("candidates: {all}")));
+        return Err(
+            LpError::plain(format!("{file}: which map?")).with_help(format!("candidates: {all}"))
+        );
     }
     Ok(*best)
 }

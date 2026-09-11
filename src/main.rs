@@ -72,7 +72,7 @@ enum Command {
         #[arg(long)]
         check_cmd: Option<String>,
     },
-    /// List the chunks in a document, with their .typ lines
+    /// List the chunks a document declares
     List { doc: PathBuf },
     /// Ask the documents which chunks they have, in order
     Metadata {
@@ -194,7 +194,9 @@ fn run() -> Result<i32, LpError> {
             let (dir, name, entry) = map::resolve_all(&maps, &file)?;
             let rel = map::join(dir, name);
             let Some((run, offset)) = entry.locate(line) else {
-                return Err(LpError::plain(format!("{rel}:{line}: not in the line map")));
+                return Err(LpError::plain(format!(
+                    "{rel}:{line}: no map knows this file"
+                )));
             };
 
             // Where to edit: the chunk, and how far into it this line is. Typst
@@ -210,7 +212,7 @@ fn run() -> Result<i32, LpError> {
                 .map_err(|e| LpError::plain(e.to_string()))?;
             let mapped = explain::run(&out, &format, &input)?;
             if mapped == 0 {
-                eprintln!("note: no diagnostic line matched the line map");
+                eprintln!("note: no diagnostic line matched any map");
             }
             Ok(0)
         }

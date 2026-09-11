@@ -50,7 +50,7 @@ lp watch  <doc.typ>... [--out DIR] [--debounce MS] [--check-cmd CMD]
 lp map    --file src/main.rs --line 42         # 生成文件的第 42 行来自哪个 chunk、在它里面第几行
 lp map    --typ print-results                  # 反向：这个 chunk 产生了哪些生成行
 lp explain [--out DIR]                         # 把 file:line:col 诊断翻译回 .typ（读 stdin）
-lp list   <doc.typ>                            # 列出 chunk：根/片段、语言、源行号、是否被引用
+lp list   <doc.typ>                            # 列出 chunk：file/片段、语言、是否被引用
 lp metadata <doc>...                           # 让 Typst 求值并打印它的有序事件流（调试用）
 lp unaccounted <doc>... [--out DIR] [--delete]  # 列出（或显式删除）既没有 chunk 产出、也没被声明的文件
 ```

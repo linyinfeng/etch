@@ -1,9 +1,10 @@
 //! Tangling: expand chunks into whole files, write them, and record where every
 //! output line came from.
 //!
-//! Which chunks exist is Typst's answer (`metadata.rs`); where each one was
-//! written is a search (`locate.rs`). What is left here is our own, much smaller
-//! part: `<<references>>`, indentation, writing files, and the line map.
+//! Which chunks exist is Typst's answer (`metadata.rs`), and it is the only thing
+//! the tool cannot work out for itself. What is left here is our own small part:
+//! `<<references>>`, indentation, writing files, and recording which chunk
+//! produced which output lines.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
