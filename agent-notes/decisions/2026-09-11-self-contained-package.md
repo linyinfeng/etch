@@ -57,7 +57,7 @@
 - **代价**：根上多一个 tracked 文件——`.gitignore`（3 行，`/tangled/`），因为忽略输出目录的文件不可能在输出目录里面；`cargo` 的命令带 `--manifest-path tangled/Cargo.toml`。
 - **种子**：随之为 out 形状（`seed/tangled/{Cargo.toml,Cargo.lock,src,tests,lit}`），`cp -r seed/. .` 照旧铺下整棵树。
 
-## 种子搬到 `seed` 分支（2026-09-11 同日晚）
+## 种子搬到分支（2026-09-11 同日晚；2026-09-12 分支由 `seed` 改名 `tangled`）
 
 用户提议：用一个特别的 git branch 放 seed，它实质上就是"跟随 main 更新"的 main 的 tangle 产物。采纳。
 

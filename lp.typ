@@ -5115,8 +5115,8 @@ use std::process::Command;
 /// The document is the source of the files that are compiled, so `--check` in the
 /// crate root has to be clean. This is the permanent half of the fixed point:
 /// Stage 1 also required the output to equal the frozen seed, which stopped
-/// being true the moment the document was refactored (ADR D15); the seed is a
-/// branch now, and it is refreshed from this same tree.
+/// being true the moment the document was refactored (ADR D15); the seed is the
+/// `tangled` branch now, refreshed from this same tree.
 #[test]
 fn the_document_regenerates_the_sources_we_are_running() {
     // The crate lives in `tangled/`, one level below the document it is generated from.
@@ -5247,8 +5247,8 @@ out of step with what the repository is. The notes are the other half of the rep
 conventions for working in
 it are a note: `agent-notes/README.md` is the index, `agent-notes/decisions/` holds the records
 behind the rules, `agent-notes/working-agreements.md` the process — worktrees, the borrowed
-toolchain, what a note is for. The seed is not tracked in the working tree either: it is a branch
-of this same repository, which is the one place output can live without being a file next to the
+toolchain, what a note is for. The seed is not tracked in the working tree either: it is the
+`tangled` branch of this same repository, which is the one place output can live without being a file next to the
 document.
 
 = Starting from nothing
@@ -5263,16 +5263,16 @@ That is the seed, and it is not a file in the tree: it is a branch. One whole ol
 crate and the package it is built with — sits at its root, ready to unpack:
 
 ```sh
-seed_ref=$(git rev-parse --verify --quiet seed || git rev-parse --verify --quiet origin/seed)
+tangled_ref=$(git rev-parse --verify --quiet tangled || git rev-parse --verify --quiet origin/tangled)
 mkdir -p tangled
-git archive "$seed_ref" | tar -x -C tangled        # the previous generation, into tangled/
+git archive "$tangled_ref" | tar -x -C tangled     # the previous generation, into tangled/
 git init -q tangled                                # the generated code gets its own history
 cargo build --manifest-path tangled/Cargo.toml
 ./tangled/target/debug/lp tangle lp.typ            # writes to tangled/, next to the document
 cargo test --manifest-path tangled/Cargo.toml
 ```
 
-A clone is enough; there is no second remote to fetch from. `origin/seed` is the fallback for the
+A clone is enough; there is no second remote to fetch from. `origin/tangled` is the fallback for the
 case where the clone knows the branch only by that name.
 
 These commands assume `typst` and `cargo` are on the path. This repository does not carry an
@@ -5326,7 +5326,7 @@ One thing that trips people up once: this prose is Typst, not Markdown. Emphasis
 star (`*like this*`); a doubled star is a warning, not bold. Inside a fence it does not
 matter — that text is whatever its language says it is.
 
-= Keeping the seed branch in step
+= Keeping the seed in step
 
 The seed only ever reads, and it is output: the same tree the tangle writes, committed at the root
 of its own branch instead of being kept in the working tree. Refreshing it belongs to a change, not
@@ -5334,12 +5334,12 @@ to a ceremony — tangle the document, then commit the tree to the branch:
 
 ```sh
 ./tangled/target/debug/lp tangle lp.typ      # the tree is this generation now
-agent-notes/dev.sh seed                      # ... and the branch carries it
+agent-notes/dev.sh tangled                   # ... and the branch carries it
 ```
 
 The task is four plumbing commands: a temporary index, a temporary work tree filled from
 `tangled/`'s own repository, `git commit-tree` with the previous seed as parent, and
-`git update-ref` on `refs/heads/seed`. It never touches the working tree of `main` — and it cannot
+`git update-ref` on `refs/heads/tangled`. It never touches the working tree of `main` — and it cannot
 simply add `tangled/`, because a directory holding a `.git` is a repository, and git will not add
 what is inside one.
 
@@ -5385,9 +5385,9 @@ These are not style preferences; each one was paid for. The decisions behind the
 - *Orthogonality.* No knowledge of any target language in the algorithms; language
   differences are data (the fence tag), never code.
 - *Generated files stay out of git*, and only this document is edited: the crate, the package,
-  the example, the control files. The seed is output too, and lives on its own branch for bootstrap
-  reasons — a fresh clone has no binary to tangle with. It is the same guarded tree, one
-  `dev.sh seed` behind.
+  the example, the control files. The seed is output too, and lives on the `tangled` branch for
+  bootstrap reasons — a fresh clone has no binary to tangle with. It is the same guarded tree, one
+  `dev.sh tangled` behind.
 - *An error points at a declaration*, never at a bare string: which chunk, and which
   line inside it.
 - *Unexplained files are errors, deletion is explicit.* Everything under the output

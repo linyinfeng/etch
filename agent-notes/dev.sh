@@ -5,7 +5,7 @@
 #
 #   agent-notes/dev.sh gates        # everything: tangle, tests, fmt, clippy, check, weave, demo
 #   agent-notes/dev.sh test|fmt|clippy|tangle|check|demo|weave|repo
-#   agent-notes/dev.sh bootstrap|seed          # what a clone does; refresh the seed branch
+#   agent-notes/dev.sh bootstrap|tangled       # what a clone does; refresh the tangled branch
 #   agent-notes/dev.sh <any command>            # run it with the toolchain on PATH
 #   agent-notes/dev.sh shell                    # just give me the toolchain and a shell
 #
@@ -13,7 +13,14 @@
 # and typst is a hard dependency of both tangling and the tests.
 
 set -euo pipefail
-cd "$(dirname "$0")/.."
+
+# This script lives with the notes and acts on the main working tree, which is where the document
+# and its output are. Run it from anywhere — from a worktree of another branch, from main — and the
+# first entry of `git worktree list` is the main one, by definition.
+here=$(cd "$(dirname "$0")/.." && pwd)
+main=$(git -C "$here" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2; exit}')
+cd "${main:-$here}"
+[ "$PWD" = "$here" ] || echo "acting on $PWD (the main worktree)"
 
 pkgs=(nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc nixpkgs#rustfmt nixpkgs#clippy nixpkgs#python3)
 run() { nix shell "${pkgs[@]}" -c "$@"; }
@@ -43,8 +50,8 @@ fmt) run cargo fmt --manifest-path tangled/Cargo.toml --check ;;
 clippy) run cargo clippy --manifest-path tangled/Cargo.toml --all-targets ;;
 tangle) run ./tangled/target/debug/lp tangle lp.typ ;;
 check) run ./tangled/target/debug/lp tangle lp.typ --check ;;
-seed)
-	# Write the current generation into the `seed` branch. A temporary index and a temporary work
+tangled)
+	# Write the current generation into the `tangled` branch. A temporary index and a temporary work
 	# tree, built from the tree's own repository: `git add tangled` cannot work, because a
 	# directory holding a .git is a repository and git will not add what is inside one.
 	root=$PWD
@@ -55,21 +62,21 @@ seed)
 	if git -C tangled rev-parse --verify --quiet HEAD >/dev/null; then
 		git -C tangled archive HEAD | tar -x -C "$tmp"
 	else
-		echo "seed   $(git rev-parse --short refs/heads/seed)  unchanged (tangled/ has no history yet)"
+		echo "tangled $(git rev-parse --short refs/heads/tangled)  unchanged (tangled/ has no history yet)"
 		rm -rf "$tmp" "$idx"
 		exit 0
 	fi
 	(cd "$tmp" && GIT_DIR="$root/.git" GIT_WORK_TREE="$tmp" GIT_INDEX_FILE="$idx" git add -A .)
 	tree=$(GIT_DIR="$root/.git" GIT_INDEX_FILE="$idx" git write-tree)
 	rm -rf "$tmp" "$idx"
-	current=$(git rev-parse --verify --quiet "refs/heads/seed^{tree}" || true)
+	current=$(git rev-parse --verify --quiet "refs/heads/tangled^{tree}" || true)
 	if [ "$current" = "$tree" ]; then
-		echo "seed   $(git rev-parse --short refs/heads/seed)  unchanged  tree ${tree:0:7}"
+		echo "tangled $(git rev-parse --short refs/heads/tangled)  unchanged  tree ${tree:0:7}"
 		exit 0
 	fi
 	inner=$(git -C tangled rev-parse "HEAD^{tree}")
 	[ "$inner" = "$tree" ] || {
-		echo "seed   MISMATCH with tangled/ ($tree vs $inner)" >&2
+		echo "tangled MISMATCH with tangled/ ($tree vs $inner)" >&2
 		exit 1
 	}
 	# Nothing this document declares may be missing, and neither may the two members of the rule
@@ -86,17 +93,17 @@ seed)
 		done
 	)
 	[ -z "$missing" ] || {
-		echo "seed   declared but not in the tree: $missing" >&2
+		echo "tangled declared but not in the tree: $missing" >&2
 		exit 1
 	}
-	parent=$(git rev-parse --verify --quiet refs/heads/seed || true)
+	parent=$(git rev-parse --verify --quiet refs/heads/tangled || true)
 	if [ -n "$parent" ]; then
 		commit=$(git commit-tree "$tree" -p "$parent" -m "The generation this document writes")
 	else
 		commit=$(git commit-tree "$tree" -m "The generation this document writes")
 	fi
-	git update-ref refs/heads/seed "$commit"
-	echo "seed   $(git rev-parse --short refs/heads/seed)  $(git ls-tree -r refs/heads/seed --name-only | wc -l) files  tree ${tree:0:7}"
+	git update-ref refs/heads/tangled "$commit"
+	echo "tangled $(git rev-parse --short refs/heads/tangled)  $(git ls-tree -r refs/heads/tangled --name-only | wc -l) files  tree ${tree:0:7}"
 	;;
 list) run ./tangled/target/debug/lp list lp.typ ;;
 demo) run bash tangled/examples/demo/run.sh ;;
@@ -106,11 +113,11 @@ weave)
 	;;
 shell) run bash ;;
 bootstrap)
-	# what a fresh clone does: unpack the seed branch into tangled/, make the tree a repository,
+	# what a fresh clone does: unpack the tangled branch into tangled/, make the tree a repository,
 	# build it, and let the older lp write this generation into it
-	seed_ref=$(git rev-parse --verify --quiet seed || git rev-parse --verify --quiet origin/seed)
+	tangled_ref=$(git rev-parse --verify --quiet tangled || git rev-parse --verify --quiet origin/tangled)
 	mkdir -p tangled
-	run bash -c "git archive $seed_ref | tar -x -C tangled"
+	run bash -c "git archive $tangled_ref | tar -x -C tangled"
 	[ -d tangled/.git ] || git init -q tangled
 	run cargo build --manifest-path tangled/Cargo.toml
 	run ./tangled/target/debug/lp tangle lp.typ
