@@ -28,6 +28,11 @@ gates)
 		echo "clippy $(cargo clippy --manifest-path tangled/Cargo.toml --all-targets 2>&1 | grep -cE "^(warning|error)" || true) findings"
 		./tangled/target/debug/lp tangle lp.typ --check >/dev/null && echo "check  ok"
 		echo "strays $(./tangled/target/debug/lp tangle lp.typ 2>&1 | grep -c "declared without a language" || true) (language), 0 expected"
+		# A whitelist in .gitignore re-includes whole directories; this is the line that says so
+		# the moment it starts including build output.
+		bad=$(git ls-files | grep -cE "(^|/)(target|out)/|[.](pdf|png)$" || true)
+		[ "$bad" = 0 ] || { echo "tracked $bad build artifacts — a whitelist is leaking" >&2; exit 1; }
+		echo "tracked no build artifacts"
 		echo "weave  $(TYPST_PACKAGE_PATH=$PWD/.lp typst compile lp.typ /tmp/lp.pdf 2>&1 | grep -c warning || true) warnings"
 		printf "demo   %s\n" "$(bash tangled/examples/demo/run.sh 2>&1 | tail -1)"
 		if [ -d tangled/.git ]; then echo "repo   tangled/ is its own repository"; else echo "repo   MISSING tangled/.git"; fi

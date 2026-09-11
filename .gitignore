@@ -1,13 +1,20 @@
-# The tangled tree is the document's output: generated, ignored, and a repository of its own.
-/tangled/
+# Ignore everything, then allow the few things this branch is: the document, the pointer, and this
+# file. Output, the package copy, the tree's own metadata, cargo's target, the demo's build — all of
+# it falls under the first rule, which is the point: what the tool produces is the document's
+# business, and a list there would have to be maintained here.
+*
+!/.gitignore
+!/README.md
+!/lp.typ
 
-# The package the tool unpacks for Typst, wherever it sits next to a document.
-.lp/
+# Temporary: the notes are still tracked on this branch. They move to their own branch and take
+# these two exceptions with them — until then, without them, `git add` would silently skip a new note.
+!/agent-notes/
+!/agent-notes/**
 
-# Build and run artifacts, anywhere in the tree.
-target/
-result
-.direnv/
-*.pdf
-*.png
-out/
+# The exception above re-includes everything under agent-notes/, including what the probes build and
+# generate. Those stay out; the rule has to come after the exception to win.
+/agent-notes/**/target/
+/agent-notes/**/out/
+/agent-notes/**/*.pdf
+/agent-notes/**/*.png
