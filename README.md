@@ -14,7 +14,8 @@ nix develop -c experiments/2026-09-11-chunk-spike/run.sh   # 跑通 spike
 ```
 
 - 调研与决策记录：[`agent-notes/`](agent-notes/README.md)
-- 可运行的最小验证：[`experiments/2026-09-11-chunk-spike/`](experiments/2026-09-11-chunk-spike/README.md)
+- 可运行的最小验证：[`experiments/2026-09-11-chunk-spike/`](experiments/2026-09-11-chunk-spike/README.md)、[`experiments/2026-09-11-typst-syntax-probe/`](experiments/2026-09-11-typst-syntax-probe/README.md)
+- tangle 用官方 **`typst-syntax`** crate 直读源文件（有精确 span，**不需要装 typst**）；weave 用 `typst compile`。
 
 已验证的核心机制：
 

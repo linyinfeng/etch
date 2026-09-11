@@ -6,3 +6,6 @@ page-*.png
 # nix
 result
 .direnv/
+
+# rust
+target/

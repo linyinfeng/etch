@@ -26,6 +26,7 @@ $ typst eval 'query(raw.where(block: true)).map(e => (label: str(e.at("label", d
 - `str(label)` **不带尖括号**（`label("body")` → `str` = `"body"`，`repr` = `"<body>"`）。写比较逻辑时注意。
 - query 返回的字段：`func/text/block/lang/align/syntaxes/theme/tab-size/lines/label`。`lines` 里每行带行号和已经过语法高亮的 `body`（体积大，tangle 不需要）。
 - **没有 span / 源文件行列信息**（实测输出里没有，Typst 也不提供该字段）。→ 想给出"`.typ` 第 N 行"只有两条路：(a) 工具自己扫源文件；(b) 用 label 在源文件里唯一出现这一性质反查（spike 用 (b)，能拿到 chunk 首行）。`element.location()` 只是**排版**位置（页/坐标），不是源位置。
+  → **但链接官方 parser crate `typst-syntax` 就能拿到精确 span，见 §7（这已经推翻了上面的将就做法）。**
 
 ## 2. CLI 接口（0.15 起）
 
@@ -77,7 +78,29 @@ $ typst eval 'query(raw.where(block: true)).map(e => (label: str(e.at("label", d
 - `typst compile` 只能输出 pdf/png/svg（HTML 需 `--features html` 且未完成）。没有"输出任意文件"的口子。
 - 因此架构必然是：**Typst 负责解析 + 渲染，外部小 CLI 负责 `typst eval` + 写文件 + 报错映射**。
 
-## 7. spike 里已经被验证的完整链路
+## 7. 更好的路线：`typst-syntax` crate（实测，2026-09-11 补）
+
+结论：**tangle 不需要调 typst CLI，也不需要自己扫 fenced 行**。链官方 parser crate 即可拿到精确 span 与与渲染一致的正文。
+
+```rust
+let src = Source::detached(text);
+let root = LinkedNode::new(src.root());
+// 递归下潜；某节点的 cast::<ast::Raw>() 有值、且 block() 为真、且 next_sibling() 是 Label → 这就是一个 chunk
+// body: raw.lines()   lang: raw.lang()   line: src.lines().byte_to_line(node.range().start)
+```
+
+| 事实 | 证据 |
+| --- | --- |
+| `LinkedNode::range()` 给出字节区间，`Source::lines().byte_to_line()` 给行号 | probe 输出 `line 4 byte 45..71` |
+| label 是 raw 的 sibling 节点；`` ``` <x> `` 与独立一行 `<x>` 都识别 | probe 输出两种写法都拿到 `label=<own-line>` / `<same-line>` |
+| **列表/图表里的 chunk 是嵌套节点**，只遍历顶层 children 会漏 | fixture 里套在 list item 里、缩进两格的 `<in-list>` 只在递归遍历时出现 |
+| `raw.lines()` 与 `typst eval` 的 `text` **逐字节相同**（含公共缩进裁剪） | 两条路输出的 5 个 chunk 完全一致 |
+| 同名 label 多块都能拿到；未标 label 的块自然过滤 | `label=None` 被跳过 |
+| 因此 tangle 不需要 typst 二进制 | 只有 weave 与 oracle 测试需要 |
+
+实测代码：`experiments/2026-09-11-typst-syntax-probe/`。`typst-syntax` 版本需与目标 Typst 版本对齐（0.15.x），升级时用 `typst eval` 当 oracle 跑一致性测试。
+
+## 8. spike 里已经被验证的完整链路
 
 见 `experiments/2026-09-11-chunk-spike/`：
 

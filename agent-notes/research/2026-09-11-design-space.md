@@ -15,7 +15,7 @@
 ``` <hello.py>
 ````
 - weave = `typst compile`（文档本身就是排版源，零预处理）。
-- tangle = 外部 CLI：`typst eval 'query(raw.where(block:true)).map(...)'` → 展开 `<<ref>>` → 写文件。
+- tangle = 外部 CLI：`typst-syntax` crate 直读 `.typ`（拿精确 span，无需 typst 二进制、无子进程）；`typst eval` 降为测试 oracle / 版本不匹配时的降级后端（见 ADR D6）
 - 优点：文件永远是合法 Typst ⇒ typst-lsp / typst-preview 直接可用；没有预处理器语法，agent 只需学一套规则；解析工作全部外包给 Typst 前端（含报错）。
 - 代价：chunk 名靠 label（Typst 的 label 语义要绕开，见 engine-facts §4/§5）；`<<ref>>` 是纯文本约定，Typst 不会校验（tangle 必须严格报错：悬空引用、环、重复定义策略）。
 
@@ -144,7 +144,7 @@
 
 - [ ] 把 A′ （tangle 逻辑写在 Typst 里）做成 20 行 spike，评估报错质量与性能。
 - [ ] 错误定位 D1 的端到端体验：拿一个真实 `cargo`/`python` 报错，走 `lp explain` 翻译，看 agent 是否够用。
-- [ ] `typst-syntax`（Rust）/ `typst.ts`（WASM）能否拿到精确 span 并替代 `typst eval` 路线（代价：版本漂移、要跟 Typst 语法演进）。
+- [x] ~~`typst-syntax`（Rust）/ `typst.ts`（WASM）能否拿到精确 span 并替代 `typst eval` 路线~~ → 已定：用 `typst-syntax`，见 ADR D6 + probe（`typst eval` 保留为 oracle）。
 - [ ] 与 `codly` / `codelst` 共存策略（show rule 覆盖顺序、统一主题）。
 - [ ] 多根 chunk + 目录结构（`src/`）与"生成物不入库"的配合。
 - [ ] agent 集成：为使用本工具的目标仓库生成一段 AGENTS.md（告诉 agent"只改 `.typ`，改完跑 `lp tangle`"）。

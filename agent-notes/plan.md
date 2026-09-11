@@ -1,60 +1,61 @@
 # 实施计划（M0–M3）
 
-- 日期：2026-09-11
-- 前置：`decisions/2026-09-11-mvp-decisions.md`（场景=多文件工程，形态=纯 `.typ`，实现=Rust→自举，生成物不入库，错误定位=D1）
-- 原则：先把 spike 里已经验证过的语义**做扎实**（严格报错 + 可测），再加能力面。不做 watch 之外的花活。
+- 日期：2026-09-11（v2：按 ADR D6/D7 修正引擎与依赖）
+- 前置：`decisions/2026-09-11-mvp-decisions.md`（场景=多文件工程，形态=纯 `.typ`，实现=Rust→自举，生成物不入库，错误定位=D1）、`decisions/2026-09-11-engine-and-deps.md`（D6 引擎、D7 依赖策略）
+- 原则：tangle 的语义与报错精度是产品本体；CLI/watch/诊断渲染用成熟库，不手写已被解决的问题。
 
 ## 里程碑
 
-### M0 — 仓库与开发环境（本次完成）
-- `flake.nix`：`typst` + `rustc/cargo/rustfmt/clippy` + `python3`（spike 用）。
-- 目录定案：`src/`（原型 Rust）、`lit/`（Typst 库 `lit.typ`）、`experiments/`（已完成）、`agent-notes/`。
-- 结论：任何"某方案可行"的说法都要有 `cargo test` 或 `run.sh` 支撑。
+### M0 — 仓库与开发环境（已完成）
+- `flake.nix` + `flake.lock`：`typst` + `rustc/cargo/rustfmt/clippy` + `python3`。实测 `cargo 1.97.0 / rustc 1.97.1 / typst 0.15.1`。
+- 目录：`src/`（原型）、`lit/`（Typst 渲染库）、`experiments/`、`agent-notes/`。
 
 ### M1 — 原型 tangle + check + map（核心语义）
-把 `experiments/.../tangle.py` 的语义用 Rust 重写，并补齐 Python 版故意没做的：
+用 `typst-syntax` 直读 `.typ`（无子进程），把 Python spike 的语义做扎实并补上它故意没做的部分：
+
 - `lp tangle <doc.typ>... [--out DIR] [--check]`
-- 严格报错：悬空引用、引用环、根 chunk 重名、根 chunk 与非根 chunk 重名（退出码非 0，信息带 `.typ` 行号）。
-- 同名 label 多块按文档顺序拼接（noweb 语义）；**并且**在 `cargo test` 里放固定 fixture 守住"Typst 容忍重复 label"这个未文档化行为。
-- `lp map --file out/foo.rs --line 42` → `doc.typ:16`（消费 D1 的 sidecar map）。
+- 解析：递归遍历 CST，任一 `block: true` 且**后续 sibling 是 Label** 的 `Raw` 即 chunk；`raw.lines()` 取正文；`Source::lines().byte_to_line()` 得行号。
+- 严格报错（`miette` 渲染，指向 `.typ` 源 span）：悬空引用、引用环、根 chunk 重名、根与非根重名、空 chunk。
+- 同名 label 多块按文档顺序拼接（noweb 语义），并在 `cargo test` 里放 fixture 守住"Typst 容忍重复 label"这个未文档化行为。
+- `lp map --file out/foo.rs --line 42` → `doc.typ:16`（消费 `.lpmap.json`）。
 - `--check`：生成物与文档不一致 → 非零退出（CI 用）。
-- 产物：`out/.lpmap.json`（schema 固定下来，写入 README/notes）。
-- 质量门：错误信息一律形如 `doc.typ:16: dangling chunk <<body>> referenced from <<main.c>>`。
+- **oracle 一致性测试**：同一批 fixture 上，`typst-syntax` 抽出的 `{label, lang, text}` 必须与 `typst eval`（CLI）输出完全一致。这条测试同时守住 trim 语义和将来的版本升级。
+- 质量门：所有报错形如 `doc.typ:16:5: dangling chunk <<body>> referenced from <<main.c>>`，并带 `.typ` 源码片段。
 
 ### M2 — 多文件工程 + watch + explain
-- 多根 chunk → 目录结构（`src/`、`tests/`），一个文档可产出多个文件；`--out` 与文档相对路径的语义定死。
-- `lp watch <doc.typ>`：轮询 mtime（原型够用，`ponytail:` 若频率成问题换 `notify`），改动即 tangle，出错只打印不崩。
-- `lp explain`：读诊断文本/JSON → 翻译成 `.typ` 位置。第一个后端 **rustc/cargo JSON**（`cargo build --message-format=json`），第二个是通用 `file:line:col:` 正则。**纯查表，不含语言算法。**
-- 负向测试：把生成物手改 → `--check` 失败；把 `.typ` 里引用写错 → 报错行号正确。
+- 多根 chunk → 目录结构（`src/`、`tests/`）；`--out` 与文档内相对路径的语义定死（相对 `.typ` 所在目录）。
+- `lp watch <doc.typ>`：`notify` + `notify-debouncer-full`，正确处理编辑器原子写；出错只打印不退出。
+- `lp explain`：读诊断（stdin 或文件）→ 翻译成 `.typ` 位置，`miette` 渲染。
+  - 后端 1：`cargo_metadata` 解析 `cargo build --message-format=json`（自举时天天用）。
+  - 后端 2：`regex` 表处理通用 `file:line:col:` 形式。
+  - 纯查表 + 通用解析，**不含目标语言算法**。
+- 负向测试：手改生成物 → `--check` 失败；`.typ` 引用写错 → 报错行号正确。
 
 ### M3 — 自举（bootstrap → self-host）
-- 把原型冻结为 `bootstrap/`（仍然可编译、可跑），并把工具自身源码改写成 `self.typ`（literate 文档）。
-- **自举不变量（固定点测试）**：`bootstrap tangle self.typ --out src` 产出的 `src/*.rs` 与 `bootstrap/` 的手写源码**逐字节相同**；然后 `cargo build` 用产出的源码构建出功能等价的工具。
-- 达标后：`self.typ` 成为唯一真相，`bootstrap/` 只作为"种子"保留（因为生成物不入库，种子必须是可编译的、非工具生成的手写代码）。
-- 之后所有开发在 `self.typ` 里做，用 `lp watch` 自举。
+- 原型冻结为 `bootstrap/`（仍可编译可跑），工具自身源码改写为 `self.typ`（literate 文档）。
+- **自举不变量（固定点测试）**：`bootstrap tangle self.typ --out src` 的产物与 `bootstrap/` 手写源码**逐字节相同**，且用产物 `cargo build` 出来的工具与原型行为一致（跑同一套测试）。
+- 达标后 `self.typ` 成为唯一真相；`bootstrap/` 作为**非工具生成的种子**保留（因为生成物不入库，种子必须可编译）。
+- 自举是可用性测试：如果天天退回手写源码，说明 chunk 语义或错误定位不可用。
 
-## CLI 表面（先定，避免实现时跑偏）
+## CLI 表面
 
 ```
-lp tangle <doc.typ>... [--out DIR] [--check] [--root DIR]
+lp tangle <doc.typ>... [--out DIR] [--check]
 lp map    --file <generated> --line N [--col C]
-lp explain [--format rustc|cargo|generic] < diagnostics
+lp explain [--format cargo|generic] [<diag-file>]
 lp watch  <doc.typ> [--out DIR]
-lp list   <doc.typ>            # 调试用：打印 chunk 名/根/引用图（agent 检索入口）
+lp list   <doc.typ>            # 调试/agent 检索：chunk 名、根、引用图、源位置
 ```
-- 退出码：0 成功；1 语义错误（悬空引用/环/漂移）；2 用法或环境错误（找不到 typst 等）。
-- `typst` 定位：`--typst` 参数 > `LP_TYPST` 环境变量 > `PATH`。
-- 不做：`lp init`、配置文件、双向同步、`lp run`（交给用户的构建系统 + `lp explain`）。
+- 退出码：0 成功；1 语义错误（悬空引用/环/漂移）；2 用法或环境错误。
+- `typst` 二进制：**只在 weave 和 oracle 测试里需要**（tangle 走 `typst-syntax`）；定位顺序 `--typst` > `LP_TYPST` > `PATH`。
 
-## 依赖预算
-- 必需：`serde_json`（解析 `typst eval` 输出）。
-- 建议：无。参数解析手写（5 个命令、十来个 flag），watch 用 mtime 轮询。
-- 明确不加：`clap`、`notify`、`anyhow`（错误信息要自己拼成 `doc.typ:行:列:` 格式，正好不需要 anyhow 的链路）。自举后这些依赖同样要在文档里维护，越少越好。
+## 依赖（D7：成熟库优先）
+见 ADR D7 的表格。首版新增依赖前必须在表里补一行"为什么是它"。当前：`typst-syntax`、`clap`、`serde`/`serde_json`、`thiserror`+`miette`、`notify`+`notify-debouncer-full`、`regex`、`cargo_metadata`、（dev）`tempfile`。
 
 ## 测试策略（ponytail：能失败的最小检查）
-- `cargo test`：tangle 语义的 fixture 测试（拼接/缩进/悬空/环/重复 label 容忍）+ 固定点测试（M3）。
-- `experiments/2026-09-11-chunk-spike/run.sh` 的模式沿用到 `tests/`：tangle → 跑生成物 → 比对期望输出 → `--check`。
-- CI：`nix develop -c ./ci.sh`（typst compile 通过 + cargo test + tangle --check 无漂移）。
+- `cargo test`：tangle 语义 fixture（拼接/缩进/嵌套块/悬空/环/重复 label）、oracle 一致性、固定点（M3）。
+- 端到端沿用 `experiments/2026-09-11-chunk-spike/run.sh` 的模式：tangle → 跑生成物 → 比对期望输出 → `--check`。
+- CI：`nix develop -c ./ci.sh`（`typst compile` + `cargo test` + `lp tangle --check` 无漂移）。
 
-## 明确不做（YAGNI，等到有人真的需要）
-- 双向同步（Entangled 路线）、IR/provenance 数据库、多 markup 适配器（Ravel 路线）、执行代码块（Calepin 路线）、编辑器插件、`codly` 深度集成（先用 `lit.typ` 自己的 show rule）。
+## 明确不做（YAGNI）
+双向同步（Entangled 路线）、IR/provenance 数据库、多 markup 适配器（Ravel 路线）、代码块执行（Calepin 路线）、编辑器插件、`codly` 深度集成。
