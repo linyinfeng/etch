@@ -5113,7 +5113,7 @@ use std::process::Command;
 
 #chunk("self: the_document_regenerates_the_sources_we_are_running", ````rust
 /// The document is the source of the files that are compiled, so `--check` in the
-/// crate root has to be clean. This is the permanent half of the fixed point:
+/// repository root has to be clean. This is the permanent half of the fixed point:
 /// Stage 1 also required the output to equal the frozen seed, which stopped
 /// being true the moment the document was refactored (ADR D15); the seed is the
 /// `tangled` branch now, refreshed from this same tree.
