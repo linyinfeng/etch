@@ -187,16 +187,9 @@ pub struct Plan {
 }
 
 pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
-    let mut plan = Plan {
-        maps: BTreeMap::new(),
-        texts: BTreeMap::new(),
-        produced: BTreeSet::new(),
-        warnings: Vec::new(),
-    };
-
+    // A half-written document is the more specific problem, and it is also what
+    // makes a document look rootless: report it first.
     for doc in docs {
-        // Never tangle a half-written document: an unclosed label turns a chunk
-        // into plain text, so the generated file would silently lose code.
         if let Some(error) = doc.errors.first() {
             let message = format!("{}: syntax error: {}", doc.path.display(), error.message);
             let err = match error.range.clone() {
@@ -207,16 +200,37 @@ pub fn plan(docs: &[Doc]) -> Result<Plan, LpError> {
                 "tangling a half-written document can silently drop chunks; run `typst compile` for the full diagnostic",
             ));
         }
+    }
 
+    // A document that only holds fragments is legitimate when another document
+    // (or chapter) carries the roots, so "no roots" is a property of the whole
+    // invocation, not of each file.
+    if !docs
+        .iter()
+        .any(|doc| !ChunkSet::new(doc).roots().is_empty())
+    {
+        let listed = docs
+            .iter()
+            .map(|doc| doc.path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(
+            LpError::plain(format!("no root chunks in {listed}")).with_help(
+                "a root chunk is a label that names a file, e.g. ```rust ... ``` <src/main.rs>",
+            ),
+        );
+    }
+
+    let mut plan = Plan {
+        maps: BTreeMap::new(),
+        texts: BTreeMap::new(),
+        produced: BTreeSet::new(),
+        warnings: Vec::new(),
+    };
+
+    for doc in docs {
         let set = ChunkSet::new(doc);
         let roots = set.roots();
-        if roots.is_empty() {
-            return Err(
-                LpError::plain(format!("{}: no root chunks", doc.path.display())).with_help(
-                    "a root chunk is a label that names a file, e.g. ```rust ... ``` <src/main.rs>",
-                ),
-            );
-        }
 
         let referenced: BTreeSet<String> = doc.blocks.iter().flat_map(refs_of).collect();
         for name in set.names() {

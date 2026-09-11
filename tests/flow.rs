@@ -154,6 +154,37 @@ fn the_map_follows_the_document_even_when_no_output_byte_changes() {
 }
 
 #[test]
+fn a_document_of_fragments_is_fine_when_another_carries_the_roots() {
+    // The woven document is split into chapters; the chunks live in one of them.
+    // Only requiring roots per file would reject every chapter but the last.
+    let chapter = "= Chapter one\n\nAll prose, no chunks.\n";
+    let main = "= The program\n\n```py\nprint('hi')\n``` <main.py>\n";
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("chapter.typ"), chapter).expect("chapter");
+    std::fs::write(dir.path().join("main.typ"), main).expect("main");
+    let path = dir.path().to_path_buf();
+
+    let output = lp(
+        &path,
+        &["tangle", "main.typ", "chapter.typ", "--out", "out"],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(path.join("out/main.py")).expect("main"),
+        "print('hi')\n"
+    );
+
+    // But a run with no roots anywhere is still an error.
+    let only_fragments = lp(&path, &["tangle", "chapter.typ", "--out", "out2"]);
+    assert!(!only_fragments.status.success());
+    assert!(
+        stderr(&only_fragments).contains("no root chunks"),
+        "{}",
+        stderr(&only_fragments)
+    );
+}
+
+#[test]
 fn maps_live_next_to_the_files_they_explain() {
     let doc = "```py\nprint('a')\n``` <a.py>\n\n```py\nprint('b')\n``` #label(\"src/b.py\")\n";
     let (_guard, dir) = project(doc);
