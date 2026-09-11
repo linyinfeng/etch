@@ -4251,6 +4251,10 @@ nix develop -c ./target/debug/lp watch lp.typ --out . --check-cmd 'cargo build -
 able to reproduce the sources it was built from, so hand-editing `src/` or `tests/` fails
 a test instead of quietly working.
 
+One thing that trips people up once: this prose is Typst, not Markdown. Emphasis is one
+star (`*like this*`); a doubled star is a warning, not bold. Inside a fence it does not
+matter — that text is whatever its language says it is.
+
 == Replacing the seed
 
 The seed only ever reads, and it is only replaced on purpose: when this document starts
@@ -4274,31 +4278,31 @@ read this document, complete enough to be built.
 These are not style preferences; each one was paid for. The decisions behind them are in
 `agent-notes/decisions/`.
 
-- **Elegance is an admission requirement.** If the only way to build a feature is to
+- *Elegance is an admission requirement.* If the only way to build a feature is to
   search source text heuristically, or to parse Typst a second time, the feature is not
   built. That is how line-number mapping, label-as-chunk-name and static analysis of
   Typst were dropped.
-- **The tool never parses Typst.** Its whole understanding is one `typst eval` reading the
+- *The tool never parses Typst.* Its whole understanding is one `typst eval` reading the
   declaration stream.
-- **No line numbers.** Typst's script layer has no source positions; provenance is
+- *No line numbers.* Typst's script layer has no source positions; provenance is
   chunk-level, and pretending otherwise would mean re-parsing.
-- **Orthogonality.** No knowledge of any target language in the algorithms; language
+- *Orthogonality.* No knowledge of any target language in the algorithms; language
   differences are data (the fence tag), never code.
-- **Generated files stay out of git**, and only this document is edited: the crate, the
+- *Generated files stay out of git*, and only this document is edited: the crate, the
   package, the example, the control files. Two things are declared here and tracked anyway,
   for bootstrap reasons: the seed (a frozen copy of an older generation) and `flake.nix`
   with its lock (nix will not evaluate a flake that is not in git). `--check` guards both.
-- **An error points at a declaration**, never at a bare string: which chunk, and which
+- *An error points at a declaration*, never at a bare string: which chunk, and which
   line inside it.
-- **Unexplained files are errors, deletion is explicit.** Everything under the output
+- *Unexplained files are errors, deletion is explicit.* Everything under the output
   directory is produced by a declaration or listed in a `.lpignore`; `lp` never deletes
   anything by itself.
-- **Only changed bytes are written, and a document that does not evaluate is not
-  tangled.** The previous good output stays until the document is valid again.
-- **The order is free and the language tag is data** (D18). Thought-first, progressive
+- *Only changed bytes are written, and a document that does not evaluate is not tangled.*
+  The previous good output stays until the document is valid again.
+- *The order is free and the language tag is data* (D18). Thought-first, progressive
   disclosure and logical consistency cannot be checked by a tool, so they are the
   writer's job — the skill in the appendix above is the attempt to keep that promise.
-- **Dependencies are chosen from mature crates** (D7); every new one gets a line saying
+- *Dependencies are chosen from mature crates* (D7); every new one gets a line saying
   why. `typst` is a hard dependency of tangling (`LP_TYPST`, then `PATH`).
 
 == The skill
