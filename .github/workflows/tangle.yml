@@ -1,9 +1,5 @@
 name: tangle
 
-# main tangles the document and hands the tree to the seed branch. What is checked here is the
-# tangle's own property — the tree matches the document — and nothing about the generated code:
-# that code's CI is the generated code's to define.
-
 on:
   push:
     branches: [main]
@@ -20,23 +16,13 @@ jobs:
   tangle:
     runs-on: ubuntu-latest
     steps:
-      # Moving tags on purpose: `v7` and `stable` are readable and update themselves. What bounds the
-      # write token is `permissions:` above, not a frozen action. Our linter's config turns off the
-      # audit that would say otherwise, and only that one.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # the seed lives on another branch
 
-      - uses: dtolnay/rust-toolchain@stable # rustc and cargo, to build the seed
+      # Tangling asks the document for its declarations; weaving renders it.
+      - uses: typst-community/setup-typst@v5
 
-      # Tangling asks the document for its declarations, so typst is a hard dependency.
-      - name: typst
-        run: |
-          curl -fsSL https://github.com/typst/typst/releases/latest/download/typst-x86_64-unknown-linux-musl.tar.xz \
-            | sudo tar -xJ --strip-components=1 -C /usr/local/bin
-          typst --version
-
-      # The seed is the previous generation: with no binary on the machine, it is what makes one.
       - name: unpack the seed
         run: |
           set -euo pipefail
@@ -50,15 +36,20 @@ jobs:
       - name: build the seed
         run: cargo build --manifest-path tangled/Cargo.toml
 
-      - name: tangle the document, then check it against the tree
+      - name: tangle, and check the tree against the document
         run: |
           set -euo pipefail
           ./tangled/target/debug/lp tangle lp.typ
           ./tangled/target/debug/lp tangle lp.typ --check
 
-      # Everything passed, so this is the generation. A seed carries exactly what the tree's own
-      # repository commits — its `.gitignore` is part of the generation — so the index decides, not a
-      # list here.
+      - name: weave the document
+        run: typst compile --package-path .lp lp.typ lp.pdf
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pdf
+          path: lp.pdf
+
       - name: hand the generation to the seed branch
         run: |
           set -euo pipefail
