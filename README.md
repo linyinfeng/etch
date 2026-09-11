@@ -1,1 +1,1 @@
-# The document: [`lp.typ`](lp.typ)
+# [`lp.typ`](lp.typ)
