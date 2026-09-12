@@ -3944,7 +3944,7 @@ Command::Extract { format, file, out } => {
             "--format {format} is not implemented yet"
         ))
         .with_help(
-            "only `html` carries the book so far: a PDF is not a container for JSON",
+            "reading a PDF back needs a PDF parser, which this tool does not have yet",
         ));
     }
     let files = crate::book::extract(&file, &out)?;
