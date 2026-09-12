@@ -2,10 +2,11 @@
 
 = What a pass reports, and what it plans
 
-`Output` is what one file looked like to a pass, `Outcome` is the pass's whole answer —
-changed, unchanged, drifted, unaccounted, warnings — and `Plan` is what a pass would do if
-it were allowed to. The separation is what lets `--check` be a plan plus a comparison, with
-no second implementation of anything.
+`Output` is what one file looked like to a pass, `Outcome` is the pass's whole answer — changed,
+unchanged, drifted, missing, unreferenced, wordless — and `Plan` is what a pass would do if it were
+allowed to. The separation is what lets `--check` be a plan plus a comparison, with no second
+implementation of anything. The answer is buckets rather than sentences: what a program has to act on is a
+field, and only the sentence built from it is prose.
 
 #chunk("tangle: what a pass reports", ````rust
 #[derive(Debug)]
@@ -23,7 +24,6 @@ pub struct Outcome {
     pub unchanged: Vec<Output>,
     pub drifted: Vec<Drift>,
     pub missing: Vec<String>,
-    pub unaccounted: Vec<crate::status::Unaccounted>,
     pub unreferenced: BTreeSet<String>,
     pub wordless: BTreeSet<String>,
 }

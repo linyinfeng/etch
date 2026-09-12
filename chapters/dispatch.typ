@@ -118,18 +118,6 @@ Command::Tangle { docs, out, check } => {
     for name in &outcome.wordless {
         eprintln!("warning: chunk ⟪{name}⟫ is declared without a language");
     }
-    for group in &outcome.unaccounted {
-        let label = if group.dir.is_empty() {
-            "."
-        } else {
-            group.dir.as_str()
-        };
-        eprintln!(
-            "note: {} entr{} in {label}/ that nothing accounts for (run `lp unaccounted`)",
-            group.entries.len(),
-            if group.entries.len() == 1 { "y" } else { "ies" }
-        );
-    }
     Ok(i32::from(
         !outcome.drifted.is_empty() || !outcome.missing.is_empty(),
     ))

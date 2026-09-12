@@ -69,10 +69,9 @@ if let Some(book) = &plan.book {
         println!("removed {removed} stale book file{plural}");
     }
 }
-outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
-if !outcome.unaccounted.is_empty() {
-    let listed = outcome
-        .unaccounted
+let unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
+if !unaccounted.is_empty() {
+    let listed = unaccounted
         .iter()
         .flat_map(|group| {
             let label = if group.dir.is_empty() {
