@@ -16,3 +16,5 @@ the cases do.
 Each file is a skeleton of its cases: the fixtures and helpers first, then one fragment per
 case. That makes the file's shape the suite's table of contents, and it means a reader who is
 looking for "where is that pinned?" can read the list of names instead of the whole file.
+
+The five chapters after this one are those files, in the order the suite is listed in.

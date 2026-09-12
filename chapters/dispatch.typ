@@ -28,7 +28,7 @@ match run() {
 }
 ````)
 
-== Dispatch, one arm per promise
+== One arm per promise
 
 Each arm is short on purpose: parse the arguments, call the module, print. Where an arm grows
 a decision, that decision belongs in the module it calls, and the arm gets thinner or the
