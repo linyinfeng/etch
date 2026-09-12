@@ -80,3 +80,10 @@ produce one.
 
 The tool in the next part is built under exactly that constraint, and the constraint is why the tool is the
 example: it is a program whose only source is the book that describes it.
+
+One road through the repository chapter is where that stops being a claim and becomes something a reader can
+do: it needs no seed and no network, because a reader that is a program can install the package out of the
+markup, ask the document for its declarations, expand them by the rules this book states, and end up with the
+tree the document describes — graded, by the tool that tree builds, on whether every file comes back `ok`.
+The arrangement is what makes that possible: the names, the fences and the references are all in one place,
+and the code the reader needs to agree with is the code that reader just rebuilt.

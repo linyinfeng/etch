@@ -129,6 +129,62 @@ watchexec -e typ -r -- ./tangled/target/debug/lp tangle lp.typ
 able to reproduce the sources it was built from, so hand-editing `src/` or `tests/` fails
 a test instead of quietly working.
 
+=== From the document alone, without the seed
+
+The two roads above both need the seed. This one does not, and it is the one to take when the branch
+cannot be fetched at all — no network, or no credentials for a private repository — or when a reader
+would rather not trust a binary built before its session began. It is also the shortest proof that this
+document is what it claims to be: everything needed to rebuild the tool is in the document, and a reader
+that is a program can do it. Three of the four steps are chapters of this book rather than inventions.
+
+*Install the package first, because nothing else can happen until it exists.* The document imports its own
+package at the top, so Typst cannot read the document until that package is somewhere Typst can find it —
+which is the one place this road reads markup instead of evaluating it. The package is ten fragments of one
+chapter, `chapters/package.typ`: the two it declares for `typst/lp.typ` and `typst/typst.toml`, and the
+fragments those two reference. Pull them out, by hand or with a script, expand the `<<…>>` references
+between them, and put the result where `--package-path` will point: `local/lp/0.1.0/lib.typ` and
+`local/lp/0.1.0/typst.toml`. The check is immediate: a two-line document that imports the package either
+compiles or does not.
+
+Take the expansion rules from the chapter on expanding a reference rather than from a guess: a reference is
+a whole line, the indentation of the reference indents its expansion, a blank line inside an indented
+fragment stays blank, and a name resolves to every declaration of that name in document order — which is
+what makes expansion recursive, and recursion is not optional.
+
+*Then stop reading markup.* Ask the document for its declarations the way the tool does: one query, through
+a wrapper document that includes the documents, with `--root` and `--package-path` set.
+
+```sh
+typst eval 'query(<lp-decl>).map(declaration => declaration.value)' \
+  --in wrapper.typ --root . --package-path pkgs
+```
+
+The answer is JSON, and it carries both kinds of thing at once: the declarations, and the options — the
+directory the book is carried in and the names of its files arrive as a declaration whose `lp` is
+`"options"`. A reader that looks for declarations by scanning the markup instead of evaluating it will be
+wrong exactly where Typst is interesting: a scanner that looks for `#chunk(` gets lost in nested fences,
+and finds declarations that are inside Rust string literals instead of in the markup. That is why this tool
+does not parse Typst at all, and it is why the road is drawn this way.
+
+*Expand, and write.* Every `file` declaration is a root: expand it, give it its newline, write it where its
+name says. Two details are worth having before rather than after. The text of a declaration is walked the
+way `str::lines()` walks it, so a fence whose last line is empty does not contribute an empty line, and a
+written file ends with exactly one newline. And the book has to be written too — its names are in the
+options, and the crate embeds that directory at compile time, so a tree without it does not build.
+
+*Then let the tool grade the bootstrapper.* Build the tree, and run the binary that your own expansion just
+produced over the document it came from:
+
+```sh
+nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo build --manifest-path tangled/Cargo.toml
+nix shell nixpkgs#typst -c ./tangled/target/debug/lp tangle book/lp.typ --out .
+```
+
+Every file should come back `ok`. A `wrote` means the expansion rules were not quite this document's — and
+the tool has just named the file, the line and the declaration to look at. That pass also writes the maps
+beside the generated files, which the tree's own tests read; `cargo test` after it is the whole suite, and
+the test that re-tangles this document into the tree it is running in is the same agreement, restated.
+
 == Keeping the seed in step
 
 The seed only ever reads, and it is output: the same tree the tangle writes, committed at the root
