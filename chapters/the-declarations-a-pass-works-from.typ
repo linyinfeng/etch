@@ -159,7 +159,9 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
     Ok(Plan {
         maps,
         texts,
-        warnings,
+        referenced,
+        unreferenced,
+        wordless,
         blocks,
         book,
         book_copies,

@@ -21,9 +21,18 @@ pub struct Output {
 pub struct Outcome {
     pub changed: Vec<Output>,
     pub unchanged: Vec<Output>,
-    pub stale: Vec<String>,
+    pub drifted: Vec<Drift>,
+    pub missing: Vec<String>,
     pub unaccounted: Vec<crate::status::Unaccounted>,
-    pub warnings: Vec<String>,
+    pub unreferenced: BTreeSet<String>,
+    pub wordless: BTreeSet<String>,
+}
+
+#[derive(Debug)]
+pub struct Drift {
+    pub root: String,
+    pub line: Option<usize>,
+    pub chunk: Option<String>,
 }
 ````)
 
@@ -31,7 +40,9 @@ pub struct Outcome {
 pub struct Plan {
     pub maps: BTreeMap<PathBuf, LpMap>,
     pub texts: BTreeMap<String, String>,
-    pub warnings: Vec<String>,
+    pub referenced: BTreeSet<String>,
+    pub unreferenced: BTreeSet<String>,
+    pub wordless: BTreeSet<String>,
     pub blocks: Vec<Block>,
     pub book: Option<Book>,
     pub book_copies: Vec<crate::book::Copy>,
@@ -170,27 +181,28 @@ pub fn refs_of(block: &Block) -> Vec<String> {
 ````)
 
 #chunk("tangle: fragments nobody uses", ````rust
-let mut warnings = Vec::new();
 let referenced: BTreeSet<String> = blocks.iter().flat_map(refs_of).collect();
 let file_names: BTreeSet<&str> = blocks
     .iter()
     .filter(|block| block.root)
     .map(|block| block.name.as_str())
     .collect();
+let mut unreferenced = BTreeSet::new();
 for name in set.names() {
     if !file_names.contains(name) && !referenced.contains(name) {
-        warnings.push(format!("chunk ⟪{name}⟫ is never referenced"));
+        unreferenced.insert(name.to_string());
     }
 }
 ````)
 
 #chunk("tangle: declarations with no language", ````rust
+let mut wordless = BTreeSet::new();
 for name in set.names() {
     let missing = set
         .get(name)
         .is_some_and(|blocks| blocks.iter().any(|block| block.lang.is_none()));
     if missing {
-        warnings.push(format!("chunk ⟪{name}⟫ is declared without a language"));
+        wordless.insert(name.to_string());
     }
 }
 ````)

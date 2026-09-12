@@ -101,11 +101,22 @@ Command::Tangle { docs, out, check } => {
     for output in &outcome.unchanged {
         println!("ok     {}", output.root);
     }
-    for line in &outcome.stale {
-        eprintln!("{line}");
+    for drift in &outcome.drifted {
+        let origin = match (&drift.chunk, drift.line) {
+            (Some(chunk), Some(line)) => format!(" (line {line}, in chunk ⟪{chunk}⟫)"),
+            (None, Some(line)) => format!(" (line {line})"),
+            _ => String::from(" (file differs)"),
+        };
+        eprintln!("STALE  {}{origin}", drift.root);
     }
-    for warning in &outcome.warnings {
-        eprintln!("warning: {warning}");
+    for root in &outcome.missing {
+        eprintln!("STALE  {root} (file missing)");
+    }
+    for name in &outcome.unreferenced {
+        eprintln!("warning: chunk ⟪{name}⟫ is never referenced");
+    }
+    for name in &outcome.wordless {
+        eprintln!("warning: chunk ⟪{name}⟫ is declared without a language");
     }
     for group in &outcome.unaccounted {
         let label = if group.dir.is_empty() {
@@ -119,7 +130,9 @@ Command::Tangle { docs, out, check } => {
             if group.entries.len() == 1 { "y" } else { "ies" }
         );
     }
-    Ok(i32::from(!outcome.stale.is_empty()))
+    Ok(i32::from(
+        !outcome.drifted.is_empty() || !outcome.missing.is_empty(),
+    ))
 }
 ````)
 
@@ -300,16 +313,14 @@ Command::Unaccounted {
 
 == The one command with a view of its own
 
-`list` is a debug view, and it is the one place in this file where the program looks at the
-plan's contents rather than handing them to a module: it needs the set of names that are
-referenced, which `plan` computes internally and does not expose. Widening `Plan` for a
-debug command seemed the worse trade, so the three lines are repeated here — a wart, kept
-deliberately, and this is where it is recorded.
+`list` is a debug view, and it asks the plan for the set of names that are referenced instead of walking the
+blocks itself — the plan computes that set to find the fragments nobody uses, so a second computation here
+would be a second answer to the same question. Reading a field is not a view of its own:
 
 #chunk("main: plan, and who is referenced", ````rust
 let plan = tangle::plan(docs)?;
 let set = tangle::ChunkSet::new(&plan.blocks);
-let referenced: BTreeSet<String> = plan.blocks.iter().flat_map(tangle::refs_of).collect();
+let referenced = &plan.referenced;
 ````)
 
 #chunk("main: the same list, for a program", ````rust

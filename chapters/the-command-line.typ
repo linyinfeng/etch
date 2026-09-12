@@ -112,7 +112,6 @@ mod status;
 mod tangle;
 mod weave;
 
-use std::collections::BTreeSet;
 use std::io::Read;
 use std::path::PathBuf;
 

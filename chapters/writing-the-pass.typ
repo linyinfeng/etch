@@ -11,7 +11,8 @@ let plan = plan(docs)?;
 let documented = book_relative(docs);
 let book = plan.book.clone();
 let mut outcome = Outcome {
-    warnings: plan.warnings.clone(),
+    unreferenced: plan.unreferenced.clone(),
+    wordless: plan.wordless.clone(),
     ..Outcome::default()
 };
 ````)
@@ -36,9 +37,12 @@ let output = Output {
 if existing.as_deref() == Some(text.as_str()) {
     outcome.unchanged.push(output);
 } else if check {
-    outcome
-        .stale
-        .push(drift_report(root, existing.as_deref(), &entry.runs, text));
+    match existing.as_deref() {
+        Some(on_disk) => outcome
+            .drifted
+            .push(drift(root, on_disk, &entry.runs, text)),
+        None => outcome.missing.push(root.clone()),
+    }
 } else {
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
@@ -136,16 +140,15 @@ fn first_difference(old: Option<&str>, new: &str) -> Option<usize> {
 ````)
 
 #chunk("tangle: the drift report", ````rust
-fn drift_report(root: &str, existing: Option<&str>, runs: &[Run], text: &str) -> String {
-    match first_difference(existing, text) {
-        Some(line) => {
-            let origin = runs.iter().rev().find(|run| run.first <= line);
-            match origin {
-                Some(run) => format!("STALE  {root} (line {line}, in chunk ⟪{}⟫)", run.chunk),
-                None => format!("STALE  {root} (line {line})"),
-            }
-        }
-        None => format!("STALE  {root} (file missing)"),
+fn drift(root: &str, on_disk: &str, runs: &[Run], text: &str) -> Drift {
+    let line = first_difference(Some(on_disk), text);
+    let chunk = line
+        .and_then(|line| runs.iter().rev().find(|run| run.first <= line))
+        .map(|run| run.chunk.clone());
+    Drift {
+        root: root.to_string(),
+        line,
+        chunk,
     }
 }
 ````)
