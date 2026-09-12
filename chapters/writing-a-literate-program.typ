@@ -185,7 +185,7 @@ the method; it is the method: rearranging is a text move with no consequence for
 arrangement can be fixed once the reader's path is finally visible.
 
 This book is the evidence for that, in a way it can be held to. It was one file, and it has been rearranged
-twice — once into a reading order, once into the thirty-five chapters you are reading. Each time, the measure of
+twice — once into a reading order, once into the chapters you are reading. Each time, the measure of
 the rearrangement was that the generated tree came out unchanged: a chunk may move anywhere in the text without
 moving a byte of what it produces — the pieces of one repeated name have to keep their relative order, and
 nothing else does — because the output is assembled from the declarations rather than read where it sits. A

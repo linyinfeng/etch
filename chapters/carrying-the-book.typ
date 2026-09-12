@@ -10,8 +10,8 @@ produced it is a program with its source of truth beside it. So a document may a
 ```
 
 Each name is a file, relative to the document, and each one is copied into the output directory under
-`book-directory` with the name it had. This document's own settings are the live example, thirty-eight names
-long. The list is explicit and not a pattern: it is what the book *is*, it is what a rendering carries, and a
+`book-directory` with the name it had. This document's own settings are the live example. The list is explicit
+and not a pattern: it is what the book *is*, it is what a rendering carries, and a
 list is something a reader can hold against the directory. The first version matched globs the way a
 `.gitignore` matches, walking the source tree to find them — more machinery than a list of names deserves, and
 a package could not have read a pattern anyway, since Typst has no `glob`.

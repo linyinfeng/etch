@@ -29,7 +29,7 @@ by an older `lp`, and reading one has to be able to say "not mine" instead of gu
 == The shape of the record
 
 The names in the skeleton carry a file prefix, `map:`, and the reason is worth knowing early: chunk names are
-global to the whole document, and this document is thirty-five files. Two chapters that both called a fragment
+global to the whole document, and the document is not one file. Two chapters that both called a fragment
 `the module note` would concatenate their bodies into whichever file referenced that name — silently, because
 a repeated name is a concatenation and not a collision.
 
