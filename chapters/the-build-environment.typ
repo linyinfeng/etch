@@ -29,7 +29,7 @@ outside this document: it is what the person reading has, not something the docu
 
 The dependencies are a decision like any other, and the policy (D7) is that a mature crate
 beats a hand-written wheel: clap for the command line, ignore for the ignore rules, miette for
-the error rendering, regex for the diagnostic shapes,
+the error rendering, libc for the one signal this tool resets, regex for the diagnostic shapes,
 serde for the maps. `tempfile` is the only one the tests need, which is why it is in its own
 table.
 
@@ -45,6 +45,7 @@ description = "Typst-based literate programming: tangle source files out of a .t
 #chunk("env: the runtime dependencies", ````toml
 [dependencies]
 include_dir = "0.7"
+libc = "0.2"
 lopdf = { version = "0.45", default-features = false }
 clap = { version = "4", features = ["derive"] }
 ignore = "0.4.33"

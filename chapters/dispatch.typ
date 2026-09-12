@@ -10,6 +10,20 @@ Every error in this program is an `LpError`, and this is the only place it becom
 report handler is installed once, so no module has to think about rendering; and the exit
 status is 1 for every failure, which is all a shell needs to know.
 
+A program that prints has one more way to end than the two below, and it is worth naming because it
+looks like a crash: the reader on the other end of the pipe has gone away. Rust ignores `SIGPIPE`,
+so a closed pipe does not kill the write — it makes it fail, and `println!` panics on a failed write.
+That is how `lp list lp.typ | head` exits: one hundred and one, with a message about a broken pipe,
+where every filter on the machine exits quietly. So the one handler this tool has anything to do with
+is put back the way the shell expects it.
+
+#chunk("main: a closed pipe is not a panic", ````rust
+#[cfg(unix)]
+unsafe {
+    libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+}
+````)
+
 #chunk("main: how an error is printed", ````rust
 let _ = miette::set_hook(Box::new(|_| {
     Box::new(miette::GraphicalReportHandler::new_themed(

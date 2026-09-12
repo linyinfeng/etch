@@ -32,6 +32,7 @@ enum Command {
 }
 
 fn main() {
+    <<main: a closed pipe is not a panic>>
     <<main: how an error is printed>>
     <<main: the exit status>>
 }

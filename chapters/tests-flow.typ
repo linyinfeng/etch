@@ -79,6 +79,8 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: list_reports_declarations>>
 
+<<flow: a_closed_pipe_is_not_a_panic>>
+
 <<flow: a_chunk_built_by_code_is_attributed_to_itself>>
 
 <<flow: the_declaration_is_where_the_line_lives>>
@@ -105,6 +107,7 @@ The cases, in the order they appear:
 - `map_takes_one_direction` — an empty `lp map`, and a `--line` beside `--typ`, are refused by the surface (exit 2) rather than by the arm
 - `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
+- `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
@@ -124,7 +127,7 @@ The cases, in the order they appear:
 
 #chunk("flow: the fixtures and helpers", ````rust
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 use tempfile::TempDir;
 
@@ -653,6 +656,37 @@ fn map_takes_one_direction() {
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
     assert!(pair.status.success(), "{}", stderr(&pair));
+}
+````)
+
+#chunk("flow: a_closed_pipe_is_not_a_panic", ````rust
+#[test]
+fn a_closed_pipe_is_not_a_panic() {
+    let declared: String = (0..2000)
+        .map(|i| format!("#chunk(\"c{i}\", ```py\nprint({i})\n```)\n"))
+        .collect();
+    let many = format!("#file(\"main.py\", ```py\nprint(0)\n```)\n{declared}");
+    let (_guard, dir, _) = project(&many);
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lp"))
+        .args(["list", "demo.typ"])
+        .current_dir(&dir)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("run lp");
+    let mut stdout = child.stdout.take().expect("a pipe to read");
+    let mut first = [0u8; 64];
+    std::io::Read::read_exact(&mut stdout, &mut first).expect("the first bytes");
+    drop(stdout);
+
+    let output = child.wait_with_output().expect("wait");
+    assert_ne!(
+        output.status.code(),
+        Some(101),
+        "a closed pipe is not a panic: {}",
+        stderr(&output)
+    );
 }
 ````)
 

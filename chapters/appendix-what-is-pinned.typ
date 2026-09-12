@@ -694,6 +694,7 @@ dependencies = [
  "clap",
  "ignore",
  "include_dir",
+ "libc",
  "lopdf",
  "miette",
  "regex",
