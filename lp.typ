@@ -452,7 +452,6 @@ pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError
     <<metadata: when the document does not evaluate>>
 
     <<metadata: read the answer>>
-    <<metadata: a document that declares nothing>>
     <<metadata: every kind is checked here>>
     Ok(declarations)
 }
@@ -696,14 +695,6 @@ let declarations: Vec<Decl> = serde_json::from_slice(&output.stdout).map_err(|er
     LpError::plain(format!("cannot read the document's declarations: {err}"))
         .with_help(String::from_utf8_lossy(&output.stdout).to_string())
 })?;
-````)
-
-#chunk("metadata: a document that declares nothing", ````rust
-if declarations.is_empty() {
-    return Err(LpError::plain("the document declares no chunks").with_help(
-        "import the package and declare them: `#import \"lp.typ\": chunk, file`, then `#chunk(\"name\", ```…```)` or `#file(\"src/main.rs\", ```…```)`",
-    ));
-}
 ````)
 
 #chunk("metadata: every kind is checked here", ````rust
@@ -1401,7 +1392,13 @@ itself — and turning them into blocks.
 let typst = metadata::binary()?;
 let mut blocks: Vec<Block> = Vec::new();
 let mut book: Option<Book> = None;
-for declaration in metadata::declarations(&typst, docs)? {
+let declared = metadata::declarations(&typst, docs)?;
+if declared.is_empty() {
+    return Err(LpError::plain("the document declares no chunks").with_help(
+    "import the package and declare them: `#import \"lp.typ\": chunk, file`, then `#chunk(\"name\", ```…```)` or `#file(\"src/main.rs\", ```…```)`",
+));
+}
+for declaration in declared {
     match declaration.kind()? {
         metadata::Kind::Options => {
             if book.is_some() {
@@ -1908,7 +1905,14 @@ pub fn attach(page: &Path, copies: &[Copy]) -> Result<(), LpError> {
 /// Read the book back out of a page this tool rendered and write it into a directory. A name that would
 /// climb out of the output directory is refused: a page is data, and this one may not be ours.
 pub fn extract(page: &Path, out: &Path) -> Result<usize, LpError> {
-    let html = std::fs::read_to_string(page).map_err(|err| LpError::io(page, err))?;
+    let bytes = std::fs::read(page).map_err(|err| LpError::io(page, err))?;
+    let html = String::from_utf8(bytes).map_err(|_| {
+        LpError::plain(format!(
+            "{} is not text, so it is not a page",
+            page.display()
+        ))
+        .with_help("the book rides in an HTML rendering, which is text")
+    })?;
     let tag = format!("<script type=\"application/json\" id=\"{SOURCE_ID}\"");
     let open = html.rfind(&tag).ok_or_else(|| {
         LpError::plain(format!(
@@ -4257,6 +4261,8 @@ what the *same* document produces in different situations.
 
 <<flow: weave_renders_a_document_that_imports_the_package>>
 
+<<flow: weaving_a_document_with_no_book_carries_none>>
+
 <<flow: a_page_gives_the_book_back>>
 
 <<flow: reading_weaves_what_the_binary_carries>>
@@ -4307,6 +4313,7 @@ The cases, in the order they appear:
 - `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
 - `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
 - `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
+- `weaving_a_document_with_no_book_carries_none` — a document that declares nothing still weaves: no block, and no complaint either
 - `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
 - `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
@@ -4896,6 +4903,27 @@ fn reading_weaves_what_the_binary_carries() {
         size > 10_000,
         "{} looks empty: {size} bytes",
         path.display()
+    );
+}
+````)
+
+#chunk("flow: weaving_a_document_with_no_book_carries_none", ````rust
+#[test]
+fn weaving_a_document_with_no_book_carries_none() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("plain.typ"), "= Plain\n\nJust words.\n").expect("doc");
+
+    // `lp weave` is `typst compile` with the package path filled in, so a document that declares nothing
+    // is still a document. It gets no block, and it gets no complaint either.
+    let woven = lp(
+        dir.path(),
+        &["weave", "plain.typ", "plain.html", "--features", "html"],
+    );
+    assert!(woven.status.success(), "{}", stderr(&woven));
+    let page = std::fs::read_to_string(dir.path().join("plain.html")).expect("page");
+    assert!(
+        !page.contains("lp-source"),
+        "a document with no book got one"
     );
 }
 ````)
@@ -5728,13 +5756,13 @@ fn a_document_without_declarations_says_what_to_do() {
     .expect("doc");
     let path = dir.path().to_path_buf();
 
+    // Nothing is an answer, not a failure: this command reports what is there, and what is there is
+    // nothing. Demanding chunks is the tangle's business, and the tangle says so itself.
     let output = lp(&path, &["metadata", "plain.typ"]);
-    assert!(!output.status.success());
-    let message = stderr(&output);
-    assert!(message.contains("declares no chunks"), "{message}");
+    assert!(output.status.success(), "{}", stderr(&output));
     assert!(
-        message.contains("#file("),
-        "the remedy belongs there: {message}"
+        stdout(&output).trim().is_empty(),
+        "nothing is still an answer"
     );
 }
 ````)
