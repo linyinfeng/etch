@@ -42,5 +42,48 @@ What the objections do not cover is the two things this document is built on: th
 in the code, and a single source whose drift is a check failure rather than a matter of discipline. A
 stance that cannot state its opposition is not an argument.
 
+== What became of the claims
+
+Forty years of other people trying this is the best evidence there is about which claims carry, and it is
+worth knowing before deciding to write one.
+
+*The document is the source* is the claim tools were built on. noweb is the clearest line: the same idea with
+five control sequences instead of WEB's twenty-seven, no prettyprinter — because prettyprinting is
+language-specific and *most programs are edited at least as often as they are read* — and no assumption about
+the target language at all. This book and this tool are on that line: the only thing the tool knows about a
+target language is the string in the fence.
+
+*The order belongs to the reader* is the mechanism, and it is exactly what a notebook does not have. A cell
+has to run, in order, with everything it needs already defined, so a notebook's order is the runtime's. That
+is the boundary between this tradition and Jupyter, Quarto or RMarkdown, and it cuts both ways: a notebook can
+show you its result, which a woven page cannot, and it cannot be arranged for the reader, which is the whole
+of this method.
+
+*Prose is where the thinking lives* is the claim that got separated from the others in practice. The community
+that adopted weaving was data science, and what it adopted was the fourth claim — render something a human
+reads — not the third. RMarkdown and nbdev are real literate programming by the letter of the first claim and
+not by the spirit of the third: the prose explains the analysis, and the code is still the source.
+
+*The woven page is worth having on its own* is the claim that won, in a shape WEB did not intend. Paper is no
+longer the main medium for a program, and the document people actually read is a page on a screen, often one
+that a notebook generated. The rendering won; the single source mostly did not.
+
+Why it did not spread further has been catalogued more than once, and the categories are tooling, the person,
+and the process. Two of the reasons are hard to argue with. Editors, version control and refactoring tools
+absorbed part of what prose was needed for, so the gap the document fills is narrower than it was. And
+documentation is written for a future reader who does not exist yet, which means the person paying the cost is
+never the person being paid — the same economics that make comments stale everywhere. The lesson a tool should
+take from that is not that the method is wrong but that **it has to pay off now**: live sync, a diagnostic that
+comes back to the declaration, a drift check. A tool that only pays off later is a tax, and a tax gets
+uninstalled.
+
+The last decade added an argument on each side. On one side, a generated document is exactly the context a
+reader with no history needs, and a web of named pieces is already the shape of a top-level intent with details
+underneath — which is why the method fits a reader that arrives without having written any of it. On the other,
+skipping the explanation has never been cheaper, since a program can be summarised on demand. What that makes
+the document, in a workflow with a model in it, is a *constraint* rather than a style: the book is the only
+source, every edit goes there, and `--check` is what keeps the two from drifting apart. That is the shape this
+repository chose, and it is a claim about the work rather than about taste.
+
 How to write one, how to read one, when not to, and where this tool departs from WEB are the next four
 chapters; the tool after them is this argument's longest example.

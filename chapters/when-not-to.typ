@@ -62,6 +62,33 @@ have said, and the more expressive the language, the less the prose adds. And it
 where one document is written and the code is then edited elsewhere: a single source whose source is not
 single is worse than no document at all.
 
+== What it cost here
+
+This repository is one datapoint about the price, and it is worth stating in machinery rather than in prose,
+because the machinery is what anyone thinking about doing this will also have to build.
+
+The document is the source, so a fresh clone cannot produce anything: the tree has to be shipped somewhere a
+clone can reach, which is why there is a branch whose whole content is one generation — the seed — and a
+bootstrap that unpacks it, builds it with whatever toolchain the reader has, and uses that older binary to
+tangle the document.
+
+The binary is older by construction, so the document gets tangled twice — once by the seed, once by the result —
+and the two are compared. That comparison is a check rather than a build step, and it is what makes "this document
+is its own source" testable instead of rhetorical.
+
+The tree has a CI of its own, because it is a program: six named checks, one of which is the round trip — render
+the book, read it back out of a PDF and out of a page, compare every file. The repository's CI is a different
+job: tangle, refuse drift, publish the generation. Two pipelines for one book, and the split is not a choice:
+the tree's checks have to run in the tree, and the tree does not exist until the tangle has run.
+
+And the toolchain is a prerequisite rather than something the book can carry. Everyone who edits it installs
+`typst`, a Rust toolchain and a linker, because the repository cannot hold an environment of its own — that would
+be a tracked file the document does not produce, which the build chapter takes up.
+
+None of that is objectionable. It is the price of one source being the only source, and it is worth naming
+because the alternative — a document that is a *copy* of the code — costs less and is worth less. What it does
+mean is that the method is not free for a repository, only for a page.
+
 One argument deserves a second look here, because it gets stronger every year. Reading code has become cheap:
 a model, or a colleague with a search tool, can reconstruct a surprising amount of what a program does without
 any prose at all. That is a real argument against spending the writer's time on explanation, and it is the
