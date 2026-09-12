@@ -1745,6 +1745,8 @@ compares, and accounted for by the ownership check rather than reported as a str
 <<self: the book, carried>>
 
 <<self: reading it>>
+
+<<self: proving it>>
 ````)
 
 #file("src/book.rs", ````rust
@@ -1892,7 +1894,10 @@ compile time, so `lp self` needs nothing beside it.
   the result to the desktop. Weaving reuses `lp weave`, because there is one way to render a document and
   it should not be written twice; opening is best effort — a machine with no desktop still gets the file
   and its path.
-- `lp self prove <dir>` (next) unpacks that book, tangles it, and runs its own checks.
+- `lp self prove <dir>` unpacks that book into `<dir>`, tangles it with *this* binary, and runs the
+  tree's own checks in it: the whole bootstrap in one command, with nothing outside the binary but the
+  toolchain it borrows. The lock file is part of the book, so nix is asked not to resolve one — writing
+  one there would be drift.
 
 `include_dir` is the one dependency this adds, and the line D7 asks for: embedding a directory tree is
 `include_bytes!` at scale — one macro, no runtime dependency, and `Dir::extract` writes the tree back out
@@ -1930,6 +1935,46 @@ pub fn book(out: &Path) -> Result<usize, LpError> {
         ))
     })?;
     Ok(BOOK.files().count())
+}
+````)
+
+#chunk("self: proving it", ````rust
+/// Materialise the book in a directory, tangle it with this binary, and run the tree's own checks.
+///
+/// This is the whole bootstrap in one command: nothing outside the binary and the toolchain it borrows
+/// is needed — no repository, no seed branch, no network beyond what `cargo` and `nix` themselves want.
+pub fn prove(dir: &Path) -> Result<i32, LpError> {
+    let files = book(dir)?;
+
+    // The book names no document as *the* document, and this does not guess by file name either: it
+    // takes the .typ files it finds and insists there is exactly one.
+    let mut documents: Vec<PathBuf> = Vec::new();
+    let entries = std::fs::read_dir(dir).map_err(|err| LpError::io(dir, err))?;
+    for entry in entries {
+        let path = entry.map_err(|err| LpError::io(dir, err))?.path();
+        if path.extension().is_some_and(|kind| kind == "typ") {
+            documents.push(path);
+        }
+    }
+    if documents.len() != 1 {
+        return Err(LpError::plain(format!(
+            "the book carries {} .typ documents, not one",
+            documents.len()
+        ))
+        .with_help("`lp self prove` expects the book to be a single document"));
+    }
+
+    println!("wrote {files} files of the book to {}", dir.display());
+    crate::tangle::run(&documents, dir, false)?;
+
+    // The lock belongs to the book, so nix must not resolve anything here: if the lock were out of date
+    // it would write a new one, and a check that can rewrite its own input is not a check.
+    let status = Command::new("nix")
+        .args(["flake", "check", "--no-update-lock-file"])
+        .current_dir(dir)
+        .status()
+        .map_err(|err| LpError::plain(format!("cannot run nix: {err}")))?;
+    Ok(status.code().unwrap_or(1))
 }
 ````)
 
@@ -3592,6 +3637,11 @@ enum SelfMethod {
         #[arg(long, default_value = "pdf")]
         format: String,
     },
+    /// Unpack the book, tangle it with this binary, and run the tree's own checks
+    Prove {
+        /// Directory to build the book in
+        dir: PathBuf,
+    },
 }
 ````)
 
@@ -3743,6 +3793,7 @@ Command::Itself { method } => match method {
         println!("{}", path.display());
         Ok(0)
     }
+    SelfMethod::Prove { dir } => embedded::prove(&dir),
 },
 Command::Tangle { docs, out, check } => {
     let out = out_dir(out, &docs);
@@ -4028,6 +4079,8 @@ what the *same* document produces in different situations.
 
 <<flow: weave_renders_a_document_that_imports_the_package>>
 
+<<flow: reading_weaves_what_the_binary_carries>>
+
 <<flow: the_book_comes_back_out_whole>>
 
 <<flow: the_book_is_carried_into_the_tree>>
@@ -4072,6 +4125,7 @@ The cases, in the order they appear:
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, in its own shape, minus what the source calls ignored
 - `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
+- `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
 - `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
 - `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
@@ -4083,7 +4137,7 @@ The cases, in the order they appear:
 ````)
 
 #chunk("flow: the fixtures and helpers", ````rust
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use tempfile::TempDir;
@@ -4643,6 +4697,25 @@ fn the_book_comes_back_out_whole() {
         let carried = std::fs::read(beside.join(name)).expect(name);
         assert_eq!(embedded, carried, "{name} came back different");
     }
+}
+````)
+
+#chunk("flow: reading_weaves_what_the_binary_carries", ````rust
+#[test]
+fn reading_weaves_what_the_binary_carries() {
+    let dir = TempDir::new().expect("temp dir");
+    let output = lp(dir.path(), &["self", "read", "--format", "html"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    let path = PathBuf::from(stdout(&output).trim());
+    let size = std::fs::metadata(&path)
+        .expect("the rendering is there")
+        .len();
+    assert!(
+        size > 10_000,
+        "{} looks empty: {size} bytes",
+        path.display()
+    );
 }
 ````)
 
@@ -6113,7 +6186,10 @@ jobs:
         with:
           name: linyinfeng
           signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
-      - run: nix flake check --print-build-logs
+      # Build this tree's own tool, then hand it the book it carries: `self prove` unpacks the book into
+      # an empty directory, tangles it, and runs this tree's own checks there.
+      - run: nix build .#lp --no-update-lock-file
+      - run: ./result/bin/lp self prove /tmp/proved
 ````)
 
 = What this repository carries
