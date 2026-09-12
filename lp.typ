@@ -6862,31 +6862,36 @@ Four things here are this tool's own, and every one of them was found by a failu
       # counts as five stray files (`nothing accounts for these files: .cargo-home/.global-cache`,
       # `.package-cache`, `.package-cache-mutate`, `config.toml`, `registry/CACHEDIR.TAG`).
       #
-      # Moving it out of the tree keeps the tree clean, which is the whole point of putting the
-      # self-reproduction test in the same derivation. The hook honours a preset `CARGO_HOME`
-      # (`${CARGO_HOME:-...}`), and the vendored registry config follows `CARGO_HOME`, so nothing
-      # else changes. nixpkgs' `buildRustPackage` does not do this, which is why the old stack
-      # never had to know.
-      cargoHome = "/build/cargo-home";
-
-      lp = craneLib.buildPackage {
-        inherit src cargoArtifacts;
-        CARGO_HOME = cargoHome;
-
-        # Tests are their own check below. Running them here too would make the package fail
-        # before a reader could see which test broke.
-        doCheck = false;
-
-        # `wrapProgram` below is the only thing this crate needs that cargo does not provide.
-        nativeBuildInputs = [ pkgs.makeWrapper ];
-
-        # `lp weave` is `typst compile` with the package in scope, so the binary needs the
-        # compiler on its PATH. Nothing else about the build needs Typst: this is a wrapper,
-        # not a dependency of the crate.
-        postInstall = ''
-          wrapProgram $out/bin/lp --prefix PATH : ${lib.makeBinPath [ pkgs.typst ]}
-        '';
+      # It has to be exported from a *hook* rather than given as an attribute, and that is not
+      # pedantry: an attribute's value is a literal string, so a path written there is one
+      # platform's build root. `/build` is where Linux puts it and a read-only non-existent
+      # directory on Darwin, which the first version of this line found out in CI — on macOS only.
+      # `$TMPDIR` expands where it is set, and crane's hooks read `${CARGO_HOME:-...}`, so this
+      # runs first: `configureCargoCommonVars` is a `postPatch` hook, and `prePatch` is before it.
+      cargoEnv = {
+        prePatch = ''export CARGO_HOME="$TMPDIR/cargo-home"'';
       };
+
+      lp = craneLib.buildPackage (
+        cargoEnv
+        // {
+          inherit src cargoArtifacts;
+
+          # Tests are their own check below. Running them here too would make the package fail
+          # before a reader could see which test broke.
+          doCheck = false;
+
+          # `wrapProgram` below is the only thing this crate needs that cargo does not provide.
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+
+          # `lp weave` is `typst compile` with the package in scope, so the binary needs the
+          # compiler on its PATH. Nothing else about the build needs Typst: this is a wrapper,
+          # not a dependency of the crate.
+          postInstall = ''
+            wrapProgram $out/bin/lp --prefix PATH : ${lib.makeBinPath [ pkgs.typst ]}
+          '';
+        }
+      );
 
       # The round trip: render the document with the binary just built, take the book back out of
       # both carriers, and compare it with the source it was woven from. A carrier that loses a
@@ -6921,21 +6926,25 @@ Four things here are this tool's own, and every one of them was found by a failu
       gates = {
         package = lp;
 
-        test = craneLib.cargoTest {
-          inherit src cargoArtifacts;
-          CARGO_HOME = cargoHome;
+        test = craneLib.cargoTest (
+          cargoEnv
+          // {
+            inherit src cargoArtifacts;
 
-          # Tangle asks the document for its declarations, so the tests need the compiler on
-          # PATH exactly the way the tool does at runtime. Without this every test that tangles
-          # fails with `no typst binary found` — which is how this line was found.
-          nativeBuildInputs = [ pkgs.typst ];
-        };
+            # Tangle asks the document for its declarations, so the tests need the compiler on
+            # PATH exactly the way the tool does at runtime. Without this every test that tangles
+            # fails with `no typst binary found` — which is how this line was found.
+            nativeBuildInputs = [ pkgs.typst ];
+          }
+        );
 
-        clippy = craneLib.cargoClippy {
-          inherit src cargoArtifacts;
-          CARGO_HOME = cargoHome;
-          cargoClippyExtraArgs = "--all-targets -- --deny warnings";
-        };
+        clippy = craneLib.cargoClippy (
+          cargoEnv
+          // {
+            inherit src cargoArtifacts;
+            cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+          }
+        );
 
         inherit roundtrip;
       };
