@@ -113,10 +113,7 @@ let mut debouncer = new_debouncer(
     None,
     move |result: DebounceEventResult| {
         let Ok(events) = result else { return };
-        let edited = events.iter().any(|event| {
-            an_edit(&event.kind) && event.paths.iter().any(|path| !own_scratch(path))
-        });
-        if edited {
+        if events.iter().any(|event| an_edit(&event.kind)) {
             let _ = tx.send(());
         }
     },
@@ -127,7 +124,7 @@ let mut debouncer = new_debouncer(
 #chunk("watch: the directories, not the files", ````rust
 let mut watched: Vec<PathBuf> = Vec::new();
 for doc in &options.docs {
-    for dir in watched_dirs(doc, &options.out)? {
+    for dir in watched_dirs(doc)? {
         if watched.contains(&dir) {
             continue;
         }
@@ -145,12 +142,11 @@ file itself. Watching the directory is also why the first pass matters — the l
 correct *before* the first event arrives, since the document may already be out of step.
 
 #chunk("watch: the directories git knows", ````rust
-fn watched_dirs(doc: &Path, out: &Path) -> Result<Vec<PathBuf>, LpError> {
+fn watched_dirs(doc: &Path) -> Result<Vec<PathBuf>, LpError> {
     let root = doc
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let out = std::path::absolute(out).unwrap_or_else(|_| out.to_path_buf());
 
     let mut builder = WalkBuilder::new(root);
     builder
@@ -167,13 +163,9 @@ fn watched_dirs(doc: &Path, out: &Path) -> Result<Vec<PathBuf>, LpError> {
     for entry in builder.build() {
         let entry = entry
             .map_err(|err| LpError::plain(format!("cannot scan {}: {err}", root.display())))?;
-        if !entry.file_type().is_some_and(|kind| kind.is_dir()) {
-            continue;
+        if entry.file_type().is_some_and(|kind| kind.is_dir()) {
+            dirs.push(entry.path().to_path_buf());
         }
-        if std::path::absolute(entry.path()).is_ok_and(|full| full.starts_with(&out)) {
-            continue;
-        }
-        dirs.push(entry.path().to_path_buf());
     }
     Ok(dirs)
 }
@@ -183,8 +175,10 @@ The traversal is the crate git itself uses, with hidden entries kept — a direc
 a dot can be a source here, and in this repository one is: the pipeline is declared in `.github` — and the
 gitignore rules on, because that is the project saying what its own source is. Git's own directory is
 left out as part of the same rule — the tree git tracks does not include the place git stores itself.
-Two things are then taken out by the tool's own rules rather than by the project's: its scratch, and the
-directory it writes its output to. The price of following git is the assumption behind it: a file git does
+One thing is then taken out by the tool's own rule rather than by the project's: its scratch, because the tool
+writes there on every pass and a watcher that watched that would never stop. The output directory is
+deliberately *kept* in the watched set: a file someone edits there by hand is a change a pass has to answer,
+and the tool's own writes into it are what the drain is for. The price of following git is the assumption behind it: a file git does
 not track is treated as something no pass reads, and a document that reads one anyway — a data file kept out
 of the repository for its size, say — falls outside what the watcher can promise. One ceiling is worth
 naming: a directory created while the watcher is running is not watched
@@ -287,7 +281,7 @@ mod tests {
         std::fs::write(root.join("chapters/one.typ"), "= One\n").expect("chapter");
         std::fs::write(root.join(".gitignore"), "tangled\n").expect("ignore");
 
-        let dirs = watched_dirs(&root.join("lp.typ"), &root.join("tangled")).expect("watched");
+        let dirs = watched_dirs(&root.join("lp.typ")).expect("watched");
         let named = |want: &str| dirs.iter().any(|dir| dir.ends_with(want));
         assert!(
             dirs.contains(&root.to_path_buf()),

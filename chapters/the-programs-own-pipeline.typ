@@ -58,11 +58,12 @@ Six things here are this tool's own, and every one of them was found by a failur
   already says which files those are, and a second list of names is a list that goes stale.
 - *The package does not run the tests.* `doCheck = false` there and a `test` check beside it, because a
   package that ran them as well would fail before a reader could see *which* test broke.
-- *The bootstrap is a check too, and it cannot re-enter nix.* `lp self prove` unpacks the book the binary
-  carries, tangles it with that binary, and runs this tree's own checks in what comes out — the property the
-  seed exists for. Inside a build sandbox nix cannot be run, so the check stubs it: the stub records that it
-  was asked, and the assertion the command is really about is the other one, because the tree it rebuilds is
-  compared against this one file by file. The workflow runs the unstubbed version, where nix exists.
+- *The bootstrap is a workflow step, not a check.* `lp self prove` unpacks the book the binary carries,
+tangles it with that binary, and runs this tree's own checks in what comes out — the property the seed exists
+for. It cannot be a check, because a check runs in a sandbox with no nix in it, and the last thing this command
+does is run nix; so the workflow runs it where nix exists, inside the shell: `nix develop --command nix run
+.#lp -- self prove`. `nix run` rather than `nix build` and a `result` link, so that proving the tree does not
+leave something in it for the ownership check to complain about.
 
 #chunk("nix: the per-system half", ````nix
 {
@@ -143,24 +144,6 @@ Six things here are this tool's own, and every one of them was found by a failur
         );
 
         inherit roundtrip;
-
-        prove = pkgs.runCommand "lp-prove" { nativeBuildInputs = [ pkgs.typst ]; } ''
-          work=$PWD/work
-          mkdir -p "$work/bin"
-
-          cat > "$work/bin/nix" <<'SH'
-          #!/bin/sh
-          echo "$*" >> "$LP_PROVE_LOG"
-          test -f flake.nix && test -d src && test -d tests
-          SH
-          chmod +x "$work/bin/nix"
-
-          LP_PROVE_LOG="$work/asked" PATH="$work/bin:$PATH" ${lp}/bin/lp self prove "$work/tree"
-
-          grep -q '^flake check' "$work/asked"
-          diff -r "$work/tree/tangled" ${src}
-          touch "$out"
-        '';
       };
     in
     {
@@ -248,7 +231,6 @@ The checks are the point of the flake. One per promise, so CI fails on the promi
   document's own code as much as the crate's. (No `cargoFmt`: two tools disagreeing about rustfmt's
   options is worse than either one alone.)
 - `roundtrip` — the book survives both carriers.
-- `prove` — the book the binary carries rebuilds this tree, and the command that proves it asks nix to check.
 - `devShell` — the shell can be constructed, because a shell that cannot be built is a shell nobody uses.
 
 `nix flake check` builds every one of those for the machine it runs on and evaluates the rest, so a typo in
@@ -306,9 +288,10 @@ Three jobs. `matrix` asks the flake which checks exist, so the list of them live
 one is an edit to the flake. `check` builds each of them on the runner its system calls for — the matrix
 knows that `aarch64-linux` means an arm runner and `aarch64-darwin` means a Mac, so the three systems are
 three native builds rather than one build and two guesses. It also does not stop at the first failure,
-because one failing check should not hide the other twenty. `prove` runs the other direction: it unpacks
+because one failing check should not hide the other seventeen. `prove` runs the other direction: it unpacks
 the book the binary carries, tangles it, and runs this tree's own checks in what comes out, which is what
-catches a document that no longer reproduces its tree.
+catches a document that no longer reproduces its tree. It runs inside the shell, because the command it drives
+asks nix for one more check, and a runner is the only place where that is allowed to work.
 
 The cache is where a pipeline like this earns its keep — a Rust build with Nix is hundreds of derivations,
 and the second run should download them instead of building them. The name is the Cachix cache this
@@ -374,8 +357,7 @@ jobs:
         with:
           name: linyinfeng
           signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
-      - run: nix build -L --no-update-lock-file .#lp
-      - run: ./result/bin/lp self prove /tmp/proved
+      - run: nix develop --command nix run .#lp -- self prove /tmp/proved
 ````)
 
 The policy file travels with the tree for the same reason the workflow does: `zizmor` now runs *in* the
