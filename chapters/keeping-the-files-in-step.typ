@@ -24,6 +24,8 @@ the thing to attack; the expansion is not.
 
 <<watch: what the command line passes in>>
 
+<<watch: what is not an edit>>
+
 pub fn run(options: Options) -> Result<(), LpError> {
     <<watch: one debouncer, one channel>>
 
@@ -61,6 +63,8 @@ fn check(options: &Options) {
 }
 
 <<watch: the last resort>>
+
+<<watch: what is not an edit, pinned>>
 ````)
 
 == What the command line passes in
@@ -75,6 +79,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use notify_debouncer_full::notify::RecursiveMode;
+use notify_debouncer_full::notify::event::EventKind;
 use notify_debouncer_full::{DebounceEventResult, new_debouncer};
 
 use crate::diag::LpError;
@@ -101,7 +106,11 @@ let mut debouncer = new_debouncer(
     options.debounce,
     None,
     move |result: DebounceEventResult| {
-        if result.is_ok() {
+        let Ok(events) = result else { return };
+        let edited = events.iter().any(|event| {
+            an_edit(&event.kind) && event.paths.iter().any(|path| !own_scratch(path))
+        });
+        if edited {
             let _ = tx.send(());
         }
     },
@@ -162,8 +171,56 @@ while events.try_recv().is_ok() {}
 ````)
 
 The drain is the part that is easy to miss: a pass writes files, the watcher sees those
-writes, and without emptying the queue first every pass would trigger one more. The tool's own
-output is not an edit, and that is where the queue is told so.
+writes, and without emptying the queue first every pass would trigger one more. Draining is not
+enough on its own, because the events a pass causes arrive while it is still running. Two more rules
+finish the job: a read is not an edit — a watcher that reports reads watches itself, because this tool
+reads its inputs on every pass — and the tool's own scratch, the directory it writes to on every pass,
+is kept out of the events altogether. The tool's own output is not an edit, and this is where that is
+said three times: in the queue, in what counts as a change, and in which paths are allowed to reach it.
+
+#chunk("watch: what is not an edit", ````rust
+fn own_scratch(path: &Path) -> bool {
+    path.components()
+        .any(|part| part.as_os_str() == crate::metadata::PACKAGE_ROOT)
+}
+
+fn an_edit(kind: &EventKind) -> bool {
+    !matches!(kind, EventKind::Access(_))
+}
+````)
+
+The name has to match a path component and not a suffix, which is the difference between the tool's
+scratch and a file that happens to end in the same two letters.
+
+#chunk("watch: what is not an edit, pinned", ````rust
+#[cfg(test)]
+mod tests {
+    use super::{an_edit, own_scratch};
+    use notify_debouncer_full::notify::event::{AccessKind, CreateKind, EventKind, ModifyKind};
+    use std::path::Path;
+
+    #[test]
+    fn the_tools_own_scratch_is_not_an_edit() {
+        assert!(own_scratch(Path::new(".lp")));
+        assert!(own_scratch(Path::new(".lp/entry-1.typ")));
+        assert!(own_scratch(Path::new(
+            "/a/b/.lp/packages/local/lp/0.1.0/lib.typ"
+        )));
+        assert!(!own_scratch(Path::new("lp.typ")));
+        assert!(!own_scratch(Path::new("chapters/one.typ")));
+        assert!(!own_scratch(Path::new("a.lp")));
+        assert!(!own_scratch(Path::new("tangled/src/main.rs")));
+    }
+
+    #[test]
+    fn a_read_is_not_an_edit() {
+        assert!(!an_edit(&EventKind::Access(AccessKind::Any)));
+        assert!(an_edit(&EventKind::Create(CreateKind::Any)));
+        assert!(an_edit(&EventKind::Modify(ModifyKind::Any)));
+        assert!(an_edit(&EventKind::Any));
+    }
+}
+````)
 
 #chunk("watch: one pass, through tangle", ````rust
 let outcome = match tangle::run(&options.docs, &options.out, false) {
