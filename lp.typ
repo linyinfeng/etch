@@ -12,7 +12,7 @@
 // and `@<<name>>` is how you write such a line without it being one (D17). The prose is Typst,
 // not Markdown: emphasis is *one star*.
 
-#import "@local/lp:0.1.0": chunk, file, show-rule
+#import "@local/lp:0.1.0": chunk, file, tangle-options, show-rule
 #show: show-rule
 
 = The tool, in its own words
@@ -3867,6 +3867,14 @@ what the *same* document produces in different situations.
 
 <<flow: weave_renders_a_document_that_imports_the_package>>
 
+<<flow: the_book_is_carried_into_the_tree>>
+
+<<flow: an_unknown_tangle_option_is_refused>>
+
+<<flow: a_book_without_a_directory_is_an_error>>
+
+<<flow: a_book_may_not_overwrite_an_output>>
+
 <<flow: map_names_the_chunk_a_generated_line_came_from>>
 
 <<flow: explain_rewrites_diagnostics_to_the_chunk>>
@@ -3899,6 +3907,10 @@ The cases, in the order they appear:
 - `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
+- `the_book_is_carried_into_the_tree` — the settings put the book beside its output, in its own shape, minus what the source calls ignored
+- `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
+- `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
+- `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
 - `a_chunk_built_by_code_is_attributed_to_itself` — roots declared by a loop are attributed to the declarations the loop produced
 - `the_declaration_is_where_the_line_lives` — the answer includes the `rg` command that finds the declaration
 
@@ -3917,7 +3929,7 @@ const PKG: &str = include_str!("../typst/lp.typ");
 /// A document in the real authoring form: the package is imported, its rules are
 /// installed, and the body declares chunks.
 fn document(body: &str) -> String {
-    format!("#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n{body}")
+    format!("#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}")
 }
 
 /// One file declaration, a shared fragment, a fragment written in two pieces,
@@ -4245,7 +4257,7 @@ fn the_map_follows_the_document_even_when_no_output_byte_changes() {
     // still be rewritten so it keeps describing the document.
     let moved = format!(
         "{}\n{}",
-        "#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule", DOC
+        "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule", DOC
     );
     std::fs::write(dir.join("demo.typ"), &moved).expect("rewrite");
 
@@ -4453,6 +4465,122 @@ fn weave_renders_a_document_that_imports_the_package() {
 }
 ````)
 
+#chunk("flow: the_book_is_carried_into_the_tree", ````rust
+#[test]
+fn the_book_is_carried_into_the_tree() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("README.md"), "the book\n").expect("readme");
+    std::fs::create_dir(dir.path().join("chapters")).expect("dir");
+    std::fs::write(dir.path().join("chapters/one.typ"), "= One\n").expect("chapter");
+    std::fs::write(dir.path().join("ignored.txt"), "not part of it\n").expect("ignored");
+    std::fs::write(dir.path().join(".gitignore"), "ignored.txt\n").expect("gitignore");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"book\", book-files: (\"**/*.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        dir.path().join("tangled/book/demo.typ").exists(),
+        "the document is part of the book whatever else it holds"
+    );
+    assert!(
+        dir.path().join("tangled/book/chapters/one.typ").exists(),
+        "a matched file keeps its shape"
+    );
+    assert!(
+        dir.path().join("tangled/book/README.md").exists(),
+        "and so does one matched by name"
+    );
+    assert!(
+        !dir.path().join("tangled/book/ignored.txt").exists(),
+        "what the source calls ignored is not part of the book"
+    );
+}
+````)
+
+#chunk("flow: an_unknown_tangle_option_is_refused", ````rust
+#[test]
+fn an_unknown_tangle_option_is_refused() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"book\", nonsense: 1))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(!output.status.success(), "an unknown key is not ignored");
+    assert!(
+        stderr(&output).contains("unknown tangle option"),
+        "the package refuses it where it was written: {}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: a_book_without_a_directory_is_an_error", ````rust
+#[test]
+fn a_book_without_a_directory_is_an_error() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-files: (\"*.py\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("book-directory"),
+        "the tool says which key is missing: {}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: a_book_may_not_overwrite_an_output", ````rust
+#[test]
+fn a_book_may_not_overwrite_an_output() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("main.py"),
+        "a source file the book would carry\n",
+    )
+    .expect("source");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"src\", book-files: (\"*.py\",)))\n\n#file(\"src/main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(
+        !output.status.success(),
+        "two writers for one path is refused"
+    );
+    assert!(
+        stderr(&output).contains("would overwrite"),
+        "and it says which path: {}",
+        stderr(&output)
+    );
+}
+````)
+
 #chunk("flow: list_reports_declarations", ````rust
 #[test]
 fn list_reports_declarations() {
@@ -4594,7 +4722,9 @@ fn stderr(output: &Output) -> String {
 
 fn write_doc(dir: &Path, name: &str, body: &str) {
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
-    let text = format!("#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n{body}");
+    let text = format!(
+        "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}"
+    );
     std::fs::write(dir.join(name), text).expect("doc");
 }
 
@@ -4852,7 +4982,9 @@ fn write(dir: &Path, name: &str, body: &str) {
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
     std::fs::write(
         dir.join(name),
-        format!("#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n{body}"),
+        format!(
+            "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}"
+        ),
     )
     .expect("doc");
 }
@@ -5229,7 +5361,9 @@ fn stderr(output: &Output) -> String {
 /// Write a document in the real authoring form, plus the package it imports.
 fn write_doc(dir: &Path, name: &str, body: &str) -> String {
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
-    let text = format!("#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n{body}");
+    let text = format!(
+        "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}"
+    );
     std::fs::write(dir.join(name), &text).expect("doc");
     text
 }
@@ -6019,7 +6153,7 @@ The last section is the one to keep in mind while reading the rest of this docum
 points at a chunk is the difference between a generator and a tool you can debug.
 
 #chunk("demo: the document's opening", ````typst
-#import "@local/lp:0.1.0": chunk, file, show-rule
+#import "@local/lp:0.1.0": chunk, file, tangle-options, show-rule
 #show: show-rule
 
 #set page(width: 15cm, height: auto, margin: 2cm)
