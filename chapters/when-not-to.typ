@@ -1,0 +1,70 @@
+= When not to
+
+Most of the case against literate programming is reasonable, and a document that cannot state it is selling
+something. This chapter is the ledger: what the method costs, who it was designed for, and the programs
+where the cost is not repaid.
+
+== What it costs
+
+The four claims have four prices, and they are not the same price.
+
+The first is paid in build machinery. The document has to evaluate before anything is produced, so the
+document language is a Turing-complete language sitting between the writer and the compiler: a loop that
+does not terminate, or a typo in a helper, produces no output at all, and the error the writer sees is a
+document error rather than a compiler error. In a repository like this one the price continues past the
+document: the tool that reads it has to exist before the first build, which is why this repository carries a
+seed branch and a bootstrap — and why the build environment chapter has to say that the toolchain is a
+prerequisite, since a document cannot ship the tools that read it.
+
+The second is paid by the writer, in attention. The arrangement is not checked by anything. A fragment that
+nobody references is a warning; a fragment whose explanation is now false is not even that, because no
+compiler reads prose. Holding a web in mind while rearranging it is the work the tool cannot do.
+
+The third is paid by the reader. The order is the author's order, and following a reference is a real cost:
+a reader who is jumping between sections is no longer reading. This is why the previous chapters spend so
+much on names and on section size — those are the two things that keep the jumps short.
+
+The fourth is paid at every edit. A woven page is a compile away from the truth, and the loop of a
+programmer — change a line, run the thing — is not the loop of a writer. Where the page has to be produced
+for a reader rather than for the tool, the page is a separate artefact with its own carrier and its own
+machinery; this document's is a PDF or an HTML file with the source embedded, and both are code this
+repository has to maintain.
+
+There is a fifth cost that is easy to miss because it is not about a claim: the tool is a dependency with a
+version, and the version participates in what the document means. This document sidesteps that by shipping
+the package inside the binary and resolving it locally, but that is a solution with its own machinery, not
+an absence of the problem.
+
+== Who it was for
+
+Knuth said in as many words that he had made a conscious decision not to design a language for everybody —
+his goal was a tool for system programmers, not for students or hobbyists. That is not a limitation he
+apologised for; it is a scope, and it is worth repeating here because a method that overstates its audience
+gets abandoned by everyone in it.
+
+The sharpest sentence against the method is McIlroy's review of Knuth's own book: *"Knuth has shown us here
+how to program intelligibly, but not wisely. I buy the discipline. I do not buy the result."* The review is
+of one program rather than of the idea, and that is exactly its value: it separates the two, and it points
+at the one thing a tool cannot supply. *"Mere use of WEB, though, won't assure the best organization"* —
+the method asks for a good arrangement; it does not produce one.
+
+== When it is not worth it
+
+The ledger above is paid off when the *why* is the expensive part: when the reasoning is what a later
+reader will need, when the program will be read by people who did not write it, and when the design is a web
+of decisions rather than a sequence of steps. It is paid off for programs that live long enough to be
+re-read, and for programs whose subject matter is itself hard to explain.
+
+It is not paid off by a program that is read once, by the machine. A script, a migration, a one-off
+experiment: the reasoning is not the value and nobody will want it. It is not paid off when the language
+already carries the explanation — good names, small functions and tests do a great deal of what prose would
+have said, and the more expressive the language, the less the prose adds. And it is not paid off in a team
+where one document is written and the code is then edited elsewhere: a single source whose source is not
+single is worse than no document at all.
+
+One of the arguments against the method deserves a second look in this chapter, because it gets stronger
+every year. Reading code has become cheap: a model, or a colleague with a search tool, can reconstruct a surprising amount of what a
+program does without any prose at all. That is a real argument against spending the writer's time on
+explanation, and it is the reason the fourth claim of this book is stated as a claim rather than assumed.
+What it does not remove is the two things the method is actually for: the *why*, which was never in the
+code, and one source whose drift is a check failure rather than a matter of discipline.

@@ -12,6 +12,10 @@
     ".gitignore",
     "chapters/the-tool-in-its-own-words.typ",
     "chapters/four-claims.typ",
+    "chapters/writing-a-literate-program.typ",
+    "chapters/reading-a-literate-program.typ",
+    "chapters/when-not-to.typ",
+    "chapters/differences-from-web.typ",
     "chapters/errors.typ",
   ),
 ))
@@ -21,6 +25,16 @@
 = Part I — Writing a literate program
 
 #include "chapters/four-claims.typ"
+
+#include "chapters/writing-a-literate-program.typ"
+
+#include "chapters/reading-a-literate-program.typ"
+
+#include "chapters/when-not-to.typ"
+
+#include "chapters/differences-from-web.typ"
+
+= Part II — The tool
 
 = The package: what a declaration is
 
