@@ -66,7 +66,7 @@ program, and it is a joint by construction: two languages, two files, one agreem
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::diag::LpError;
 ````)
@@ -84,7 +84,7 @@ third kind would mean the package grew a feature the tool has not learned yet, w
 guess at.
 
 #chunk("metadata: what a declaration says", ````rust
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Decl {
     pub lp: String,
     #[serde(default)]

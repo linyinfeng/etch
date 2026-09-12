@@ -79,6 +79,8 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: list_reports_declarations>>
 
+<<flow: the_reading_commands_speak_json_when_asked>>
+
 <<flow: a_closed_pipe_is_not_a_panic>>
 
 <<flow: a_chunk_built_by_code_is_attributed_to_itself>>
@@ -108,6 +110,7 @@ The cases, in the order they appear:
 - `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
+- `the_reading_commands_speak_json_when_asked` — `list`, `metadata` and `map` hand a program one JSON document, with the data behind the readout
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
@@ -656,6 +659,84 @@ fn map_takes_one_direction() {
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
     assert!(pair.status.success(), "{}", stderr(&pair));
+}
+````)
+
+#chunk("flow: the_reading_commands_speak_json_when_asked", ````rust
+#[test]
+fn the_reading_commands_speak_json_when_asked() {
+    let (_guard, dir, _) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let listed = lp(&dir, &["list", "demo.typ", "--json"]);
+    assert!(listed.status.success(), "{}", stderr(&listed));
+    let list: serde_json::Value = serde_json::from_str(&stdout(&listed)).expect("one document");
+    assert_eq!(list["version"], 1);
+    assert_eq!(list["command"], "list");
+    assert_eq!(list["documents"][0], "demo.typ");
+    assert_eq!(list["outputs"][0], "main.py");
+    let body = list["declarations"]
+        .as_array()
+        .expect("declarations")
+        .iter()
+        .find(|declared| declared["name"] == "body")
+        .expect("the body fragment");
+    assert_eq!(body["kind"], "chunk");
+    assert_eq!(body["lang"], "py");
+    assert_eq!(body["referenced"], true);
+
+    let carried = lp(&dir, &["metadata", "demo.typ", "--json"]);
+    assert!(carried.status.success(), "{}", stderr(&carried));
+    let metadata: serde_json::Value =
+        serde_json::from_str(&stdout(&carried)).expect("one document");
+    assert_eq!(metadata["command"], "metadata");
+    let text = metadata["declarations"]
+        .as_array()
+        .expect("declarations")
+        .iter()
+        .find(|declared| declared["name"] == "body")
+        .expect("the body fragment")["text"]
+        .as_str()
+        .expect("the whole text, not its first line")
+        .to_string();
+    assert!(text.contains("print('one')"), "{text}");
+
+    let forward = lp(
+        &dir,
+        &[
+            "map", "--file", "main.py", "--line", "3", "--json", "--out", "out",
+        ],
+    );
+    assert!(forward.status.success(), "{}", stderr(&forward));
+    let mapped: serde_json::Value = serde_json::from_str(&stdout(&forward)).expect("one document");
+    assert_eq!(mapped["command"], "map");
+    assert_eq!(mapped["file"], "main.py");
+    assert_eq!(mapped["chunk"], "body");
+    assert_eq!(mapped["exact"], true);
+
+    let past_the_end = lp(
+        &dir,
+        &[
+            "map", "--file", "main.py", "--line", "99", "--json", "--out", "out",
+        ],
+    );
+    let nearest: serde_json::Value =
+        serde_json::from_str(&stdout(&past_the_end)).expect("one document");
+    assert_eq!(nearest["chunk"], "body");
+    assert_eq!(
+        nearest["exact"], false,
+        "a tolerance is not an exact answer"
+    );
+
+    let reverse = lp(&dir, &["map", "--typ", "body", "--json", "--out", "out"]);
+    assert!(reverse.status.success(), "{}", stderr(&reverse));
+    let hits: serde_json::Value = serde_json::from_str(&stdout(&reverse)).expect("one document");
+    assert_eq!(hits["hits"][0]["file"], "main.py");
+    assert_eq!(hits["hits"][0]["line"], 2);
 }
 ````)
 

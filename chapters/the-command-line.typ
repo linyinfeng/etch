@@ -65,21 +65,39 @@ fn run() -> Result<i32, LpError> {
     }
 }
 
-fn list(docs: &[PathBuf]) -> Result<(), LpError> {
+fn list(docs: &[PathBuf], json: bool) -> Result<(), LpError> {
     <<main: plan, and who is referenced>>
+
+    <<main: the same list, for a program>>
 
     <<main: one row per declaration>>
 
     <<main: the outputs at the end>>
     Ok(())
 }
+
+<<main: one document, for a program>>
 ````)
 
 == The surface
-
 The declarations are the contract, so they are also where the help text lives: the `help` attributes in this
 file are `lp --help`. Each command gets its own fragment, because each one is a promise about what the tool
 does.
+
+One of those promises is to a reader that is a program. The commands that answer questions rather than
+writing files — `list`, `metadata` and `map` — take `--json`, and a program that asks for it gets one JSON
+document instead of the table or the sentence. The two are not two implementations: the same values are built
+once and rendered twice, because a second spelling of the same fact is a second fact that can go its own way.
+Every document starts with the same two fields — `version`, which is `1`, and `command`, which is the
+command's name — so a consumer can tell at a glance what it is reading. What the fields carry is the data
+behind the readout and nothing else: `map --json` says whether the run it found is the exact one or the
+nearest earlier one, which the sentence never had room for.
+
+What `--json` does not change is the shape of a failure. A command that could not answer exits non-zero, its
+report goes to stderr, and stdout carries no document at all — so a program can tell "the answer is empty"
+from "there is no answer", the way the shell does for every filter on the machine. A consumer that always
+finds a document on stdout and always tests the exit status is never surprised; one that parses whatever it
+was handed is.
 
 #chunk("main: the modules, and what they are called", ````rust
 mod book;
@@ -97,6 +115,7 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use clap::{ArgGroup, Parser, Subcommand};
+use serde_json::json;
 
 use diag::LpError;
 ````)
@@ -186,7 +205,6 @@ Tangle {
 clap's to enforce, in the declarations below: one required group names the two flags that pick a direction,
 `requires` says that a file comes with a line, and a conflict says that a line beside a chunk name means
 nothing. None of the three can be derived from the others, so all three are written out.
-
 #chunk("main: map", ````rust
 #[command(about = "Name the chunk a generated line came from, or the lines a chunk produced")]
 #[command(group(ArgGroup::new("what").required(true).multiple(false).args(["file", "typ"])))]
@@ -200,6 +218,9 @@ Map {
     #[arg(long)]
     #[arg(help = "A line in that file, 1-based, as the map counts it")]
     line: Option<usize>,
+    #[arg(long)]
+    #[arg(help = "Print one JSON document instead of the sentence")]
+    json: bool,
     #[arg(long)]
     #[arg(
         help = "Directory the maps are in (default: tangled/, since this command names no document)"
@@ -218,7 +239,12 @@ Explain {
 
 #chunk("main: list", ````rust
 #[command(about = "List the chunks a document declares")]
-List { doc: PathBuf },
+List {
+    doc: PathBuf,
+    #[arg(long)]
+    #[arg(help = "Print one JSON document instead of the table")]
+    json: bool,
+},
 ````)
 
 `list` and `metadata` are the two commands that exist for the person debugging a document
@@ -231,6 +257,9 @@ it without writing anything.
 Metadata {
     #[arg(required = true)]
     docs: Vec<PathBuf>,
+    #[arg(long)]
+    #[arg(help = "Print one JSON document instead of the table, with every text in full")]
+    json: bool,
 },
 ````)
 

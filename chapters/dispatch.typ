@@ -32,6 +32,25 @@ let _ = miette::set_hook(Box::new(|_| {
 }));
 ````)
 
+The commands that answer questions build their values once and then either print a table and a sentence, or
+hand the same values here. There is one implementation of the envelope rather than one per command, because
+the promise is that every machine document starts the same way — a version and the command that produced it —
+and a promise made in five places is five promises. The version is a number to check, not a number to trust:
+a consumer that does not know `1` should stop rather than guess at fields that may have moved.
+
+#chunk("main: one document, for a program", ````rust
+fn machine(command: &str, payload: serde_json::Value) -> Result<(), LpError> {
+    let mut fields = serde_json::Map::new();
+    fields.insert("version".into(), serde_json::Value::from(1));
+    fields.insert("command".into(), serde_json::Value::from(command));
+    if let serde_json::Value::Object(rest) = payload {
+        fields.extend(rest);
+    }
+    println!("{}", serde_json::Value::Object(fields));
+    Ok(())
+}
+````)
+
 #chunk("main: the exit status", ````rust
 match run() {
     Ok(code) => std::process::exit(code),
@@ -114,6 +133,7 @@ Command::Map {
     file,
     typ,
     line,
+    json,
     out,
 } => {
     let out = out_dir(out, &[]);
@@ -126,20 +146,30 @@ a person asks, not in a loop.
 
 #chunk("main: map, in reverse", ````rust
     if let Some(chunk) = typ {
-        let mut hits = 0;
+        let mut hits: Vec<(String, usize)> = Vec::new();
         for (dir, map) in &maps {
             for (name, file) in &map.files {
                 for run in &file.runs {
                     if run.chunk == chunk {
                         for line in run.first..=run.last {
-                            println!("{}:{}", map::join(dir, name), line);
-                            hits += 1;
+                            hits.push((map::join(dir, name), line));
                         }
                     }
                 }
             }
         }
-        if hits == 0 {
+        if json {
+            let places: Vec<serde_json::Value> = hits
+                .iter()
+                .map(|(file, line)| json!({"file": file, "line": line}))
+                .collect();
+            machine("map", json!({"chunk": chunk, "hits": places}))?;
+            return Ok(0);
+        }
+        for (file, line) in &hits {
+            println!("{file}:{line}");
+        }
+        if hits.is_empty() {
             eprintln!("note: nothing in the generated files came from chunk ⟪{chunk}⟫");
         }
         return Ok(0);
@@ -171,6 +201,19 @@ guarantee a compiler cannot see.
 ````)
 
 #chunk("main: map, the answer", ````rust
+    if json {
+        machine(
+            "map",
+            json!({
+                "file": rel,
+                "line": line,
+                "chunk": run.chunk,
+                "offset": offset,
+                "exact": run.first <= line && line <= run.last,
+            }),
+        )?;
+        return Ok(0);
+    }
     println!("chunk ⟪{}⟫, line {offset} of it", run.chunk);
     println!("    find it with: rg '#chunk(\"{}\")'", run.chunk);
     Ok(0)
@@ -196,16 +239,23 @@ prints diagnostics can be piped in, and the note about nothing matching goes to 
 pipeline's stdout stays exactly what it was.
 
 #chunk("main: list, one document", ````rust
-Command::List { doc } => {
-    list(std::slice::from_ref(&doc))?;
+Command::List { doc, json } => {
+    list(std::slice::from_ref(&doc), json)?;
     Ok(0)
 }
 ````)
 
 #chunk("main: metadata, the stream itself", ````rust
-Command::Metadata { docs } => {
+Command::Metadata { docs, json } => {
     let typst = metadata::binary()?;
-    for declaration in metadata::declarations(&typst, &docs)? {
+    let declarations = metadata::declarations(&typst, &docs)?;
+
+    if json {
+        machine("metadata", json!({ "declarations": declarations }))?;
+        return Ok(0);
+    }
+
+    for declaration in declarations {
         println!(
             "{:<6} {:<28} {:<8} {}",
             declaration.lp,
@@ -238,6 +288,31 @@ deliberately, and this is where it is recorded.
 let plan = tangle::plan(docs)?;
 let set = tangle::ChunkSet::new(&plan.blocks);
 let referenced: BTreeSet<String> = plan.blocks.iter().flat_map(tangle::refs_of).collect();
+````)
+
+#chunk("main: the same list, for a program", ````rust
+if json {
+    let declarations: Vec<serde_json::Value> = plan
+        .blocks
+        .iter()
+        .map(|block| {
+            json!({
+                "kind": if block.root { "file" } else { "chunk" },
+                "name": block.name,
+                "lang": block.lang,
+                "referenced": referenced.contains(&block.name) || block.root,
+            })
+        })
+        .collect();
+    return machine(
+        "list",
+        json!({
+            "documents": docs.iter().map(|doc| doc.display().to_string()).collect::<Vec<_>>(),
+            "declarations": declarations,
+            "outputs": set.roots(),
+        }),
+    );
+}
 ````)
 
 #chunk("main: one row per declaration", ````rust
