@@ -5962,8 +5962,10 @@ files cargo and nix maintain, which no chunk has any business owning.
 target
 flake.lock
 
-# The example's build directory is a nested document's output; that document says what is inside.
-examples/demo/build
+# The example's build directory is a nested document's output, and this document declares the one
+# file in it that governs the rest.
+examples/demo/build/*
+!examples/demo/build/.lpignore
 ````)
 
 #file(".lpignore", ````gitignore
@@ -6055,8 +6057,10 @@ it. Being output, it is written when it differs and compared by `--check` like e
 target
 flake.lock
 
-# The example's build directory is a nested document's output; that document says what is inside.
-examples/demo/build
+# The example's build directory is a nested document's output, and this document declares the one
+# file in it that governs the rest.
+examples/demo/build/*
+!examples/demo/build/.lpignore
 ```
 
 Write it, declare it in the protect list above next to `/.git` — they are the same kind of file,

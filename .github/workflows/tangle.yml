@@ -81,6 +81,18 @@ jobs:
           tree=$(GIT_DIR="$root/.git" GIT_INDEX_FILE="$idx" git write-tree)
           rm -rf "$tmp" "$idx"
 
+          # An ignore rule can hide a file the document declares — the seed would then be a
+          # generation missing part of itself, and only a fresh clone would notice.
+          declared=$(./tangled/target/debug/lp tangle lp.typ --check | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/^ok *//')
+          missing=$(printf '%s\n' "$declared" | while read -r file; do
+            [ -z "$file" ] && continue
+            git cat-file -e "$tree:$file" 2>/dev/null || echo "$file"
+          done)
+          if [ -n "$missing" ]; then
+            echo "::error::the generation is missing files the document declares: $missing"
+            exit 1
+          fi
+
           parent=$(git rev-parse origin/tangled)
           if [ "$(git rev-parse "$parent^{tree}")" = "$tree" ]; then
             echo "the seed is unchanged"
