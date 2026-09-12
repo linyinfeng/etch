@@ -23,10 +23,10 @@ jobs:
       # Asked first, so a missing token costs a second instead of a build.
       - name: the token that publishes the generation
         env:
-          TOKEN: ${{ secrets.TANGLED_TOKEN }}
+          TOKEN: ${{ secrets.PAT_FOR_AUTOMATED_UPDATE }}
         run: |
           if [ -z "${TOKEN:-}" ]; then
-            echo "::error::set secrets.TANGLED_TOKEN — a token with repo and workflow scopes; a repository token cannot publish a workflow file, nor trigger the branch's own pipeline"
+            echo "::error::set secrets.PAT_FOR_AUTOMATED_UPDATE — a token with repo and workflow scopes; a repository token cannot publish a workflow file, nor trigger the branch's own pipeline"
             exit 1
           fi
 
@@ -78,11 +78,11 @@ jobs:
           # The tree carries a workflow file, and a repository token may not push one — the `workflows`
           # permission cannot be granted to it. A token with that scope also makes the pushed branch
           # trigger its own workflows, which is how the generated pipeline runs at all.
-          TOKEN: ${{ secrets.TANGLED_TOKEN }}
+          TOKEN: ${{ secrets.PAT_FOR_AUTOMATED_UPDATE }}
         run: |
           set -euo pipefail
           if [ -z "${TOKEN:-}" ]; then
-            echo "::error::set secrets.TANGLED_TOKEN — a token with repo and workflow scopes; a repository token cannot publish a workflow file, nor trigger the branch's own pipeline"
+            echo "::error::set secrets.PAT_FOR_AUTOMATED_UPDATE — a token with repo and workflow scopes; a repository token cannot publish a workflow file, nor trigger the branch's own pipeline"
             exit 1
           fi
           root=$PWD
