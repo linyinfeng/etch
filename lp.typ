@@ -18,7 +18,7 @@
 // Where the tangled tree keeps this book, so that a tree can be read — and re-tangled — without the
 // repository it came from. The tree's own `.gitignore` travels with it: the book is the whole of what
 // this repository was before tangling, not only its prose.
-#tangle-options((book-directory: "book", book-files: ("*.typ", "README.md", ".gitignore")))
+#tangle-options((book-directory: "book", book-files: ("lp.typ", "README.md", ".gitignore")))
 
 = The tool, in its own words
 
@@ -935,7 +935,7 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
             .iter()
             .map(|doc| doc.canonicalize().unwrap_or_else(|_| doc.clone()))
             .collect();
-        book_copies = crate::book::plan(settings, &metadata::common_ancestor(&absolute), docs)?;
+        book_copies = crate::book::plan(settings, &metadata::common_ancestor(&absolute))?;
         for copy in &book_copies {
             let (dir, name) = split(&copy.to);
             if maps
@@ -1351,12 +1351,21 @@ fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
     if let Some(value) = table.get("book-files") {
         let list = value
             .as_array()
-            .ok_or_else(|| LpError::plain("`book-files` is a list of globs"))?;
+            .ok_or_else(|| LpError::plain("`book-files` is a list of file names"))?;
         for entry in list {
-            match entry.as_str() {
-                Some(glob) => files.push(glob.to_string()),
-                None => return Err(LpError::plain("`book-files` is a list of globs")),
+            let name = entry
+                .as_str()
+                .ok_or_else(|| LpError::plain("`book-files` is a list of file names"))?;
+            // The names are read as paths, by this tool and by the package both, so a name that climbs
+            // out of the tree is refused here rather than followed.
+            if name.starts_with('/') || name.split('/').any(|part| part == "..") {
+                return Err(
+                    LpError::plain(format!("book-files: {name} leaves the source tree")).with_help(
+                        "names are relative to the document, and a book stays inside it",
+                    ),
+                );
             }
+            files.push(name.to_string());
         }
     }
     Ok(Book { directory, files })
@@ -1735,13 +1744,14 @@ A tree that cannot be read on its own is a build artifact; a tree that carries t
 produced it is a program with its source of truth beside it. So a document may ask for the copy:
 
 ```typst
-#tangle-options((book-directory: "book", book-files: ("*.typ", "README.md")))
+#tangle-options((book-directory: "book", book-files: ("lp.typ", "README.md", ".gitignore")))
 ```
 
-Every file under the book's root that matches one of those globs — plus the documents themselves, which
-are the book whatever else it holds — is copied into the output directory under `book-directory`, keeping
-the shape it had in the source. The globs are matched the way a `.gitignore` matches, against the source
-tree, and they respect its own `.gitignore` files: what the source calls ignored is not part of the book.
+Each name is a file, relative to the document, and each one is copied into the output directory under
+`book-directory` with the name it had. The list is explicit and not a pattern: it is what the book *is*, it
+is what a rendering carries, and a list is something a reader can hold against the directory. The first
+version matched globs the way a `.gitignore` matches, walking the source tree to find them — more machinery
+than three names deserve, and a package could not have read a pattern anyway, since Typst has no `glob`.
 
 The copy is output like everything else: written only when its bytes differ, part of what `--check`
 compares, and accounted for by the ownership check rather than reported as a stray.
@@ -1778,12 +1788,8 @@ compares, and accounted for by the ownership check rather than reported as a str
 #chunk("book: the imports", ````rust
 use std::path::{Path, PathBuf};
 
-use ignore::WalkBuilder;
-use ignore::gitignore::GitignoreBuilder;
-
 use crate::diag::LpError;
 use crate::map::Book;
-use crate::metadata::PACKAGE_ROOT;
 ````)
 
 #chunk("book: what the settings ask for", ````rust
@@ -1806,66 +1812,21 @@ impl Copy {
 
 /// Resolve the settings against the source tree. Nothing is written here — the plan can be checked
 /// before anything moves.
-pub fn plan(settings: &Book, anchor: &Path, docs: &[PathBuf]) -> Result<Vec<Copy>, LpError> {
-    let mut matcher = GitignoreBuilder::new(anchor);
-    for glob in &settings.files {
-        matcher.add_line(None, glob).map_err(|err| {
-            LpError::plain(format!("book-files: {glob}: {err}"))
-                .with_help("globs are written the way a .gitignore writes them")
-        })?;
-    }
-    let matcher = matcher
-        .build()
-        .map_err(|err| LpError::plain(format!("book-files: {err}")))?;
-
-    let documents: Vec<PathBuf> = docs
-        .iter()
-        .map(|doc| doc.canonicalize().unwrap_or_else(|_| doc.clone()))
-        .collect();
-
-    // The walk applies the source tree's own `.gitignore` files to every entry, and `require_git(false)`
-    // is what makes that true outside a repository — a build directory is not one, and a tree must not
-    // depend on which of the two it came from. The machine's global rules and any parent's are turned
-    // off: what the book is should be a property of the book.
-    let walk = WalkBuilder::new(anchor)
-        .git_ignore(true)
-        .require_git(false)
-        .git_global(false)
-        .git_exclude(false)
-        .parents(false)
-        .build();
-
+///
+/// The list is the plan. It used to be a walk with a matcher, matching globs the way a `.gitignore`
+/// matches, which was more machinery than the book needed and, worse, a second way to decide what the
+/// book is: the package could not read a glob at all. A list can be read by both.
+pub fn plan(settings: &Book, anchor: &Path) -> Result<Vec<Copy>, LpError> {
     let mut copies = Vec::new();
-    for entry in walk {
-        let entry =
-            entry.map_err(|err| LpError::plain(format!("reading {}: {err}", anchor.display())))?;
-        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
-            continue;
+    for name in &settings.files {
+        let from = anchor.join(name);
+        if !from.is_file() {
+            return Err(LpError::plain(format!("book-files: {name} is not a file"))
+                .with_help("names are relative to the document, and the book is a list of them"));
         }
-        let path = entry.path();
-        // The tool unpacks its package next to whatever document it evaluates — including the copy
-        // this very pass has just written — so that directory is state, never part of the book.
-        if path
-            .strip_prefix(anchor)
-            .unwrap_or(path)
-            .components()
-            .any(|part| part.as_os_str() == PACKAGE_ROOT)
-        {
-            continue;
-        }
-        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-        let wanted = matcher.matched(path, false).is_ignore() || documents.contains(&canonical);
-        if !wanted {
-            continue;
-        }
-        let relative = path.strip_prefix(anchor).unwrap_or(path);
         copies.push(Copy {
-            from: path.to_path_buf(),
-            to: format!(
-                "{}/{}",
-                settings.directory.trim_end_matches('/'),
-                relative.to_string_lossy().replace('\\', "/")
-            ),
+            from,
+            to: format!("{}/{}", settings.directory.trim_end_matches('/'), name),
         });
     }
     copies.sort_by(|a, b| a.to.cmp(&b.to));
@@ -2176,19 +2137,19 @@ What marks the block is the whole opening tag, not the text of the id. This docu
 prose — here, in this paragraph — and the first version, which searched for the id as a substring, found
 this sentence instead and failed on it. A marker has to be something a page cannot mention by accident.
 
-The carrying is the tool's work and not the package's, which took a wrong turn to learn. A package looks
-like the right home: the document already imports one, and it is where a rendering's rules live. But it
-cannot do the job. Typst has no `glob`, so a package cannot work out which files `book-files` names; its
-HTML export has no way to place an element with attributes, and the marker for the block is an attribute;
-and it escapes content, which is exactly what must not happen inside a `<script>`. What a package *can* do
-is attach a file to a PDF that Typst itself is writing — which is a fair argument for putting the
-attachments there, until you notice what it costs: the names have to reach the package before the compile,
-through an input the tool quietly passes, which is one more evaluation of the document and one more piece
-of machinery to explain. So both carriers live in the tool, on the file the compiler has just written.
+A PDF rendering carries the book as well, and there the carrying is the tool's work too, for reasons that
+took a wrong turn each to find. The tempting shape was to let the package attach its own book: `pdf.attach`
+is one line and Typst does the rest. It cannot. A package cannot name the document's files, because Typst
+resolves a path relative to the file the call is written in — so `lp.typ` inside a package means the
+package's own directory, and there is no way to ask for the document's — and it cannot expand a pattern
+either, because Typst has no `glob`. An HTML page is the other way round: the package *can* read the whole
+book, and cannot place a marked block, because its HTML export takes no attributes and the marker is an
+attribute. So both carriers are written by the tool, on the file the compiler has just left behind, where
+what to do with a rendering is at least ours to decide.
 
 Neither format is guessed. `extract` demands `--format` because a wrong guess would produce silence rather
-than an error, and the block exists only in HTML: a PDF is not a container for a block of JSON, and putting
-the book into a PDF is a different mechanism that the tool does not have yet.
+than an error, and reading a PDF back needs a PDF parser, which the tool does not have yet: the HTML block
+can be read with the same text handling that wrote it.
 
 The package is the copy embedded in this binary, unpacked fresh, so weaving needs no tangle before it:
 the document is the source of both. And the document stays a normal Typst file — an editor rendering it
@@ -2273,12 +2234,10 @@ pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, L
 /// A rendering of a literate document carries the source it was woven from, so the file can be handed to
 /// someone and give the book back — the same promise this binary makes about itself.
 ///
-/// The tool does this rather than the package, and that took a wrong turn to learn. A package looks like
-/// the right home — the document already imports one, and it is where rendering rules live — but it cannot
-/// do the job: Typst has no `glob`, so a package cannot work out which files `book-files` names; its HTML
-/// export has no way to place an element with attributes, and the marker for the block is an attribute; and
-/// it escapes content, which is exactly what must not happen inside a `<script>`. Weaving writes the file,
-/// and what to do with it afterwards is the tool's, because the tool is the only one that can.
+/// Only HTML is carried here. A PDF carries the book too, but a PDF cannot be given a marked block of text
+/// the way a page can, and the package cannot name the document's files: Typst resolves a path relative to
+/// the file the call is written in, so a package would go looking for `lp.typ` inside itself. The PDF's copy
+/// is written by the tool as well, on the file the compiler has left behind.
 fn carry_the_book(anchor: &Path, output: Option<&Path>) -> Result<(), LpError> {
     let Some(page) = output.filter(|out| out.extension().is_some_and(|ext| ext == "html")) else {
         return Ok(());
@@ -2290,7 +2249,7 @@ fn carry_the_book(anchor: &Path, output: Option<&Path>) -> Result<(), LpError> {
     let Some(book) = crate::tangle::declared_book(&docs)? else {
         return Ok(());
     };
-    let copies = crate::book::plan(&book, directory, &docs)?;
+    let copies = crate::book::plan(&book, directory)?;
     crate::book::attach(page, &book.directory, &copies)
 }
 ````)
@@ -4301,6 +4260,8 @@ what the *same* document produces in different situations.
 
 <<flow: an_unknown_tangle_option_is_refused>>
 
+<<flow: a_book_name_may_not_leave_the_tree>>
+
 <<flow: a_book_without_a_directory_is_an_error>>
 
 <<flow: a_book_may_not_overwrite_an_output>>
@@ -4337,7 +4298,8 @@ The cases, in the order they appear:
 - `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
-- `the_book_is_carried_into_the_tree` — the settings put the book beside its output, in its own shape, minus what the source calls ignored
+- `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
+- `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
 - `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
 - `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
 - `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
@@ -5010,7 +4972,7 @@ fn the_book_is_carried_into_the_tree() {
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
-            "#tangle-options((book-directory: \"book\", book-files: (\"**/*.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"chapters/one.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
         ),
     )
     .expect("doc");
@@ -5019,19 +4981,19 @@ fn the_book_is_carried_into_the_tree() {
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(
         dir.path().join("tangled/book/demo.typ").exists(),
-        "the document is part of the book whatever else it holds"
+        "a named file is copied under its own name"
     );
     assert!(
         dir.path().join("tangled/book/chapters/one.typ").exists(),
-        "a matched file keeps its shape"
+        "a name with a directory in it keeps its shape"
     );
     assert!(
         dir.path().join("tangled/book/README.md").exists(),
-        "and so does one matched by name"
+        "and so does a name with no directory at all"
     );
     assert!(
         !dir.path().join("tangled/book/ignored.txt").exists(),
-        "what the source calls ignored is not part of the book"
+        "a file the list does not name is not part of the book, whatever the source's .gitignore says"
     );
     assert!(
         !dir.path().join("tangled/book/.lp").exists(),
@@ -5063,6 +5025,34 @@ fn an_unknown_tangle_option_is_refused() {
 }
 ````)
 
+#chunk("flow: a_book_name_may_not_leave_the_tree", ````rust
+#[test]
+fn a_book_name_may_not_leave_the_tree() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"book\", book-files: (\"../outside.txt\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    // The names are read as paths — by this tool, which copies them, and by the package, which attaches
+    // them — so one that climbs out of the tree is refused instead of followed.
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(
+        !output.status.success(),
+        "a name outside the tree is refused"
+    );
+    assert!(
+        stderr(&output).contains("leaves the source tree"),
+        "and it says why: {}",
+        stderr(&output)
+    );
+}
+````)
+
 #chunk("flow: a_book_without_a_directory_is_an_error", ````rust
 #[test]
 fn a_book_without_a_directory_is_an_error() {
@@ -5071,7 +5061,7 @@ fn a_book_without_a_directory_is_an_error() {
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
-            "#tangle-options((book-files: (\"*.py\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+            "#tangle-options((book-files: (\"main.py\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
         ),
     )
     .expect("doc");
@@ -5099,7 +5089,7 @@ fn a_book_may_not_overwrite_an_output() {
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
-            "#tangle-options((book-directory: \"src\", book-files: (\"*.py\",)))\n\n#file(\"src/main.py\", ```py\nprint('x')\n```)\n",
+            "#tangle-options((book-directory: \"src\", book-files: (\"main.py\",)))\n\n#file(\"src/main.py\", ```py\nprint('x')\n```)\n",
         ),
     )
     .expect("doc");
