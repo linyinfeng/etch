@@ -1788,6 +1788,8 @@ compares, and accounted for by the ownership check rather than reported as a str
 #chunk("book: the imports", ````rust
 use std::path::{Path, PathBuf};
 
+use lopdf::{Dictionary, Document, Object, Stream};
+
 use crate::diag::LpError;
 use crate::map::Book;
 ````)
@@ -1841,9 +1843,29 @@ pub fn plan(settings: &Book, anchor: &Path) -> Result<Vec<Copy>, LpError> {
 /// document is free to mention `lp-source` in prose, and prose is not a block.
 const SOURCE_ID: &str = "lp-source";
 
+/// What this tool writes into a PDF so it can tell its own attachments from anyone else's — the PDF's
+/// answer to the `id="lp-source"` a page carries.
+const MARKER: &str = "the book this document declares";
+
+/// Turn a PDF library's failure into this tool's, naming the file it happened in.
+fn pdf_err(page: &Path) -> impl Fn(lopdf::Error) -> LpError + '_ {
+    move |err| LpError::plain(format!("{}: {err}", page.display()))
+}
+
+/// Put the book into a rendering. Which carrier follows the format, and the format is the one the compiler
+/// chose from the output's name: a page takes a data block, a PDF takes attached files, anything else —
+/// an SVG, a PNG, a bundle — takes nothing and is not asked to.
+pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
+    match page.extension().and_then(|ext| ext.to_str()) {
+        Some("html") => attach_html(page, directory, copies),
+        Some("pdf") => attach_pdf(page, directory, copies),
+        _ => Ok(()),
+    }
+}
+
 /// Put the book into a rendered page. The page stays a page: nothing here is executed, and a browser
 /// that ignores the block has lost nothing.
-pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
+fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
     let mut files = serde_json::Map::new();
     for copy in copies {
         let bytes = std::fs::read(&copy.from).map_err(|err| LpError::io(&copy.from, err))?;
@@ -1876,9 +1898,63 @@ pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpErr
     std::fs::write(page, html).map_err(|err| LpError::io(page, err))
 }
 
-/// Read the book back out of a page this tool rendered and write it into a directory. A name that would
-/// climb out of the output directory is refused: a page is data, and this one may not be ours.
-pub fn extract(page: &Path, out: &Path) -> Result<usize, LpError> {
+/// Attach the book to a PDF the compiler has just written. A PDF cannot be given a block of text the way
+/// a page can, so the book goes in as what a PDF calls an attached file: one stream per file, named as the
+/// book names it. The file is read back, given that structure, and written again — which is why this is the
+/// tool's work, and why the vocabulary of PDF dictionaries stops inside these two functions.
+fn attach_pdf(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
+    let mut document = Document::load(page).map_err(pdf_err(page))?;
+    let mut listed = Vec::new();
+    for copy in copies {
+        let bytes = std::fs::read(&copy.from).map_err(|err| LpError::io(&copy.from, err))?;
+        let name = copy.name(directory).to_string();
+
+        let mut file = Dictionary::new();
+        file.set("Type", Object::Name(b"EmbeddedFile".to_vec()));
+        let stream_id = document.add_object(Stream::new(file, bytes));
+
+        let mut ef = Dictionary::new();
+        ef.set("F", Object::Reference(stream_id));
+        let mut spec = Dictionary::new();
+        spec.set("Type", Object::Name(b"Filespec".to_vec()));
+        spec.set("F", Object::string_literal(name.as_str()));
+        spec.set("UF", Object::string_literal(name.as_str()));
+        spec.set("EF", Object::Dictionary(ef));
+        spec.set("Desc", Object::string_literal(MARKER));
+        listed.push(Object::string_literal(name.as_str()));
+        listed.push(Object::Reference(document.add_object(spec)));
+    }
+
+    let mut tree = Dictionary::new();
+    tree.set("Names", Object::Array(listed));
+    let tree_id = document.add_object(tree);
+    let mut names = Dictionary::new();
+    names.set("EmbeddedFiles", Object::Reference(tree_id));
+    document
+        .catalog_mut()
+        .map_err(pdf_err(page))?
+        .set("Names", Object::Dictionary(names));
+    document
+        .save(page)
+        .map(|_| ())
+        .map_err(|err| LpError::io(page, err))
+}
+
+/// Read the book back out of a rendering this tool wrote, and write it into a directory, under the names
+/// the book uses. A name that would climb out of the output directory is refused: a rendering is data, and
+/// it may not be ours.
+pub fn extract(page: &Path, format: &str, out: &Path) -> Result<usize, LpError> {
+    match format {
+        "html" => extract_html(page, out),
+        "pdf" => extract_pdf(page, out),
+        other => Err(
+            LpError::plain(format!("there is no book to read out of {other}"))
+                .with_help("the book rides in an HTML page and in a PDF"),
+        ),
+    }
+}
+
+fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
     let bytes = std::fs::read(page).map_err(|err| LpError::io(page, err))?;
     let html = String::from_utf8(bytes).map_err(|_| {
         LpError::plain(format!(
@@ -1934,6 +2010,90 @@ pub fn extract(page: &Path, out: &Path) -> Result<usize, LpError> {
             std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
         }
         std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
+        written += 1;
+    }
+    Ok(written)
+}
+
+/// Walk a PDF's attached files and write back the ones that are ours, which the description marks. The name
+/// tree is flat when this tool wrote the file and may be nested when someone else did, so both are walked —
+/// and a file that is not ours is left alone rather than written into the output directory.
+fn extract_pdf(page: &Path, out: &Path) -> Result<usize, LpError> {
+    let document = Document::load(page).map_err(pdf_err(page))?;
+    let mut attached = Vec::new();
+    let embedded = document
+        .catalog()
+        .map_err(pdf_err(page))?
+        .get(b"Names")
+        .and_then(|names| names.as_dict()?.get(b"EmbeddedFiles")?.as_reference());
+    if let Ok(root) = embedded {
+        collect_attached(&document, root, &mut attached).map_err(pdf_err(page))?;
+    }
+    write_names(page, out, attached)
+}
+
+/// Collect the files a name tree names, following whatever shape it has.
+fn collect_attached(
+    document: &Document,
+    node: lopdf::ObjectId,
+    out: &mut Vec<(String, Vec<u8>)>,
+) -> Result<(), lopdf::Error> {
+    let tree = document.get_dictionary(node)?;
+    if let Ok(kids) = tree.get(b"Kids") {
+        for kid in kids.as_array()? {
+            collect_attached(document, kid.as_reference()?, out)?;
+        }
+    }
+    let Ok(entries) = tree.get(b"Names") else {
+        return Ok(());
+    };
+    for pair in entries.as_array()?.chunks(2) {
+        let Some(name) = pair.first().and_then(|name| name.as_str().ok()) else {
+            continue;
+        };
+        let Ok(spec) = document.get_dictionary(pair[1].as_reference()?) else {
+            continue;
+        };
+        let marked = spec
+            .get(b"Desc")
+            .ok()
+            .and_then(|value| value.as_str().ok())
+            .is_some_and(|value| value == MARKER.as_bytes());
+        if !marked {
+            continue;
+        }
+        let stream = spec.get(b"EF")?.as_dict()?.get(b"F")?.as_reference()?;
+        let bytes = document
+            .get_object(stream)?
+            .as_stream()?
+            .decompressed_content()?;
+        out.push((String::from_utf8_lossy(name).to_string(), bytes));
+    }
+    Ok(())
+}
+
+/// Write the pairs the way the HTML carrier writes them, so both carriers come back in the same shape — and
+/// so the guard against a name that climbs out of the output directory exists in exactly one place.
+fn write_names(
+    page: &Path,
+    out: &Path,
+    attached: Vec<(String, Vec<u8>)>,
+) -> Result<usize, LpError> {
+    for (name, _) in &attached {
+        if name.starts_with('/') || name.split('/').any(|part| part == "..") {
+            return Err(LpError::plain(format!(
+                "{}: {name} would be written outside the output directory",
+                page.display()
+            )));
+        }
+    }
+    let mut written = 0;
+    for (name, bytes) in attached {
+        let path = out.join(&name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
+        }
+        std::fs::write(&path, bytes).map_err(|err| LpError::io(&path, err))?;
         written += 1;
     }
     Ok(written)
@@ -2129,9 +2289,9 @@ An HTML rendering also carries the book the document declares — the files `lp 
 tree — as a *data block*: a `<script>` whose type is not JavaScript is data, not code, so the page stays a
 valid page and a browser that ignores the block has lost nothing. The payload is the book as JSON, keyed by
 the names the tree uses, with a version inside, because a format that cannot say which format it is cannot
-be improved. `lp extract --format html <page> --out <dir>` is the inverse: it finds the block, reads the
-book back, and writes it into `<dir>` under the book's own names — the same names `lp self book` writes —
-because where the *tree* puts a book is a placement, not a property of the book.
+be improved. `lp extract --format html|pdf <file> --out <dir>` is the inverse: it finds the book — the block in a page,
+the attached files in a PDF — and writes it into `<dir>` under the book's own names, the same names
+`lp self book` writes, because where the *tree* puts a book is a placement, not a property of the book.
 
 What marks the block is the whole opening tag, not the text of the id. This document says "lp-source" in
 prose — here, in this paragraph — and the first version, which searched for the id as a substring, found
@@ -2148,8 +2308,8 @@ attribute. So both carriers are written by the tool, on the file the compiler ha
 what to do with a rendering is at least ours to decide.
 
 Neither format is guessed. `extract` demands `--format` because a wrong guess would produce silence rather
-than an error, and reading a PDF back needs a PDF parser, which the tool does not have yet: the HTML block
-can be read with the same text handling that wrote it.
+than an error, and each carrier is read back by what wrote it: the block by the same text handling, and the
+attached files by the mobile PDF library that wrote them.
 
 The package is the copy embedded in this binary, unpacked fresh, so weaving needs no tangle before it:
 the document is the source of both. And the document stays a normal Typst file — an editor rendering it
@@ -2234,12 +2394,15 @@ pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, L
 /// A rendering of a literate document carries the source it was woven from, so the file can be handed to
 /// someone and give the book back — the same promise this binary makes about itself.
 ///
-/// Only HTML is carried here. A PDF carries the book too, but a PDF cannot be given a marked block of text
-/// the way a page can, and the package cannot name the document's files: Typst resolves a path relative to
-/// the file the call is written in, so a package would go looking for `lp.typ` inside itself. The PDF's copy
-/// is written by the tool as well, on the file the compiler has left behind.
+/// The tool carries the book into whatever a rendering can hold: a data block in a page, an attached file in
+/// a PDF. It cannot be the package's work — a package cannot name the document's files, because Typst
+/// resolves a path relative to the file the call is written in, so it would go looking for `lp.typ` inside
+/// itself — and so the carrying happens here, on the file the compiler has left behind.
 fn carry_the_book(anchor: &Path, output: Option<&Path>) -> Result<(), LpError> {
-    let Some(page) = output.filter(|out| out.extension().is_some_and(|ext| ext == "html")) else {
+    let Some(page) = output.filter(|out| {
+        out.extension()
+            .is_some_and(|ext| ext == "html" || ext == "pdf")
+    }) else {
         return Ok(());
     };
     let Some(directory) = anchor.parent() else {
@@ -3939,15 +4102,7 @@ module gets a new function.
 #chunk("main: tangle, and what it reports", ````rust
 Command::Weave { doc, output, extra } => weave::run(&doc, output.as_deref(), &extra),
 Command::Extract { format, file, out } => {
-    if format != "html" {
-        return Err(diag::LpError::plain(format!(
-            "--format {format} is not implemented yet"
-        ))
-        .with_help(
-            "reading a PDF back needs a PDF parser, which this tool does not have yet",
-        ));
-    }
-    let files = crate::book::extract(&file, &out)?;
+    let files = crate::book::extract(&file, &format, &out)?;
     println!("wrote {files} files of the book to {}", out.display());
     Ok(0)
 }
@@ -4248,6 +4403,8 @@ what the *same* document produces in different situations.
 
 <<flow: weave_renders_a_document_that_imports_the_package>>
 
+<<flow: a_pdf_gives_the_book_back>>
+
 <<flow: weaving_a_document_with_no_book_carries_none>>
 
 <<flow: a_page_gives_the_book_back>>
@@ -4304,6 +4461,7 @@ The cases, in the order they appear:
 - `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
 - `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
 - `weaving_a_document_with_no_book_carries_none` — a document that declares nothing still weaves: no block, and no complaint either
+- `a_pdf_gives_the_book_back` — the PDF carries the book as attached files, and `lp extract --format pdf` gets it back byte for byte
 - `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
 - `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
@@ -4894,6 +5052,33 @@ fn reading_weaves_what_the_binary_carries() {
         "{} looks empty: {size} bytes",
         path.display()
     );
+}
+````)
+
+#chunk("flow: a_pdf_gives_the_book_back", ````rust
+#[test]
+fn a_pdf_gives_the_book_back() {
+    let dir = TempDir::new().expect("temp dir");
+    let document = Path::new(env!("CARGO_MANIFEST_DIR")).join("book/lp.typ");
+    let woven = lp(
+        dir.path(),
+        &["weave", document.to_str().expect("path"), "page.pdf"],
+    );
+    assert!(woven.status.success(), "{}", stderr(&woven));
+
+    let taken = lp(
+        dir.path(),
+        &["extract", "--format", "pdf", "page.pdf", "--out", "back"],
+    );
+    assert!(taken.status.success(), "{}", stderr(&taken));
+
+    // The round trip through a PDF, which cannot hold the book as text: the same three files, byte for byte.
+    let carried = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
+    for name in ["lp.typ", "README.md", ".gitignore"] {
+        let back = std::fs::read(dir.path().join("back").join(name)).expect(name);
+        let beside = std::fs::read(carried.join(name)).expect(name);
+        assert_eq!(back, beside, "{name} did not survive the PDF");
+    }
 }
 ````)
 
@@ -6306,6 +6491,10 @@ description = "Typst-based literate programming: tangle source files out of a .t
 # D7: embedding a directory tree is `include_bytes!` at scale — one macro, no runtime dependency, and it
 # embeds in every profile.
 include_dir = "0.7"
+# D22: a PDF cannot be given a block of text, and a package cannot name the document's files, so carrying
+# the book into a PDF is this tool's work — and a PDF's structure is not something to write by hand. The
+# default features bring in date and parallelism crates this tool has no use for.
+lopdf = { version = "0.45", default-features = false }
 clap = { version = "4", features = ["derive"] }
 ignore = "0.4.33"
 miette = { version = "7", features = ["fancy"] }
@@ -7012,12 +7201,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "aes"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35f0f96ce78e38c3dc6d8948aa8163d06385be74000f3c7a95bf1eef35d3ea32"
+dependencies = [
+ "cipher",
+ "cpubits",
+ "cpufeatures",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "alloc-no-stdlib"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc7bb162ec39d46ab1ca8c77bf72e890535becd1751bb45f64c597edb4c8c6b3"
+
+[[package]]
+name = "alloc-stdlib"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e76a019e91224d279006ff972f1e984179a6e9feb050adba6ce8274aef23195"
+dependencies = [
+ "alloc-no-stdlib",
 ]
 
 [[package]]
@@ -7079,7 +7294,7 @@ dependencies = [
  "addr2line",
  "cfg-if",
  "libc",
- "miniz_oxide",
+ "miniz_oxide 0.8.9",
  "object",
  "rustc-demangle",
  "windows-link",
@@ -7101,6 +7316,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
+name = "block-buffer"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa"
+dependencies = [
+ "hybrid-array",
+]
+
+[[package]]
+name = "block-padding"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "710f1dd022ef4e93f8a438b4ba958de7f64308434fa6a87104481645cc30068b"
+dependencies = [
+ "hybrid-array",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "5.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a32acac15fe1967bc3986b2a6347dffc965602354ea6f450ad07e8bfd253583"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+]
+
+[[package]]
 name = "bstr"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7111,10 +7354,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "cbc"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce2dc9ee5f88d11e0beb842c88b33c8a5cf0d1329c4b19494af42b07dbfe8896"
+dependencies = [
+ "cipher",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+
+[[package]]
+name = "chacha20"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "rand_core",
+]
+
+[[package]]
+name = "cipher"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8cf2a2c93cd704877c0858356ed03480ff301ee950b43f1cbe4573b088bfa6c"
+dependencies = [
+ "crypto-common",
+ "inout",
+]
 
 [[package]]
 name = "clap"
@@ -7163,6 +7436,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
+name = "const-oid"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
+
+[[package]]
+name = "core_detect"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
+
+[[package]]
+name = "cpubits"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15b85f9c39137c3a891689859392b1bd49812121d0d61c9caf00d46ed5ce06ae"
+
+[[package]]
+name = "cpufeatures"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "crc32fast"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8498c871161e1742aaa9d52551b2d6ebdd4c3d45a3be423e3728f33b955be550"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7188,6 +7497,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
+name = "crypto-common"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
+dependencies = [
+ "hybrid-array",
+]
+
+[[package]]
+name = "digest"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
+dependencies = [
+ "block-buffer",
+ "const-oid",
+ "crypto-common",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7197,6 +7526,36 @@ dependencies = [
  "quote",
  "syn 3.0.5",
 ]
+
+[[package]]
+name = "ecb"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26f2a8b3e564eba0877223dc343703ad0385794e882e6d13f3a4dd5c6b1f41ac"
+dependencies = [
+ "cipher",
+]
+
+[[package]]
+name = "encoding_rs"
+version = "0.8.41"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b5ef0006ac9ab233c38522f5ae99cae3625151de8f706cacee1cba4b8e2832a"
+dependencies = [
+ "cfg-if",
+ "core_detect",
+ "multiversion",
+ "multiversion_no_op",
+ "rustversion",
+ "scopeguard",
+ "simdutf8",
+]
+
+[[package]]
+name = "equivalent"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "errno"
@@ -7224,6 +7583,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "flate2"
+version = "1.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e634e2e0ebac1ee034020da1ca582e17ffe4e0f5e985823721e168928136dcb"
+dependencies = [
+ "crc32fast",
+ "miniz_oxide 0.9.1",
+ "zlib-rs",
+]
+
+[[package]]
 name = "fsevent-sys"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7241,6 +7611,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "r-efi",
+ "rand_core",
 ]
 
 [[package]]
@@ -7263,10 +7634,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
+name = "hybrid-array"
+version = "0.4.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17"
+dependencies = [
+ "typenum",
+]
 
 [[package]]
 name = "icu_collections"
@@ -7391,6 +7777,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "indexmap"
+version = "2.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
+dependencies = [
+ "equivalent",
+ "hashbrown",
+]
+
+[[package]]
 name = "inotify"
 version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7408,6 +7804,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c033f80b2c113cdf91ab7a33faa9cbc014726dcad99880c8609af2a370edf37d"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "inout"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4250ce6452e92010fdf7268ccc5d14faa80bb12fc741938534c58f16804e03c7"
+dependencies = [
+ "block-padding",
+ "hybrid-array",
 ]
 
 [[package]]
@@ -7473,12 +7879,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
+name = "lopdf"
+version = "0.45.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfffda0fe1ab0157e1a13c14bebd3f28671f2fccb7922f0722ec53926e6922d3"
+dependencies = [
+ "aes",
+ "bitflags",
+ "brotli-decompressor",
+ "cbc",
+ "ecb",
+ "encoding_rs",
+ "flate2",
+ "getrandom",
+ "indexmap",
+ "itoa",
+ "log",
+ "md-5",
+ "nom",
+ "rand",
+ "rangemap",
+ "sha2",
+ "stringprep",
+ "thiserror",
+ "weezl",
+]
+
+[[package]]
 name = "lp"
 version = "0.1.0"
 dependencies = [
  "clap",
  "ignore",
  "include_dir",
+ "lopdf",
  "miette",
  "notify",
  "notify-debouncer-full",
@@ -7487,6 +7921,16 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+]
+
+[[package]]
+name = "md-5"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98"
+dependencies = [
+ "cfg-if",
+ "digest",
 ]
 
 [[package]]
@@ -7535,6 +7979,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "miniz_oxide"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
+dependencies = [
+ "adler2",
+ "simd-adler32",
+]
+
+[[package]]
 name = "mio"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7544,6 +7998,42 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "multiversion"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4ca4bea16ffc3f443cf7d866912118196bfef4c6a1556ca00f9f9b00bb43f7c"
+dependencies = [
+ "multiversion-macros",
+]
+
+[[package]]
+name = "multiversion-macros"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d416831a7317ef4b08bee00b69cbbb9c8763da7959a7026244d6266869f9c83"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 3.0.5",
+]
+
+[[package]]
+name = "multiversion_no_op"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
+
+[[package]]
+name = "nom"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df9761775871bdef83bee530e60050f7e54b1105350d6884eb0fb4f46c2f9405"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -7649,6 +8139,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
+name = "rand"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80"
+dependencies = [
+ "chacha20",
+ "getrandom",
+ "rand_core",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+
+[[package]]
+name = "rangemap"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a611d15b50743feb4c76b7d03edcb0e64f399c26961e4efe6975bc398be6aa3d"
+
+[[package]]
 name = "regex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7697,6 +8210,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustversion"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7704,6 +8223,12 @@ checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
 ]
+
+[[package]]
+name = "scopeguard"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "serde"
@@ -7749,6 +8274,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha2"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
+
+[[package]]
+name = "simd-adler32"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
+
+[[package]]
+name = "simdutf8"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+
+[[package]]
 name = "smallvec"
 version = "1.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7759,6 +8307,17 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "stringprep"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b4df3d392d81bd458a8a621b8bffbd2302a12ffe288a9d931670948749463b1"
+dependencies = [
+ "unicode-bidi",
+ "unicode-normalization",
+ "unicode-properties",
+]
 
 [[package]]
 name = "strsim"
@@ -7885,10 +8444,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinyvec"
+version = "1.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cf0ded5c4e56918d8f8a339e1bb67d038d3bc6d144ac407904015ba2e4cde9b"
+dependencies = [
+ "tinyvec_macros",
+]
+
+[[package]]
+name = "tinyvec_macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "typenum"
+version = "1.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+
+[[package]]
+name = "unicode-bidi"
+version = "0.3.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
+dependencies = [
+ "tinyvec",
+]
+
+[[package]]
+name = "unicode-properties"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d"
 
 [[package]]
 name = "unicode-width"
@@ -7929,6 +8530,12 @@ name = "wasi"
 version = "0.11.1+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
+
+[[package]]
+name = "weezl"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4ca08e5ef825b65b056d9efbd95c8750683f0a6d0466d02e96dc2e4e360f3d2"
 
 [[package]]
 name = "winapi-util"
@@ -8110,6 +8717,12 @@ dependencies = [
  "quote",
  "syn 3.0.5",
 ]
+
+[[package]]
+name = "zlib-rs"
+version = "0.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34b31d188d9d685a4f9c7b46d6e36631b07058d2cfe190267adce54dc230bf12"
 
 [[package]]
 name = "zmij"
