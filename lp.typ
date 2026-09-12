@@ -15,6 +15,11 @@
 #import "@local/lp:0.1.0": chunk, file, tangle-options, show-rule
 #show: show-rule
 
+// Where the tangled tree keeps this book, so that a tree can be read — and re-tangled — without the
+// repository it came from. The tree's own `.gitignore` travels with it: the book is the whole of what
+// this repository was before tangling, not only its prose.
+#tangle-options((book-directory: "book", book-files: ("*.typ", "README.md", ".gitignore")))
+
 = The tool, in its own words
 
 This is the whole of `lp`: the program, the package it is written with, and the example it ships.
@@ -1757,6 +1762,7 @@ use ignore::gitignore::GitignoreBuilder;
 
 use crate::diag::LpError;
 use crate::map::Book;
+use crate::metadata::PACKAGE_ROOT;
 ````)
 
 #chunk("book: what the settings ask for", ````rust
@@ -1806,6 +1812,16 @@ pub fn plan(settings: &Book, anchor: &Path, docs: &[PathBuf]) -> Result<Vec<Copy
             continue;
         }
         let path = entry.path();
+        // The tool unpacks its package next to whatever document it evaluates — including the copy
+        // this very pass has just written — so that directory is state, never part of the book.
+        if path
+            .strip_prefix(anchor)
+            .unwrap_or(path)
+            .components()
+            .any(|part| part.as_os_str() == PACKAGE_ROOT)
+        {
+            continue;
+        }
         let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         let wanted = matcher.matched(path, false).is_ignore() || documents.contains(&canonical);
         if !wanted {
@@ -4475,6 +4491,12 @@ fn the_book_is_carried_into_the_tree() {
     std::fs::write(dir.path().join("chapters/one.typ"), "= One\n").expect("chapter");
     std::fs::write(dir.path().join("ignored.txt"), "not part of it\n").expect("ignored");
     std::fs::write(dir.path().join(".gitignore"), "ignored.txt\n").expect("gitignore");
+    std::fs::create_dir_all(dir.path().join(".lp/local/lp/0.1.0")).expect("dir");
+    std::fs::write(
+        dir.path().join(".lp/local/lp/0.1.0/lib.typ"),
+        "the tool's own state\n",
+    )
+    .expect("state");
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
@@ -4500,6 +4522,10 @@ fn the_book_is_carried_into_the_tree() {
     assert!(
         !dir.path().join("tangled/book/ignored.txt").exists(),
         "what the source calls ignored is not part of the book"
+    );
+    assert!(
+        !dir.path().join("tangled/book/.lp").exists(),
+        "and neither is the state the tool keeps for itself"
     );
 }
 ````)
@@ -5694,20 +5720,32 @@ use std::process::Command;
 ````)
 
 #chunk("self: the_document_regenerates_the_sources_we_are_running", ````rust
-/// The document is the source of the files that are compiled, so `--check` in the
-/// repository root has to be clean. This is the permanent half of the fixed point:
-/// Stage 1 also required the output to equal the frozen seed, which stopped
-/// being true the moment the document was refactored (ADR D15); the seed is the
-/// `tangled` branch now, refreshed from this same tree.
+/// The document is the source of the files that are compiled, so the tree has to regenerate itself.
+/// The map beside this crate names the documents and the directory the book was carried into — that
+/// copy is the document, and this crate's own directory is the output directory. The same command
+/// therefore works in the repository, in a worktree of the published tree, and in a build of it,
+/// which is what makes this a fixed point rather than a path (ADR D15).
 #[test]
 fn the_document_regenerates_the_sources_we_are_running() {
-    // The crate lives in `tangled/`, one level below the document it is generated from.
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("repository root");
+    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let map: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(crate_dir.join(".lpmap.json")).expect("the map beside the crate"),
+    )
+    .expect("the map is json");
+    let document = match (
+        map["book"]["directory"].as_str(),
+        map["docs"]
+            .as_array()
+            .and_then(|docs| docs.first())
+            .and_then(|doc| doc.as_str()),
+    ) {
+        (Some(book), Some(doc)) => format!("{book}/{doc}"),
+        _ => panic!("the map names neither a book nor a document: {map}"),
+    };
+
     let output = Command::new(env!("CARGO_BIN_EXE_lp"))
-        .args(["tangle", "lp.typ", "--check"])
-        .current_dir(root)
+        .args(["tangle", &document, "--out", ".", "--check"])
+        .current_dir(crate_dir)
         .output()
         .expect("run lp");
 
@@ -5778,6 +5816,7 @@ thiserror = "2"
 
 #chunk("env: what only the tests need", ````toml
 [dev-dependencies]
+serde_json = "1"
 tempfile = "3"
 ````)
 
@@ -5828,9 +5867,6 @@ rustPlatform.buildRustPackage rec {
 
   nativeBuildInputs = [ makeWrapper ];
   nativeCheckInputs = [ typst ];
-
-  # This one test checks the document that produced this tree, not the program in it.
-  cargoTestFlags = [ "--" "--skip" "the_document_regenerates_the_sources_we_are_running" ];
 
   postInstall = ''
     wrapProgram $out/bin/lp --prefix PATH : ${lib.makeBinPath [ typst ]}
@@ -6005,7 +6041,6 @@ inside it. The tool's state and cargo's are not a program:
 ```gitignore
 # The tool's own state, and what the build tools write — wherever in the tree they land.
 .lp
-.lpmap.json
 target
 flake.lock
 
