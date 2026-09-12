@@ -10,10 +10,6 @@ So these files are output too. They are declared here, tangled with everything e
 seed branch, which is where they take effect: the branch that holds a generation is the branch whose copy of
 a workflow file GitHub reads.
 
-#file("lp.nix", ````nix
-<<nix: the package>>
-````)
-
 #file("flake.nix", ````nix
 <<nix: the flake>>
 ````)
@@ -36,7 +32,7 @@ a workflow file GitHub reads.
 and every later step reuses it. A `typst`-sized graph rebuilt for each of lint, test and build would make
 the checks below too expensive to keep, which is the same as not having them.
 
-Four things here are this tool's own, and every one of them was found by a failure:
+Six things here are this tool's own, and every one of them was found by a failure:
 
 - *Typst is a runtime dependency and a test dependency.* Tangling asks the document for its declarations,
   so both the binary and the tests that tangle have to find `typst` — the wrapper for the first, an input
@@ -62,9 +58,13 @@ Four things here are this tool's own, and every one of them was found by a failu
   already says which files those are, and a second list of names is a list that goes stale.
 - *The package does not run the tests.* `doCheck = false` there and a `test` check beside it, because a
   package that ran them as well would fail before a reader could see *which* test broke.
+- *The bootstrap is a check too, and it cannot re-enter nix.* `lp self prove` unpacks the book the binary
+  carries, tangles it with that binary, and runs this tree's own checks in what comes out — the property the
+  seed exists for. Inside a build sandbox nix cannot be run, so the check stubs it: the stub records that it
+  was asked, and the assertion the command is really about is the other one, because the tree it rebuilds is
+  compared against this one file by file. The workflow runs the unstubbed version, where nix exists.
 
-#chunk("nix: the package", ````nix
-{ inputs }:
+#chunk("nix: the per-system half", ````nix
 {
   perSystem =
     {
@@ -143,6 +143,24 @@ Four things here are this tool's own, and every one of them was found by a failu
         );
 
         inherit roundtrip;
+
+        prove = pkgs.runCommand "lp-prove" { nativeBuildInputs = [ pkgs.typst ]; } ''
+          work=$PWD/work
+          mkdir -p "$work/bin"
+
+          cat > "$work/bin/nix" <<'SH'
+          #!/bin/sh
+          echo "$*" >> "$LP_PROVE_LOG"
+          test -f flake.nix && test -d src && test -d tests
+          SH
+          chmod +x "$work/bin/nix"
+
+          LP_PROVE_LOG="$work/asked" PATH="$work/bin:$PATH" ${lp}/bin/lp self prove "$work/tree"
+
+          grep -q '^flake check' "$work/asked"
+          diff -r "$work/tree/tangled" ${src}
+          touch "$out"
+        '';
       };
     in
     {
@@ -218,6 +236,9 @@ brings no inputs at all, which is how a library that does this much costs one li
 not decoration — a second nixpkgs in the graph is a second `rustc`, and the one place where versions
 really matter is the compiler.
 
+The per-system half is inlined rather than kept beside the flake as a second file: a file that exists only to
+be imported buys one indirection and one more name to keep in step, and `flake-parts` does not need it.
+
 The checks are the point of the flake. One per promise, so CI fails on the promise and not on "the build":
 
 - `package` — it builds.
@@ -227,6 +248,7 @@ The checks are the point of the flake. One per promise, so CI fails on the promi
   document's own code as much as the crate's. (No `cargoFmt`: two tools disagreeing about rustfmt's
   options is worse than either one alone.)
 - `roundtrip` — the book survives both carriers.
+- `prove` — the book the binary carries rebuilds this tree, and the command that proves it asks nix to check.
 - `devShell` — the shell can be constructed, because a shell that cannot be built is a shell nobody uses.
 
 `nix flake check` builds every one of those for the machine it runs on and evaluates the rest, so a typo in
@@ -265,8 +287,9 @@ stop being a claim and become something that ran.
         ];
 
         imports = [
-          (import ./lp.nix { inherit inputs; })
           inputs.treefmt-nix.flakeModule
+
+          <<nix: the per-system half>>
         ];
 
         flake.githubActions = inputs.nix-github-actions.lib.mkGithubMatrix {
@@ -280,10 +303,10 @@ stop being a claim and become something that ran.
 == The workflow
 
 Three jobs. `matrix` asks the flake which checks exist, so the list of them lives in one place and adding
-one is an edit to `lp.nix`. `check` builds each of them on the runner its system calls for — the matrix
+one is an edit to the flake. `check` builds each of them on the runner its system calls for — the matrix
 knows that `aarch64-linux` means an arm runner and `aarch64-darwin` means a Mac, so the three systems are
 three native builds rather than one build and two guesses. It also does not stop at the first failure,
-because one failing check should not hide the other seventeen. `prove` runs the other direction: it unpacks
+because one failing check should not hide the other twenty. `prove` runs the other direction: it unpacks
 the book the binary carries, tangles it, and runs this tree's own checks in what comes out, which is what
 catches a document that no longer reproduces its tree.
 

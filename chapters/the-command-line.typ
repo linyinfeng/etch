@@ -127,7 +127,7 @@ Extract {
 ````)
 
 #chunk("main: self", ````rust
-#[command(name = "self")]
+#[command(name = "self", about = "Work with the book this binary carries")]
 Itself {
     #[command(subcommand)]
     method: SelfMethod,
@@ -158,6 +158,7 @@ enum SelfMethod {
 ````)
 
 #chunk("main: weave", ````rust
+#[command(about = "Render a document with the package this tool carries")]
 Weave {
     doc: PathBuf,
     output: Option<PathBuf>,
@@ -184,6 +185,7 @@ Tangle {
 ````)
 
 #chunk("main: map", ````rust
+#[command(about = "Name the chunk a generated line came from, or the lines a chunk produced")]
 Map {
     #[arg(long, conflicts_with = "typ")]
     file: Option<String>,
@@ -205,6 +207,7 @@ Explain {
 ````)
 
 #chunk("main: watch", ````rust
+#[command(about = "Tangle again whenever a document changes")]
 Watch {
     #[arg(required = true)]
     docs: Vec<PathBuf>,
@@ -228,6 +231,7 @@ time — which chunks exist, in what order, and what does Typst actually hand ov
 it without writing anything.
 
 #chunk("main: metadata", ````rust
+#[command(about = "Print the declarations a document hands the tool")]
 Metadata {
     #[arg(required = true)]
     docs: Vec<PathBuf>,
