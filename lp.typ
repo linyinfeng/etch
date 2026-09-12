@@ -5956,6 +5956,16 @@ output directory is the repository root, so what this document does *not* produc
 whatever is not the crate, the package, the example or a control file — and the lock
 files cargo and nix maintain, which no chunk has any business owning.
 
+#file(".gitignore", ````gitignore
+# The tool's own state, and what the build tools write — wherever in the tree they land.
+.lp
+target
+flake.lock
+
+# The example's build directory is a nested document's output; that document says what is inside.
+examples/demo/build
+````)
+
 #file(".lpignore", ````gitignore
 # What the tangled tree carries besides the document's output.
 #
@@ -5964,10 +5974,9 @@ files cargo and nix maintain, which no chunk has any business owning.
 # produce. The output directory is `tangled/`, the crate the document generates.
 
 # `tangled/` is a repository of its own, so that the generated code has a history separate
-# from the document's (the bootstrap makes it one; `git init tangled`). Its metadata and its own
-# ignore rules are not content, and these are the two lines that say so.
+# from the document's (the bootstrap makes it one; `git init tangled`). Its metadata is not
+# content, and this is the line that says so.
 /.git
-/.gitignore
 
 # cargo's and nix's own files, and the example's build directory — whose own .lpignore governs
 # what is inside it, because a nested document's output is not this document's business.
@@ -6035,8 +6044,10 @@ whole program, so a diff across it says what the program did before and does now
 far as the recommendation goes. Nothing here commits, and nothing here should: when a generation is
 worth keeping is the writer's call, not the tool's.
 
-The one thing that tree needs from you is its own `.gitignore`, because the root's does not reach
-inside it. The tool's state and cargo's are not a program:
+The tree declares its own ignore rules rather than leaving them to a reader: they say what the tool keeps
+and what the build tools write, and a file that only changes when someone remembers to change it is a file
+that goes stale — the published tree is built from a seed, and a hand-maintained file has no way to reach
+it. Being output, it is written when it differs and compared by `--check` like everything else:
 
 ```gitignore
 # The tool's own state, and what the build tools write — wherever in the tree they land.
