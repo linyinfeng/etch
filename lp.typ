@@ -2403,8 +2403,13 @@ attached files by the mobile PDF library that wrote them.
 
 The package is the copy embedded in this binary, unpacked fresh, so weaving needs no tangle before it:
 the document is the source of both. And the document stays a normal Typst file — an editor rendering it
-without the tool sets `TYPST_PACKAGE_PATH` itself, to the same path this command passes. That is the one
-place the unpacking is visible from outside, and this command exists so that nobody has to type it.
+without the tool sets `TYPST_PACKAGE_PATH` itself, to the same path this command passes: `.lp/packages`
+under the documents' directory. That path is the whole editor story, and it works because nothing about it
+is ours to invent: the layout below is `namespace/name/version`, which is what every Typst package looks
+like, and the namespace is `local`, which is the one Typst recommends for a package that is not published.
+A language server that follows Typst's conventions therefore needs that one variable and no configuration
+of its own. An editor willing to touch the machine instead can link the same directory into Typst's data
+directory, and then no project needs the variable at all.
 
 #file("src/weave.rs", ````rust
 <<weave: the module note>>
