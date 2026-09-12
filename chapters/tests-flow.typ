@@ -7,6 +7,10 @@ declared twice, indentation at the reference site, the map, the three failures, 
 commands that read the result back. Most of the cases share one fixture, because the point is
 what the *same* document produces in different situations.
 
+One helper walks a directory, because the round-trip cases are about the whole book, and comparing a
+list of names would be comparing a list that goes stale. The walk skips `.lp`: that is the one name the
+tool writes beside a document, and the only thing under `book/` that is not part of the book.
+
 #file("tests/flow.rs", ````rust
 <<flow: the fixtures and helpers>>
 
@@ -191,6 +195,24 @@ fn line_of(text: &str, needle: &str) -> usize {
         .position(|line| line.contains(needle))
         .expect("needle")
         + 1
+}
+
+fn under(dir: &Path) -> Vec<PathBuf> {
+    let mut all = Vec::new();
+    let mut todo = vec![dir.to_path_buf()];
+    while let Some(next) = todo.pop() {
+        for entry in std::fs::read_dir(&next).expect("read") {
+            let path = entry.expect("entry").path();
+            let scratch = path.file_name().is_some_and(|name| name == ".lp");
+            if path.is_dir() && !scratch {
+                todo.push(path);
+            } else if path.is_file() {
+                all.push(path.strip_prefix(dir).expect("under").to_path_buf());
+            }
+        }
+    }
+    all.sort();
+    all
 }
 ````)
 
@@ -659,10 +681,12 @@ fn the_book_comes_back_out_whole() {
     assert!(output.status.success(), "{}", stderr(&output));
 
     let beside = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
-    for name in ["lp.typ", "README.md", ".gitignore"] {
-        let embedded = std::fs::read(dir.path().join("unpacked").join(name)).expect(name);
-        let carried = std::fs::read(beside.join(name)).expect(name);
-        assert_eq!(embedded, carried, "{name} came back different");
+    let names = under(&beside);
+    assert!(names.len() > 3, "the book is more than its root files");
+    for name in names {
+        let embedded = std::fs::read(dir.path().join("unpacked").join(&name)).expect("carried");
+        let carried = std::fs::read(beside.join(&name)).expect("beside");
+        assert_eq!(embedded, carried, "{} came back different", name.display());
     }
 }
 ````)
@@ -757,10 +781,10 @@ fn a_pdf_gives_the_book_back() {
     assert!(taken.status.success(), "{}", stderr(&taken));
 
     let carried = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
-    for name in ["lp.typ", "README.md", ".gitignore"] {
-        let back = std::fs::read(dir.path().join("back").join(name)).expect(name);
-        let beside = std::fs::read(carried.join(name)).expect(name);
-        assert_eq!(back, beside, "{name} did not survive the PDF");
+    for name in under(&carried) {
+        let back = std::fs::read(dir.path().join("back").join(&name)).expect("back");
+        let beside = std::fs::read(carried.join(&name)).expect("beside");
+        assert_eq!(back, beside, "{} did not survive the PDF", name.display());
     }
 }
 ````)
@@ -808,10 +832,10 @@ fn a_page_gives_the_book_back() {
     assert!(taken.status.success(), "{}", stderr(&taken));
 
     let carried = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
-    for name in ["lp.typ", "README.md", ".gitignore"] {
-        let back = std::fs::read(dir.path().join("back").join(name)).expect(name);
-        let beside = std::fs::read(carried.join(name)).expect(name);
-        assert_eq!(back, beside, "{name} did not survive the page");
+    for name in under(&carried) {
+        let back = std::fs::read(dir.path().join("back").join(&name)).expect("back");
+        let beside = std::fs::read(carried.join(&name)).expect("beside");
+        assert_eq!(back, beside, "{} did not survive the page", name.display());
     }
 }
 ````)
