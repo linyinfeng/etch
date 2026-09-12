@@ -11,8 +11,6 @@ The type is deliberately small: a message, an optional help, and the three const
 actually need. Everything that renders it lives in one place (`main.rs`), so no module has to know
 what an error looks like on a terminal.
 
-== The shape of the file
-
 #file("src/diag.rs", ````rust
 <<diag: the imports>>
 

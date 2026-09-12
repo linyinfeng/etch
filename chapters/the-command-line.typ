@@ -11,8 +11,6 @@ Nothing here decides anything about tangling, mapping or ownership. That is the 
 surface is a table, and the table is small enough to read in one sitting, which is how a
 reader finds out what the tool can do without reading the tool.
 
-== The shape of the file
-
 #file("src/main.rs", ````rust
 <<main: self, what it can do>>
 

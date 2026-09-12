@@ -26,8 +26,6 @@ file that no chunk produces may be one a chunk *should* produce, a file the user
 or the output of a chunk that was deleted; only the user can tell which. So the tool lists
 what it finds and stops.
 
-== The shape of that rule
-
 #file("src/status.rs", ````rust
 <<status: the imports>>
 

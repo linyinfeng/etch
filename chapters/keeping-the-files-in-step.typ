@@ -20,8 +20,6 @@ whole document and re-expands every root. That is a deliberate ceiling, with the
 next to it, and the note says what would have to change if a book-sized document ever makes it
 hurt.
 
-== The shape of the file
-
 #file("src/watch.rs", ````rust
 <<watch: the imports>>
 
