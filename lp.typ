@@ -587,16 +587,19 @@ const PACKAGE_ENTRY: &str = include_str!("../typst/lp.typ");
 /// so the ownership check treats it like a control file rather than content.
 pub const PACKAGE_ROOT: &str = ".lp";
 
-/// Where a document's import (`@local/lp:0.1.0`) resolves inside that directory: namespace,
-/// name, version.
-const PACKAGE_DIR: &str = "local/lp/0.1.0";
+/// Where the package goes inside that directory: the place `--package-path` points at.
+const PACKAGE_DIR: &str = "packages";
 
-/// Write the embedded package to `<root>/.lp/…` so Typst can resolve what the document imports,
+/// Where a document's import (`@local/lp:0.1.0`) resolves below it — namespace, name, version, which is
+/// Typst's own layout and not ours to choose.
+const PACKAGE_NAMESPACE: &str = "local/lp/0.1.0";
+
+/// Write the embedded package to `<root>/.lp/packages/…` so Typst can resolve what the document imports,
 /// and hand back the directory to point `--package-path` at. Only changed bytes are written, so
 /// a pass in a loop does not touch the disk.
 pub fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
-    let packages = root.join(PACKAGE_ROOT);
-    let dir = packages.join(PACKAGE_DIR);
+    let packages = root.join(PACKAGE_ROOT).join(PACKAGE_DIR);
+    let dir = packages.join(PACKAGE_NAMESPACE);
     std::fs::create_dir_all(&dir).map_err(|err| LpError::io(&dir, err))?;
     for (name, text) in [("typst.toml", PACKAGE_MANIFEST), ("lib.typ", PACKAGE_ENTRY)] {
         let path = dir.join(name);
@@ -706,9 +709,11 @@ for declaration in &declarations {
 == A file that exists for one command
 
 The wrapper is a temporary document holding one `#include` per document named on the command
-line. It is removed when it goes out of scope, and that includes the failing and panicking
-paths: a leftover `.lp-decl-*.typ` in someone's directory would surface as an unaccounted file
-on the next pass, which is a bug in the user's tree caused by a tool that forgot to clean up.
+line. It is removed when it goes out of scope, and that includes the failing and panicking paths.
+
+It lives under `.lp` because of what it is not: a file beside a document is a name taken from whoever
+works there, and one reserved name is enough. Inside `.lp` a leftover — a run that was killed before it
+could clean up — is invisible rather than reported, because no pass reads that directory at all.
 
 #chunk("metadata: the wrapper document", ````rust
 /// A wrapper document, removed when it goes out of scope — including when the
@@ -720,7 +725,9 @@ struct Wrapper {
 
 #chunk("metadata: writing the wrapper", ````rust
 fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
-    let path = root.join(format!(".lp-decl-{}.typ", std::process::id()));
+    // One level under `.lp`, which puts every document one `..` away and keeps the tool's files inside the
+    // one directory no pass reports on. A name beside a document is a name taken from whoever works there.
+    let path = root.join(PACKAGE_ROOT).join(format!("entry-{}.typ", std::process::id()));
     let mut text = String::new();
     for doc in docs {
         let relative = doc.strip_prefix(root).unwrap_or(doc);
@@ -730,7 +737,7 @@ fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
             .to_string_lossy()
             .replace('\\', "/")
             .replace('"', "\\\"");
-        text.push_str(&format!("#include \"{quoted}\"\n"));
+        text.push_str(&format!("#include \"../{quoted}\"\n"));
     }
     std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
     Ok(Self { path })
@@ -750,11 +757,11 @@ impl Drop for Wrapper {
 
 == The directory the wrapper lives in
 
-The deepest directory containing every document, which is also the directory the wrapper is
-written into. The unit test is here rather than in `tests/` because this arithmetic — walk up
-until every path fits — is easy to get subtly wrong, and the failure mode is quiet: a wrapper
-written outside the root is simply refused by Typst, with a message about a path, not about
-this function.
+The deepest directory containing every document. The wrapper goes into `.lp` under it, which is what lets
+it say `#include "../…"` and reach every one of them; the deepest directory is what the `..` is relative to.
+The unit test is here rather than in `tests/` because this arithmetic — walk up until every path fits — is
+easy to get subtly wrong, and the failure mode is quiet: a wrapper written outside the root is simply
+refused by Typst, with a message about a path, not about this function.
 
 #chunk("metadata: the deepest directory that contains every document", ````rust
 /// The deepest directory that contains every document.
@@ -1600,11 +1607,18 @@ pass writes one, and checking first would refuse to bootstrap.
 // the files above, because `.lpignore` is one of the things a document can produce.
 // A fresh repository has no control file yet, and the pass that writes it is the
 // pass that makes the tree consistent (ADR D20).
-if !plan.book_copies.is_empty() {
+if let Some(book) = &plan.book {
     let carried = crate::book::place(out, &plan.book_copies, check)?;
     if carried > 0 {
         let plural = if carried == 1 { "" } else { "s" };
         println!("carried {carried} book file{plural}");
+    }
+    // The directory is the list, so what the list stopped naming is removed rather than left behind. A list
+    // that became empty is the one case a copy loop cannot see, which is why this runs on the settings.
+    let removed = crate::book::sweep(out, &book.directory, &plan.book_copies, check)?;
+    if removed > 0 {
+        let plural = if removed == 1 { "" } else { "s" };
+        println!("removed {removed} stale book file{plural}");
     }
 }
 outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
@@ -1754,7 +1768,10 @@ version matched globs the way a `.gitignore` matches, walking the source tree to
 than three names deserve, and a package could not have read a pattern anyway, since Typst has no `glob`.
 
 The copy is output like everything else: written only when its bytes differ, part of what `--check`
-compares, and accounted for by the ownership check rather than reported as a stray.
+compares, and accounted for by the ownership check rather than reported as a stray. The directory is the
+list, in both directions: a copy the list no longer names is stale, removed by the next tangle and refused
+by `--check`. That is the one report a `.lpignore` could not have answered — the file was never unaccounted
+for, it was simply old — so the book stops producing it rather than explaining it.
 
 #file("src/embedded.rs", ````rust
 <<self: the module note>>
@@ -2097,6 +2114,79 @@ fn write_names(
         written += 1;
     }
     Ok(written)
+}
+
+/// Remove what the book directory holds and the plan does not name. With a list, "what should be here" is
+/// exact: a copy from an earlier generation is stale, not something to declare in a `.lpignore` that is
+/// itself output. Under `check` nothing is removed, and a stale copy is the tree being out of date.
+pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Result<usize, LpError> {
+    let root = out.join(directory.trim_end_matches('/'));
+    let listed: Vec<&str> = copies.iter().map(|copy| copy.name(directory)).collect();
+    let mut removed = 0;
+    let mut parents = Vec::new();
+    for (path, relative) in files_under(&root)? {
+        if listed.contains(&relative.as_str()) {
+            continue;
+        }
+        if check {
+            return Err(LpError::plain(format!(
+                "{} is a copy the book no longer names",
+                path.display()
+            ))
+            .with_help(
+                "the book is the list in `tangle-options`; `lp tangle` without `--check` removes it",
+            ));
+        }
+        std::fs::remove_file(&path).map_err(|err| LpError::io(&path, err))?;
+        removed += 1;
+        if let Some(parent) = path.parent() {
+            parents.push(parent.to_path_buf());
+        }
+    }
+    // Deepest first, so a directory that only held stale copies goes too — and `remove_dir` refuses a
+    // directory that still has something in it, which is exactly the answer wanted.
+    parents.sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
+    for parent in parents {
+        if parent != root {
+            let _ = std::fs::remove_dir(&parent);
+        }
+    }
+    Ok(removed)
+}
+
+/// Every file under a directory, with the path relative to it. No opinion about `.gitignore`: the book's own
+/// ignore rules are for git, and must not hide a stale copy from the sweep.
+fn files_under(root: &Path) -> Result<Vec<(PathBuf, String)>, LpError> {
+    let mut found = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            // The tool unpacks its package next to whatever document it evaluates — including the copy this
+            // very pass has just written — so that directory is state, never part of the book, and the sweep
+            // has to leave it alone. This is the rule the plan used to carry when the plan was a walk.
+            if path
+                .components()
+                .any(|part| part.as_os_str() == crate::metadata::PACKAGE_ROOT)
+            {
+                continue;
+            }
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let relative = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            found.push((path, relative));
+        }
+    }
+    Ok(found)
 }
 
 /// Write the copies whose bytes differ, and say how many those were. Under `check` nothing is written:
@@ -4403,6 +4493,8 @@ what the *same* document produces in different situations.
 
 <<flow: weave_renders_a_document_that_imports_the_package>>
 
+<<flow: tangling_leaves_only_dot_lp_beside_the_document>>
+
 <<flow: a_pdf_gives_the_book_back>>
 
 <<flow: weaving_a_document_with_no_book_carries_none>>
@@ -4416,6 +4508,8 @@ what the *same* document produces in different situations.
 <<flow: the_book_is_carried_into_the_tree>>
 
 <<flow: an_unknown_tangle_option_is_refused>>
+
+<<flow: a_stale_book_copy_is_removed_and_check_refuses_it>>
 
 <<flow: a_book_name_may_not_leave_the_tree>>
 
@@ -4457,11 +4551,13 @@ The cases, in the order they appear:
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
+- `a_stale_book_copy_is_removed_and_check_refuses_it` — the book directory is the list: a copy it no longer names is removed by a tangle and refused by `--check`
 - `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
 - `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
 - `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
 - `weaving_a_document_with_no_book_carries_none` — a document that declares nothing still weaves: no block, and no complaint either
 - `a_pdf_gives_the_book_back` — the PDF carries the book as attached files, and `lp extract --format pdf` gets it back byte for byte
+- `tangling_leaves_only_dot_lp_beside_the_document` — everything the tool writes beside a document is under `.lp`: the package, the wrapper, all of it
 - `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
 - `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
@@ -5055,6 +5151,34 @@ fn reading_weaves_what_the_binary_carries() {
 }
 ````)
 
+#chunk("flow: tangling_leaves_only_dot_lp_beside_the_document", ````rust
+#[test]
+fn tangling_leaves_only_dot_lp_beside_the_document() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document("#file(\"main.py\", ```py\nprint('x')\n```)\n"),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    // Everything the tool leaves beside a document is state, and state is one directory. A wrapper, a
+    // package, a scratch file — all of it under `.lp`, because a name beside a document belongs to whoever
+    // works there, not to the tool.
+    let mut unexpected: Vec<String> = std::fs::read_dir(dir.path())
+        .expect("the source directory")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().to_string())
+        .filter(|name| !["lp.typ", "demo.typ", "tangled", ".lp"].contains(&name.as_str()))
+        .collect();
+    unexpected.sort();
+    assert!(unexpected.is_empty(), "the tool left {unexpected:?} behind");
+}
+````)
+
 #chunk("flow: a_pdf_gives_the_book_back", ````rust
 #[test]
 fn a_pdf_gives_the_book_back() {
@@ -5206,6 +5330,45 @@ fn an_unknown_tangle_option_is_refused() {
         stderr(&output).contains("unknown tangle option"),
         "the package refuses it where it was written: {}",
         stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: a_stale_book_copy_is_removed_and_check_refuses_it", ````rust
+#[test]
+fn a_stale_book_copy_is_removed_and_check_refuses_it() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("README.md"), "the pointer\n").expect("book file");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    // A copy from an earlier generation: the list no longer names it, and this directory is the list.
+    let stale = dir.path().join("tangled/book/old.txt");
+    std::fs::write(&stale, "from a generation ago\n").expect("stale");
+    let checked = lp(dir.path(), &["tangle", "demo.typ", "--check"]);
+    assert!(
+        !checked.status.success(),
+        "check refuses a tree with a stale copy"
+    );
+    assert!(
+        stderr(&checked).contains("no longer names"),
+        "and says why: {}",
+        stderr(&checked)
+    );
+
+    let again = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(again.status.success(), "{}", stderr(&again));
+    assert!(
+        !stale.exists(),
+        "a plain tangle removes what the list stopped naming"
     );
 }
 ````)
@@ -7100,7 +7263,7 @@ OUT=examples/demo/build
 
 # The weave below is plain `typst`, not `lp`, so it needs the package path the tangle unpacked
 # (`lp` passes it to its own Typst call; a user's editor has to set it the same way).
-export TYPST_PACKAGE_PATH="$PWD/examples/demo/.lp"
+export TYPST_PACKAGE_PATH="$PWD/examples/demo/.lp/packages"
 
 echo "== tangle =="
 "${LP[@]}" tangle "$DOC" --out "$OUT"
