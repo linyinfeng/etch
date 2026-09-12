@@ -727,7 +727,9 @@ struct Wrapper {
 fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
     // One level under `.lp`, which puts every document one `..` away and keeps the tool's files inside the
     // one directory no pass reports on. A name beside a document is a name taken from whoever works there.
-    let path = root.join(PACKAGE_ROOT).join(format!("entry-{}.typ", std::process::id()));
+    let path = root
+        .join(PACKAGE_ROOT)
+        .join(format!("entry-{}.typ", std::process::id()));
     let mut text = String::new();
     for doc in docs {
         let relative = doc.strip_prefix(root).unwrap_or(doc);
@@ -1190,8 +1192,13 @@ pub struct Tangled {
 
 #chunk("tangle: one line, with its indentation", ````rust
 fn push(&mut self, chunk: &str, indent: &str, line: &str) {
-    self.text.push_str(indent);
-    self.text.push_str(line);
+    // A blank line gets no indentation: writing one would leave trailing whitespace, which no formatter
+    // accepts and no reader can see. A line of nothing but spaces is blank for the same reason — and the
+    // line count is kept either way, because the runs below are line numbers.
+    if !line.trim().is_empty() {
+        self.text.push_str(indent);
+        self.text.push_str(line);
+    }
     self.text.push('\n');
     self.lines += 1;
     match self.runs.last_mut() {
@@ -1451,9 +1458,10 @@ legitimately hold a fragment for a chapter that is still being written — but a
 was declared and then renamed away is almost always a mistake, and this is what catches it.
 A declaration with no language tag is warned about for the same kind of reason: the tag is data
 that downstream tools read and that this program refuses to guess from a file name, so a gap is
-reported rather than quietly filled. The two checks are separate fragments for a reason this
-project keeps running into: a blank line inside a fragment that is referenced from an indented
-place turns into a line of spaces, and whitespace is not layout.
+reported rather than quietly filled. The two checks are separate fragments for a reason this project kept
+running into: a blank line inside a fragment referenced from an indented place used to turn into a line of
+spaces, which is not layout. That is fixed where it belonged — the line writer leaves a blank line blank —
+so the split is now only a question of what each warning is about.
 
 #chunk("tangle: fragments nobody uses", ````rust
 let mut warnings = Vec::new();
@@ -2869,11 +2877,10 @@ pub fn read(dir: &Path) -> Result<Self, LpError> {
 }
 ````)
 
-The search is two fragments rather than one: the guard for an output directory that does
-not exist yet, and the walk. That split is also a lesson about blank lines — a fragment
-that carries one drags its indentation along when it is pulled into an indented place, so
-the blank line between these two thoughts stays in the skeleton where it belongs to no
-fragment at all.
+The search is two fragments rather than one: the guard for an output directory that does not exist yet, and
+the walk. The split used to be forced by the blank line between the two thoughts, because a fragment that
+carried one added its indentation to it; the line writer leaves a blank line blank now, so this is a choice
+about what each fragment is about rather than a workaround.
 
 #chunk("map: when there is no output directory", ````rust
 /// Every map under `out`, paired with its directory relative to `out` (`""`
@@ -4507,6 +4514,8 @@ what the *same* document produces in different situations.
 
 <<flow: weave_renders_a_document_that_imports_the_package>>
 
+<<flow: a_blank_line_in_an_indented_fragment_stays_blank>>
+
 <<flow: tangling_leaves_only_dot_lp_beside_the_document>>
 
 <<flow: a_pdf_gives_the_book_back>>
@@ -4572,6 +4581,7 @@ The cases, in the order they appear:
 - `weaving_a_document_with_no_book_carries_none` — a document that declares nothing still weaves: no block, and no complaint either
 - `a_pdf_gives_the_book_back` — the PDF carries the book as attached files, and `lp extract --format pdf` gets it back byte for byte
 - `tangling_leaves_only_dot_lp_beside_the_document` — everything the tool writes beside a document is under `.lp`: the package, the wrapper, all of it
+- `a_blank_line_in_an_indented_fragment_stays_blank` — an indented fragment's blank line is written blank, not as a line of spaces
 - `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
 - `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
@@ -5161,6 +5171,36 @@ fn reading_weaves_what_the_binary_carries() {
         size > 10_000,
         "{} looks empty: {size} bytes",
         path.display()
+    );
+}
+````)
+
+#chunk("flow: a_blank_line_in_an_indented_fragment_stays_blank", ````rust
+#[test]
+fn a_blank_line_in_an_indented_fragment_stays_blank() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#file(\"src/main.rs\", ```rust\nfn outer() {\n    <<inner>>\n}\n```)\n\n#chunk(\"inner\", ```rust\nlet a = 1;\n\nlet b = 2;\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let written = std::fs::read_to_string(dir.path().join("tangled/src/main.rs")).expect("file");
+
+    // The blank line between the two statements is indented into place, and stays blank rather than
+    // becoming a line of spaces — which is what a formatter would refuse and a reader would never see.
+    assert!(
+        written.contains("    let a = 1;\n\n    let b = 2;\n"),
+        "{written:?}"
+    );
+    assert!(
+        written.lines().all(|line| line == line.trim_end()),
+        "an indented fragment left trailing whitespace: {written:?}"
     );
 }
 ````)
