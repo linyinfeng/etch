@@ -32,12 +32,12 @@ makes possible.
 
 == Why this exists, and what it does not promise
 
-A program's logic — how it decomposes, why it decomposes that way, and the order in which someone should come
-to understand it — is usually not an artifact at all. It lives in the author's head, in a review thread, in a
-conversation, and nothing that is not written down can be maintained or improved. The move here is to make
-that logic the source: the code is quoted into the argument, so the argument is what gets edited, reviewed and
+A program's argument — how it decomposes, why it decomposes that way, and the order in which someone should
+come to understand it — is usually not an artifact at all. It lives in the author's head, in a review thread,
+in a conversation, and nothing that is not written down can be maintained or improved. The move here is to
+make that argument the source: the code is quoted into it, so the argument is what gets edited, reviewed and
 diffed, and the program is a by-product of keeping it good. The order of that argument is part of the
-artifact rather than a courtesy to the reader: the arrangement *is* the logic, written down where it can be
+artifact rather than a courtesy to the reader: the arrangement *is* the argument, written down where it can be
 changed. There is no other way in — a change to the program
 is a change to the book — and that is the whole of the forcing. Drift does not disappear. What changes is the
 kind of thing that drifts: from "the code moved and the explanation stayed" to "the argument is no longer
@@ -52,6 +52,13 @@ changes. An agent can find, read, rewrite, check and update a whole document in
 minutes, which is not a thing a person does, so the maintenance cost that kept literate programming a
 curiosity for forty years collapses. What an agent does not bring is the discipline; making the book the source
 is how the discipline is imposed from outside.
+
+Nor is anything here checked but the tree. What cannot be checked — the prose, the book, the order of its
+argument — is not attempted, and the chapter on the rules is where that responsibility is written down: this
+project would rather leave a thing undone than do it badly. So what this document presents is a position and
+its demonstration rather than a metric, and it claims no improvement in what comes out. What it offers is a
+change in what the artifact *is* — the argument first, the code as its by-product — and a process for turning
+one into the other.
 
 `lp` is the smallest tool that can carry that for Typst documents, and this book is written with it rather than
 about it. The document you are reading is the program you are reading about, and the only gate in the
