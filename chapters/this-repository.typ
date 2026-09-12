@@ -22,6 +22,8 @@ target
 #file(".lpignore", ````gitignore
 /.git
 
+/result
+
 /target
 ````)
 
@@ -78,8 +80,8 @@ worth keeping is the writer's call, not the tool's.
 A file that only changes when someone remembers to change it goes stale, and the published tree is built from
 a seed — a hand-maintained file has no way to reach it. So the tree carries its own two settings instead: the
 `.gitignore` above, which says what the tool keeps and what the build writes, and the `.lpignore` beside it,
-which says the two things under the tree that are nobody's to delete — the git directory itself, and the build
-directory.
+which says the two things under the tree that are nobody's to delete — the git directory itself, and what a
+build leaves behind: nix's `result` symlink and cargo's directory.
 
 After that the loop is the ordinary one: edit this document, tangle, test. While writing,
 

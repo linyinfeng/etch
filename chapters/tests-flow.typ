@@ -683,6 +683,17 @@ fn the_book_comes_back_out_whole() {
     let beside = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
     let names = under(&beside);
     assert!(names.len() > 3, "the book is more than its root files");
+    let said: usize = stdout(&output)
+        .split_whitespace()
+        .nth(1)
+        .and_then(|count| count.parse().ok())
+        .expect("the number of files it says it wrote");
+    assert_eq!(
+        said,
+        names.len(),
+        "the count is the whole book, not its top level: {}",
+        stdout(&output)
+    );
     for name in names {
         let embedded = std::fs::read(dir.path().join("unpacked").join(&name)).expect("carried");
         let carried = std::fs::read(beside.join(&name)).expect("beside");

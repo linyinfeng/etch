@@ -61,15 +61,46 @@ static BOOK: Dir = include_dir!("$CARGO_MANIFEST_DIR/book");
 #chunk("self: the book, carried", ````rust
 pub fn book(out: &Path) -> Result<usize, LpError> {
     std::fs::create_dir_all(out).map_err(|err| LpError::io(out, err))?;
-    BOOK.extract(out).map_err(|err| {
-        LpError::plain(format!(
-            "cannot write the book into {}: {err}",
-            out.display()
-        ))
-    })?;
-    Ok(BOOK.files().count())
+    write(&BOOK, out)?;
+    Ok(carried(&BOOK))
+}
+
+fn write(dir: &Dir, out: &Path) -> Result<(), LpError> {
+    for file in dir.files() {
+        let path = out.join(name(file.path()));
+        std::fs::write(&path, file.contents()).map_err(|err| LpError::io(&path, err))?;
+    }
+    for sub in dir.dirs().filter(|sub| !scratch(sub)) {
+        let path = out.join(name(sub.path()));
+        std::fs::create_dir_all(&path).map_err(|err| LpError::io(&path, err))?;
+        write(sub, &path)?;
+    }
+    Ok(())
+}
+
+fn carried(dir: &Dir) -> usize {
+    dir.files().count()
+        + dir
+            .dirs()
+            .filter(|sub| !scratch(sub))
+            .map(carried)
+            .sum::<usize>()
+}
+
+fn scratch(dir: &Dir) -> bool {
+    dir.path()
+        .file_name()
+        .is_some_and(|name| name == crate::metadata::PACKAGE_ROOT)
+}
+
+fn name(path: &Path) -> &std::ffi::OsStr {
+    path.file_name().unwrap_or(path.as_os_str())
 }
 ````)
+
+The book is the declared files, and the count is all of them rather than the top level of the listing. The
+tool's own scratch is the exception in both directions: a directory of chapters is one entry and many files,
+and a pass that unpacked a package beside the book on some earlier day is not part of what this binary carries.
 
 #chunk("self: proving it", ````rust
 pub fn prove(dir: &Path) -> Result<i32, LpError> {
