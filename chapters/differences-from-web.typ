@@ -10,8 +10,8 @@ declined.
 WEB writes `+=` on the second definition of a name, so the reader is told at the definition that the
 pieces are one thing. Here the pieces of a name are concatenated in document order with no marker at
 all: a repeated name is a concatenation, and the notation has no signal at the point where the signal
-would help. The mechanism is the same one WEB has; the marker is the thing that was dropped, and the
-price is that an accidental reuse reads as a deliberate one.
+would help. The mechanism is the same one WEB has; the marker is what was dropped, and that is the first
+of the two gaps: an accidental reuse reads as a deliberate one.
 
 == There is no reverse index
 

@@ -62,9 +62,9 @@ have said, and the more expressive the language, the less the prose adds. And it
 where one document is written and the code is then edited elsewhere: a single source whose source is not
 single is worse than no document at all.
 
-One of the arguments against the method deserves a second look in this chapter, because it gets stronger
-every year. Reading code has become cheap: a model, or a colleague with a search tool, can reconstruct a surprising amount of what a
-program does without any prose at all. That is a real argument against spending the writer's time on
-explanation, and it is the reason the fourth claim of this book is stated as a claim rather than assumed.
-What it does not remove is what the ledger above pays for: the reasoning, which no reader can recover from
-code that does not contain it, and one source whose drift the build notices.
+One argument deserves a second look here, because it gets stronger every year. Reading code has become cheap:
+a model, or a colleague with a search tool, can reconstruct a surprising amount of what a program does without
+any prose at all. That is a real argument against spending the writer's time on explanation, and it is the
+reason the fourth claim of this book is stated as a claim rather than assumed. What it does not remove is what
+the ledger above pays for: the reasoning, which no reader can recover from code that does not contain it, and
+one source whose drift the build notices.

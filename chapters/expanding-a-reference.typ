@@ -26,8 +26,9 @@ fn ref_target(line: &str) -> Option<(&str, &str)> {
 
 == And how to write one without it being one
 
-`@<<name>>` stays literal — the escape's reason is with the pattern that recognises it — and
-it is not a reference for the purposes of the unused-chunk warning either (D17).
+`@<<name>>` stays literal, and it is not a reference for the purposes of the unused-fragment warning either
+(D17). The pattern that recognises the escape, and the reason this document needed one, are in the chapter that
+declares the package.
 
 #chunk("tangle: how to write one without it being one", ````rust
 fn escaped_ref(line: &str) -> Option<String> {

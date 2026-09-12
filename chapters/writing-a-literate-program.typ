@@ -84,11 +84,11 @@ usually the longer and worse option.
 
 == Say the whole thing first
 
-The most common way a literate program fails is not a bad sentence, it is a good sentence too late. The
-review of Knuth's own book makes the point at its sharpest: the central idea of one of the programs appears
-so far in that the critic had misunderstood the space cost for the first half, and his diagnosis was
-documenting on the fly. A reader who has not been told the overall structure will invent one, and everything
-after that is read through the invention.
+The most common way a literate program fails is not a bad sentence, it is a good sentence too late.
+McIlroy's review of Knuth's own book makes the point at its sharpest: the central idea of the program he was
+reviewing arrives so far in that he had spent the first half misunderstanding its space cost, and his diagnosis
+was that Knuth had been documenting on the fly. A reader who has not been told the overall structure will invent
+one, and everything after that is read through the invention.
 
 So the shape comes first: what the program is for, what the pieces are, how they fit. It is the one place
 where the order is not the order of decisions — it is the order the reader needs before any decision makes

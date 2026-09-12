@@ -44,10 +44,10 @@ will answer questions about it without the reader having to trust the prose.
 the table of contents for the code, and it is derived from the same declaration stream the tangle reads.
 
 The compiler's position is the reader's most common entry point: an error at `src/diag.rs:14:5`. `lp map
---file src/diag.rs --line 14` answers which declaration wrote that line and prints the search that finds
-it — the same command that answers the question, and the one for a reader in an editor — and `lp explain`
-does the same for a whole diagnostic, rewriting the compiler's file-and-line into a name from the
-document. The map is written while tangling, so it costs nothing to ask and cannot disagree with the tree.
+--file src/diag.rs --line 14` answers which declaration wrote that line, and prints the search that finds it
+in the document — which is what a reader in an editor wants, rather than a page number. `lp explain` does the
+same for a whole diagnostic, rewriting the compiler's file-and-line into a name from the document. The map is
+written while tangling, so it costs nothing to ask and cannot disagree with the tree.
 
 The opposite direction is `lp map --typ 'diag: a plain error'`, or a plain search for the name. The
 document is text, the names are unique, and grep is a legitimate reader's tool — the tool has no index to
@@ -55,11 +55,11 @@ be faster than it.
 
 == What a reader should expect
 
-Reading a literate program is not harder than reading a well-commented one, but the failure modes are
-different, and a reader who knows them can tell a bad document from a bad page. A section that reads as a
-play-by-play of code is the code twice; a section that only explains and never shows the formal text is a
-description of a program, not the program; a name that appears without its explanation nearby means the
-web was arranged for the author's convenience rather than the reader's.
+Reading a literate program has failure modes of its own, and a reader who knows them can tell a bad document
+from a bad page. A section that reads as a play-by-play of code is the code twice; a section that only
+explains and never shows the formal text is a description of a program rather than the program; a name met
+without its explanation nearby means the web was arranged for the author's convenience rather than the
+reader's.
 
 The previous chapter's rule applies here too: the reader can only hold so much. A document that assumes more
 is a document whose references have to be followed to be understood, and a reader who is following
