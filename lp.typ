@@ -12,13 +12,16 @@
 // and `@<<name>>` is how you write such a line without it being one (D17). The prose is Typst,
 // not Markdown: emphasis is *one star*.
 
-#import "@local/lp:0.1.0": chunk, file, tangle-options, show-rule
+#import "@local/lp:0.1.0": chunk, file, show-rule, tangle-options
 #show: show-rule
 
 // Where the tangled tree keeps this book, so that a tree can be read — and re-tangled — without the
 // repository it came from. The tree's own `.gitignore` travels with it: the book is the whole of what
 // this repository was before tangling, not only its prose.
-#tangle-options((book-directory: "book", book-files: ("lp.typ", "README.md", ".gitignore")))
+#tangle-options((
+  book-directory: "book",
+  book-files: ("lp.typ", "README.md", ".gitignore"),
+))
 
 = The tool, in its own words
 
@@ -39,14 +42,14 @@ The idea splits into four claims, and they are worth separating because a reader
 of them without the others.
 
 1. *The document is the source.* The code is tangled out of it, so there is no second copy that
-   can disagree with the prose.
+  can disagree with the prose.
 2. *The order belongs to the reader.* Names are resolved while tangling, not while reading, so
-   the text can be arranged in the order the design is understood rather than the order the
-   machine runs it.
+  the text can be arranged in the order the design is understood rather than the order the
+  machine runs it.
 3. *A program is written as literature.* Prose is not a comment on the code; it is where the
-   thinking lives, and the code is the evidence that the thinking is real.
+  thinking lives, and the code is the evidence that the thinking is real.
 4. *The woven document is worth having on its own.* Here that is `lp weave lp.typ lp.pdf`: the same
-   declarations, rendered as the page you are reading.
+  declarations, rendered as the page you are reading.
 
 This document takes the first claim literally and argues for the other three by being an example
 of them. The case against all four is worth stating at its strongest, because most of it is
@@ -184,9 +187,14 @@ the element it was handed stays where it was for anyone who queries it later.
       } else if m == none {
         line.body
       } else {
-        raw(ref-indent(line.text)) + text(fill: rgb("#0a6"))[⟪#m.captures.at(1)⟫]
+        (
+          raw(ref-indent(line.text))
+            + text(fill: rgb("#0a6"))[⟪#m.captures.at(1)⟫]
+        )
       }
-      out = if out == none { piece + linebreak() } else { out + piece + linebreak() }
+      out = if out == none { piece + linebreak() } else {
+        out + piece + linebreak()
+      }
     }
     out
   }
@@ -247,7 +255,12 @@ argument.
 #chunk("package: a fragment", ````typst
 /// A named fragment: referenced as `<<name>>`, written nowhere on its own.
 #let chunk(name, code) = {
-  [#metadata((lp: "chunk", name: name, lang: lang-of(code), text: code.text))<lp-decl>]
+  [#metadata((
+    lp: "chunk",
+    name: name,
+    lang: lang-of(code),
+    text: code.text,
+  ))<lp-decl>]
   tile(name, lang-of(code), code)
 }
 ````)
@@ -255,7 +268,12 @@ argument.
 #chunk("package: a root", ````typst
 /// A root chunk: the name is the path it is tangled to.
 #let file(path, code) = {
-  [#metadata((lp: "file", name: path, lang: lang-of(code), text: code.text))<lp-decl>]
+  [#metadata((
+    lp: "file",
+    name: path,
+    lang: lang-of(code),
+    text: code.text,
+  ))<lp-decl>]
   tile(path, lang-of(code), code)
 }
 ````)
@@ -278,7 +296,9 @@ are written, which is the only place the mistake is still fresh.
   let known = ("book-directory", "book-files")
   for key in options.keys() {
     if not known.contains(key) {
-      panic("unknown tangle option: " + key + " (known: " + known.join(", ") + ")")
+      panic(
+        "unknown tangle option: " + key + " (known: " + known.join(", ") + ")",
+      )
     }
   }
   [#metadata((lp: "options", options: options))<lp-decl>]
@@ -4736,19 +4756,22 @@ fn indentation_follows_the_reference_site() {
 }
 ````)
 
-#chunk("flow: a_chunk_written_indented_in_the_document_is_still_dedented", ````rust
-#[test]
-fn a_chunk_written_indented_in_the_document_is_still_dedented() {
-    let body = "#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n\n- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n";
-    let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    assert_eq!(
-        std::fs::read_to_string(dir.join("out/main.py")).expect("main"),
-        "if x:\n    print(1)\n    print(2)\n"
-    );
-}
-````)
+#chunk(
+  "flow: a_chunk_written_indented_in_the_document_is_still_dedented",
+  ````rust
+  #[test]
+  fn a_chunk_written_indented_in_the_document_is_still_dedented() {
+      let body = "#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n\n- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n";
+      let (_guard, dir, _) = project(body);
+      let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+      assert!(output.status.success(), "{}", stderr(&output));
+      assert_eq!(
+          std::fs::read_to_string(dir.join("out/main.py")).expect("main"),
+          "if x:\n    print(1)\n    print(2)\n"
+      );
+  }
+  ````,
+)
 
 #chunk("flow: a_chapter_can_hold_the_fragment_another_file_references", ````rust
 #[test]
@@ -4917,43 +4940,46 @@ fn check_names_the_chunk_of_the_first_difference() {
 }
 ````)
 
-#chunk("flow: the_map_follows_the_document_even_when_no_output_byte_changes", ````rust
-#[test]
-fn the_map_follows_the_document_even_when_no_output_byte_changes() {
-    let (_guard, dir, _) = project(DOC);
-    assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
-            .status
-            .success()
-    );
+#chunk(
+  "flow: the_map_follows_the_document_even_when_no_output_byte_changes",
+  ````rust
+  #[test]
+  fn the_map_follows_the_document_even_when_no_output_byte_changes() {
+      let (_guard, dir, _) = project(DOC);
+      assert!(
+          lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+              .status
+              .success()
+      );
 
-    // Prose above the declarations shifts nothing in the output; the map must
-    // still be rewritten so it keeps describing the document.
-    let moved = format!(
-        "{}\n{}",
-        "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule", DOC
-    );
-    std::fs::write(dir.join("demo.typ"), &moved).expect("rewrite");
+      // Prose above the declarations shifts nothing in the output; the map must
+      // still be rewritten so it keeps describing the document.
+      let moved = format!(
+          "{}\n{}",
+          "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule", DOC
+      );
+      std::fs::write(dir.join("demo.typ"), &moved).expect("rewrite");
 
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
-    assert!(output.status.success(), "{}", stderr(&output));
-    assert!(
-        !stdout(&output).contains("wrote"),
-        "outputs are unchanged: {}",
-        stdout(&output)
-    );
+      let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+      assert!(output.status.success(), "{}", stderr(&output));
+      assert!(
+          !stdout(&output).contains("wrote"),
+          "outputs are unchanged: {}",
+          stdout(&output)
+      );
 
-    let forward = lp(
-        &dir,
-        &["map", "--file", "main.py", "--line", "3", "--out", "out"],
-    );
-    assert!(
-        stdout(&forward).starts_with("chunk ⟪body⟫, line 2 of it"),
-        "{}",
-        stdout(&forward)
-    );
-}
-````)
+      let forward = lp(
+          &dir,
+          &["map", "--file", "main.py", "--line", "3", "--out", "out"],
+      );
+      assert!(
+          stdout(&forward).starts_with("chunk ⟪body⟫, line 2 of it"),
+          "{}",
+          stdout(&forward)
+      );
+  }
+  ````,
+)
 
 #chunk("flow: dangling_reference_quotes_the_line", ````rust
 #[test]
@@ -6056,54 +6082,57 @@ fn a_document_that_does_not_evaluate_says_so() {
 }
 ````)
 
-#chunk("metadata: a_document_outside_the_working_directory_can_be_tangled", ````rust
-#[test]
-fn a_document_outside_the_working_directory_can_be_tangled() {
-    // The wrapper document has to live where Typst's root can reach the file it
-    // includes, so it goes next to the documents rather than in the cwd.
-    if !typst_available() {
-        eprintln!("skipping: typst is not on PATH");
-        return;
-    }
+#chunk(
+  "metadata: a_document_outside_the_working_directory_can_be_tangled",
+  ````rust
+  #[test]
+  fn a_document_outside_the_working_directory_can_be_tangled() {
+      // The wrapper document has to live where Typst's root can reach the file it
+      // includes, so it goes next to the documents rather than in the cwd.
+      if !typst_available() {
+          eprintln!("skipping: typst is not on PATH");
+          return;
+      }
 
-    let documents = TempDir::new().expect("documents");
-    write(
-        documents.path(),
-        "book.typ",
-        "#file(\"src/main.py\", ```py\nprint('elsewhere')\n```)\n",
-    );
+      let documents = TempDir::new().expect("documents");
+      write(
+          documents.path(),
+          "book.typ",
+          "#file(\"src/main.py\", ```py\nprint('elsewhere')\n```)\n",
+      );
 
-    let workdir = TempDir::new().expect("workdir");
-    let doc = documents.path().join("book.typ");
-    let out = workdir.path().join("out");
-    let output = lp(
-        workdir.path(),
-        &[
-            "tangle",
-            doc.to_str().expect("utf8"),
-            "--out",
-            out.to_str().expect("utf8"),
-        ],
-    );
-    assert!(output.status.success(), "{}", stderr(&output));
-    assert_eq!(
-        std::fs::read_to_string(out.join("src/main.py")).expect("output"),
-        "print('elsewhere')\n"
-    );
+      let workdir = TempDir::new().expect("workdir");
+      let doc = documents.path().join("book.typ");
+      let out = workdir.path().join("out");
+      let output = lp(
+          workdir.path(),
+          &[
+              "tangle",
+              doc.to_str().expect("utf8"),
+              "--out",
+              out.to_str().expect("utf8"),
+          ],
+      );
+      assert!(output.status.success(), "{}", stderr(&output));
+      assert_eq!(
+          std::fs::read_to_string(out.join("src/main.py")).expect("output"),
+          "print('elsewhere')\n"
+      );
 
-    // And the wrapper is gone again.
-    let leftovers: Vec<String> = std::fs::read_dir(documents.path())
-        .expect("read_dir")
-        .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().to_string())
-        .filter(|name| name.starts_with(".lp-decl-"))
-        .collect();
-    assert!(
-        leftovers.is_empty(),
-        "wrapper files left behind: {leftovers:?}"
-    );
-}
-````)
+      // And the wrapper is gone again.
+      let leftovers: Vec<String> = std::fs::read_dir(documents.path())
+          .expect("read_dir")
+          .flatten()
+          .map(|entry| entry.file_name().to_string_lossy().to_string())
+          .filter(|name| name.starts_with(".lp-decl-"))
+          .collect();
+      assert!(
+          leftovers.is_empty(),
+          "wrapper files left behind: {leftovers:?}"
+      );
+  }
+  ````,
+)
 
 #chunk("metadata: a_declaration_of_an_unknown_kind_is_an_error", ````rust
 #[test]
@@ -6457,30 +6486,33 @@ fn a_deeper_ignore_file_can_take_a_file_back() {
 }
 ````)
 
-#chunk("owned: control_files_survive_and_other_dotfiles_are_ordinary_files", ````rust
-#[test]
-fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
-    let (_guard, dir) = tangled("kept.dot\n", &[("kept.dot", "x")]);
-    std::fs::write(dir.join("out/stray.cache"), "not listed").expect("file");
+#chunk(
+  "owned: control_files_survive_and_other_dotfiles_are_ordinary_files",
+  ````rust
+  #[test]
+  fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
+      let (_guard, dir) = tangled("kept.dot\n", &[("kept.dot", "x")]);
+      std::fs::write(dir.join("out/stray.cache"), "not listed").expect("file");
 
-    let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
-    assert!(
-        !output.status.success(),
-        "an unlisted dotfile is a stray like any other"
-    );
-    assert!(
-        stderr(&output).contains("stray.cache"),
-        "{}",
-        stderr(&output)
-    );
-    assert!(
-        dir.join("out/.lpmap.json").exists(),
-        "the line map is never content"
-    );
-    assert!(dir.join("out/.lpignore").exists(), "nor are the rules");
-    assert!(dir.join("out/kept.dot").exists(), "listed, so kept");
-}
-````)
+      let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
+      assert!(
+          !output.status.success(),
+          "an unlisted dotfile is a stray like any other"
+      );
+      assert!(
+          stderr(&output).contains("stray.cache"),
+          "{}",
+          stderr(&output)
+      );
+      assert!(
+          dir.join("out/.lpmap.json").exists(),
+          "the line map is never content"
+      );
+      assert!(dir.join("out/.lpignore").exists(), "nor are the rules");
+      assert!(dir.join("out/kept.dot").exists(), "listed, so kept");
+  }
+  ````,
+)
 
 #chunk("owned: a_git_directory_is_ordinary_content", ````rust
 #[test]
@@ -6528,31 +6560,34 @@ fn check_reports_a_stray_without_removing_it() {
 }
 ````)
 
-#chunk("owned: deleting_a_foreign_subtree_takes_one_line_and_one_command", ````rust
-#[test]
-fn deleting_a_foreign_subtree_takes_one_line_and_one_command() {
-    let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
-    std::fs::create_dir_all(dir.join("out/vendor/nested")).expect("dir");
-    std::fs::write(dir.join("out/vendor/a.txt"), "x").expect("file");
-    std::fs::write(dir.join("out/vendor/nested/b.txt"), "x").expect("file");
+#chunk(
+  "owned: deleting_a_foreign_subtree_takes_one_line_and_one_command",
+  ````rust
+  #[test]
+  fn deleting_a_foreign_subtree_takes_one_line_and_one_command() {
+      let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
+      std::fs::create_dir_all(dir.join("out/vendor/nested")).expect("dir");
+      std::fs::write(dir.join("out/vendor/a.txt"), "x").expect("file");
+      std::fs::write(dir.join("out/vendor/nested/b.txt"), "x").expect("file");
 
-    let report = lp(&dir, &["unaccounted", "doc.typ", "--out", "out"]);
-    assert_eq!(report.status.code(), Some(1));
-    assert!(
-        stdout(&report).contains("vendor/a.txt"),
-        "{}",
-        stdout(&report)
-    );
+      let report = lp(&dir, &["unaccounted", "doc.typ", "--out", "out"]);
+      assert_eq!(report.status.code(), Some(1));
+      assert!(
+          stdout(&report).contains("vendor/a.txt"),
+          "{}",
+          stdout(&report)
+      );
 
-    let deleted = lp(
-        &dir,
-        &["unaccounted", "doc.typ", "--out", "out", "--delete"],
-    );
-    assert!(deleted.status.success(), "{}", stderr(&deleted));
-    assert!(!dir.join("out/vendor").exists());
-    assert!(dir.join("out/handwritten.txt").exists());
-}
-````)
+      let deleted = lp(
+          &dir,
+          &["unaccounted", "doc.typ", "--out", "out", "--delete"],
+      );
+      assert!(deleted.status.success(), "{}", stderr(&deleted));
+      assert!(!dir.join("out/vendor").exists());
+      assert!(dir.join("out/handwritten.txt").exists());
+  }
+  ````,
+)
 
 #chunk("owned: without_a_declaration_a_stray_is_still_an_error", ````rust
 #[test]
@@ -6735,7 +6770,7 @@ Everything above is about this repository: one document, its tree, and the seed 
 build possible. The program that comes out is a program, though, and it has a pipeline of its own —
 written where it belongs, which is in the program rather than in the repository that produces it.
 
-So these three files are output too. They are declared here, tangled with everything else, and carried
+So these four files are output too. They are declared here, tangled with everything else, and carried
 onto the seed branch, which is where they take effect: the branch that holds a generation is the branch
 whose copy of a workflow file GitHub reads.
 
@@ -6751,142 +6786,350 @@ whose copy of a workflow file GitHub reads.
 <<nix: the workflow>>
 ````)
 
-== The package, the way nixpkgs would write it
+#file("zizmor.yml", ````yaml
+<<nix: the zizmor policy>>
+````)
 
-`rustPlatform.buildRustPackage` with the lock file, which is the shape every Rust package in nixpkgs has.
-Two things are this tool's own:
+== The package, the way crane would write it
 
-- *Typst is a runtime dependency.* Tangling asks the document for its declarations, so the binary has to
-  find `typst` when it runs — and a package that works only when the user happens to have the right
-  thing on their `PATH` is not a package. The wrapper puts it there.
-- *One test belongs to the document, not to the program.* `the_document_regenerates_the_sources_we_are_running`
-  asserts that `lp.typ` at the repository root regenerates this tree; in a build of the tree there is no
-  repository root above it, and the assertion would be asking the wrong question. It is skipped here, and
-  it keeps running in the repository that has a document.
+`crane` builds it, and what that buys is one thing said three ways: the dependency graph is compiled once
+and every later step reuses it. A `typst`-sized graph rebuilt for each of lint, test and build would make
+the checks below too expensive to keep, which is the same as not having them.
+
+Four things here are this tool's own, and every one of them was found by a failure:
+
+- *Typst is a runtime dependency and a test dependency.* Tangling asks the document for its declarations,
+  so both the binary and the tests that tangle have to find `typst` — the wrapper for the first, an input
+  for the second. A package that works only when the user happens to have the right thing on their `PATH`
+  is not a package.
+- *`src` is the whole tree.* Not cargo's idea of a source: `src/metadata.rs` reads the package with
+  `include_str!`, `src/embedded.rs` reads the book with `include_dir!`, and
+  `the_document_regenerates_the_sources_we_are_running` re-tangles the book against the tree it is running
+  in. That last one is why the filtering below is applied to the *dependencies* and not to the crate: the
+  test is an assertion about the tree, so the tree has to be the input. It runs in a build of the tree as
+  much as in the repository, which is what D15 made true when it rewrote the test to read the map beside
+  the crate instead of a path above it.
+- *`CARGO_HOME` is moved out of the source.* Crane puts it in `$PWD/.cargo-home`, and the same test asks
+  whether the output directory holds anything the document does not account for. A build tool writing into
+  the directory under test makes that question unanswerable, so it writes elsewhere.
+- *The round trip is a check rather than a condition of the build.* Rendering the document and reading the
+  book back out of both carriers is a thing to assert, not a thing to make someone pay for by installing
+  `lp`.
 
 #chunk("nix: the package", ````nix
-{ lib, rustPlatform, typst, makeWrapper }:
+{ inputs }:
+{
+  perSystem =
+    {
+      config,
+      pkgs,
+      lib,
+      ...
+    }:
+    let
+      # One toolchain for build, lint and test: crane takes it from nixpkgs, so there is no
+      # second source of `rustc` and no overlay to keep in step.
+      craneLib = inputs.crane.mkLib pkgs;
 
-rustPlatform.buildRustPackage rec {
-  pname = "lp";
-  version = "0.1.0";
+      # What a Cargo build reads, as a fileset rather than `./.`. Used for the *dependencies*
+      # below, which is where it matters: they only depend on the manifests, so editing the
+      # document does not rebuild typst.
+      cargoSources = craneLib.fileset.commonCargoSources ./.;
 
-  src = ./.;
-  cargoLock.lockFile = ./Cargo.lock;
+      # The crate's own src is the whole tree, and not because of taste: `tests/self.rs` reads
+      # `.lpmap.json` from beside the crate and then re-tangles the book with `--check` against
+      # the tree it is running in. That invariant is about the *tree*, so the tree has to be the
+      # input — a cargo-filtered src cannot hold it. `.rs` and `.toml` alone got as far as
+      # `the map beside the crate: No such file or directory`.
+      #
+      # `./.` is git-filtered for a flake, so `target/` is not in it, and what filtering buys —
+      # not recompiling the dependency graph for a document edit — is bought by `cargoArtifacts`.
+      src = ./.;
 
-  nativeBuildInputs = [ makeWrapper ];
-  nativeCheckInputs = [ typst ];
+      # Dependencies only, built once and shared by every step that compiles something. This is
+      # the whole reason to reach for crane: a `typst`-sized dependency graph compiled once
+      # instead of once per lint, test and build.
+      cargoArtifacts = craneLib.buildDepsOnly {
+        src = lib.fileset.toSource {
+          root = ./.;
+          fileset = cargoSources;
+        };
+      };
 
-  # The round trip as a condition of the build: render the document with the binary that was just built,
-  # take the book back out of each rendering, and compare it with the source it was woven from. A carrier
-  # that loses a byte fails here, before anything is installed. The renderings stay in the build directory
-  # because the install phase runs after this one and can only copy.
-  #
-  # The source tree is read-only in the sandbox, and the tool unpacks its package beside the document it
-  # evaluates, so it works on a copy of the book — the same three files the book names in `tangle-options`.
-  postCheck = ''
-    runHook preCheck
+      # Crane defaults `CARGO_HOME` to `${PWD}/.cargo-home` — *inside* the unpacked source. That is
+      # harmless for a build and fatal for `tests/self.rs`, which asks `lp tangle --check` whether
+      # the output directory holds anything the document does not account for: crane's scratch
+      # counts as five stray files (`nothing accounts for these files: .cargo-home/.global-cache`,
+      # `.package-cache`, `.package-cache-mutate`, `config.toml`, `registry/CACHEDIR.TAG`).
+      #
+      # Moving it out of the tree keeps the tree clean, which is the whole point of putting the
+      # self-reproduction test in the same derivation. The hook honours a preset `CARGO_HOME`
+      # (`${CARGO_HOME:-...}`), and the vendored registry config follows `CARGO_HOME`, so nothing
+      # else changes. nixpkgs' `buildRustPackage` does not do this, which is why the old stack
+      # never had to know.
+      cargoHome = "/build/cargo-home";
 
-    # `postCheck` is a hook, not a phase: this attribute *is* the function of that name, so a
-    # `runHook postCheck` here would call this script again — which reads as a hang, and did.
+      lp = craneLib.buildPackage {
+        inherit src cargoArtifacts;
+        CARGO_HOME = cargoHome;
 
-    # The check phase runs from the source root, which for this flake is a *tree*: `src = ./.` is the
-    # generated tree, and the document lives in its book directory rather than at the root.
-    root=$PWD
-    test -f "$root/book/lp.typ"
-    package=$NIX_BUILD_TOP/doc
-    echo "postCheck: root=$root"
+        # Tests are their own check below. Running them here too would make the package fail
+        # before a reader could see which test broke.
+        doCheck = false;
 
-    # The target directory is the cargo hook's business, not ours — including the triple it puts in the
-    # path — so the binary is looked for rather than assumed, and the check that it was found is explicit.
-    lpbin=$(find "$root/target" -maxdepth 4 -type f -name lp -perm -u+x -print -quit)
-    test -x "$lpbin"
+        # `wrapProgram` below is the only thing this crate needs that cargo does not provide.
+        nativeBuildInputs = [ pkgs.makeWrapper ];
 
-    # Two copies of the same three files: one stays pristine and is what the extraction is compared with,
-    # and the other is where the weaving happens — because weaving unpacks the package beside the document
-    # it is evaluating, which is the tool's own state and not part of the book.
-    mkdir -p "$package/src" "$package/work"
-    for file in lp.typ README.md .gitignore; do
-      cp "$root/book/$file" "$package/src/$file"
-      cp "$root/book/$file" "$package/work/$file"
-    done
-    # The HTML export warns once per chunk about the spacing the package's tile renderer asks for and HTML
-    # ignores; it is informational, and there is one per chunk, so this phase is loud by design.
-    ( cd "$package/work" && "$lpbin" weave lp.typ ../lp.pdf && "$lpbin" weave lp.typ ../lp.html --features html )
+        # `lp weave` is `typst compile` with the package in scope, so the binary needs the
+        # compiler on its PATH. Nothing else about the build needs Typst: this is a wrapper,
+        # not a dependency of the crate.
+        postInstall = ''
+          wrapProgram $out/bin/lp --prefix PATH : ${lib.makeBinPath [ pkgs.typst ]}
+        '';
+      };
 
-    for format in pdf html; do
-      back=$(mktemp -d)
-      "$lpbin" extract --format "$format" "$package/lp.$format" --out "$back"
-      diff -r "$package/src" "$back"
-    done
+      # The round trip: render the document with the binary just built, take the book back out of
+      # both carriers, and compare it with the source it was woven from. A carrier that loses a
+      # byte fails here. A check rather than a build condition, because someone installing `lp`
+      # has no business paying for a PDF they did not ask for.
+      roundtrip = pkgs.runCommand "lp-roundtrip" { nativeBuildInputs = [ pkgs.typst ]; } ''
+        work=$PWD/work
+        mkdir -p "$work/src" "$work/run"
 
-  '';
+        # The book names these three files in `tangle-options`. Two copies: one to compare
+        # against, one to weave in — weaving unpacks the package beside the document, which is
+        # the tool's own state and not part of the book.
+        for file in lp.typ README.md .gitignore; do
+          cp "${./book}/$file" "$work/src/$file"
+          cp "${./book}/$file" "$work/run/$file"
+        done
 
-  postInstall = ''
-    wrapProgram $out/bin/lp --prefix PATH : ${lib.makeBinPath [ typst ]}
+        ( cd "$work/run" && ${lp}/bin/lp weave lp.typ ../lp.pdf && ${lp}/bin/lp weave lp.typ ../lp.html --features html )
 
-    # What `postCheck` rendered and verified, into the package's own share directory: the document as a PDF
-    # and as a page, each one carrying the source it was woven from.
-    package=$NIX_BUILD_TOP/doc
-    install -Dm444 "$package/lp.pdf" "$package/lp.html" -t "$out/share/doc/lp/"
-    cp -r "$package/src" "$out/share/doc/lp/src"
-  '';
+        for format in pdf html; do
+          ${lp}/bin/lp extract --format "$format" "$work/lp.$format" --out "$work/back-$format"
+          diff -r "$work/src" "$work/back-$format"
+        done
+        touch "$out"
+      '';
 
-  meta = {
-    description = "Literate programming: tangling sources out of a Typst document";
-    mainProgram = "lp";
-  };
+      # The checks that build or read something, named once so two consumers can share the set:
+      # `checks` below adds the shell, and the shell folds these in.
+      #
+      # No `cargoFmt` here. Formatting is treefmt's job, and two tools disagreeing about
+      # rustfmt's options is worse than either one alone.
+      gates = {
+        package = lp;
+
+        test = craneLib.cargoTest {
+          inherit src cargoArtifacts;
+          CARGO_HOME = cargoHome;
+
+          # Tangle asks the document for its declarations, so the tests need the compiler on
+          # PATH exactly the way the tool does at runtime. Without this every test that tangles
+          # fails with `no typst binary found` — which is how this line was found.
+          nativeBuildInputs = [ pkgs.typst ];
+        };
+
+        clippy = craneLib.cargoClippy {
+          inherit src cargoArtifacts;
+          CARGO_HOME = cargoHome;
+          cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+        };
+
+        inherit roundtrip;
+      };
+    in
+    {
+      packages = {
+        inherit lp;
+        default = lp;
+      };
+
+      # The shell is a check too — a shell that cannot be built is a shell nobody uses — but it
+      # is not one of `gates`, because the shell folds those in. Listing it in both is how you
+      # get `infinite recursion encountered`: the shell would contain itself.
+      checks = gates // {
+        devShell = config.devShells.default;
+      };
+
+      # Every tracked file that has a formatter, formatted by the same treefmt the CI runs. This
+      # is the gate that covers more than the crate: `flake.nix`, `lp.nix`, the manifests and
+      # the workflows are all tangled out of the document, so a complaint here is a complaint
+      # about the *document*, and the fix is to edit it — the same discipline the crate's
+      # indentation already lives under.
+      #
+      # Every tracked file that has a formatter — and, with the last five, every tracked file
+      # that has a *check*. This is the gate that covers more than the crate: `flake.nix`,
+      # `lp.nix`, the manifests, the workflows and the book are all tangled out of the document,
+      # so a complaint here is a complaint about the *document*, and the fix is to edit it. The
+      # same discipline the crate's indentation already lives under, widened to every language.
+      #
+      # What it does not cover, it says: treefmt logs `no formatter for path` for `.lpignore`,
+      # `.gitignore` and the demo's `expected.txt` — "not looked at", not "passed".
+      treefmt = {
+        projectRootFile = "flake.nix";
+
+        programs = {
+          # Eight that reformat.
+          nixfmt.enable = true;
+          taplo.enable = true;
+          rustfmt.enable = true;
+          typstyle.enable = true;
+          mdformat.enable = true;
+          jsonfmt.enable = true;
+
+          # These two default to opinions the document already made differently. yamlfmt drops
+          # the blank lines between jobs; shfmt wants two spaces, no space after a redirect, and
+          # no aligned trailing comments. All four are readability choices in files a person
+          # reads, so the formatter is told rather than obeyed. (`settings` is the program's own
+          # config file — yamlfmt's schema starts at `formatter`.)
+          yamlfmt = {
+            enable = true;
+            settings.formatter.retain_line_breaks = true;
+          };
+          shfmt = {
+            enable = true;
+            indent_size = 4;
+          };
+
+          # Five that report or repair rather than reformat. They are here for one reason: this
+          # is the file that runs in CI, and a lint that only ever runs in a local script is a
+          # lint nobody runs. actionlint and zizmor exit non-zero on a finding, which treefmt
+          # surfaces as a failure; deadnix and statix rewrite the file, which treefmt notices.
+          actionlint.enable = true;
+          zizmor.enable = true;
+          shellcheck.enable = true;
+          deadnix.enable = true;
+          statix.enable = true;
+        };
+
+        # shfmt's two: a space after redirect operators, and keep the column alignment of
+        # trailing comments.
+        settings.formatter.shfmt.options = [
+          "-sr"
+          "-kp"
+        ];
+
+        # zizmor fails on *any* finding, and this tree has three `artipacked` ones its policy
+        # accepts on purpose — the same severity floor `dev.sh` uses, and the difference between
+        # a gate and a permanent red.
+        settings.formatter.zizmor.options = [
+          "--min-severity"
+          "high"
+        ];
+      };
+
+      # `craneLib.devShell` folds every gate's inputs in, so clippy and the toolchain are on PATH
+      # and the checks above are runnable by hand in the environment CI uses.
+      devShells.default = craneLib.devShell {
+        checks = gates;
+        packages = [
+          config.treefmt.build.wrapper
+          pkgs.typst
+        ];
+      };
+    };
 }
 ````)
 
 == The flake, and the systems it is for
 
-Three systems, named once. `checks` holds the two things worth saying about this flake: that the package
-builds, and that the development shell can be constructed — a shell that cannot be built is a shell
-nobody uses. `nix flake check` builds both for the machine it runs on and evaluates the rest, so a typo
-in the Darwin branch of anything is caught on Linux.
+Three systems, named once, and `flake-parts` is the skeleton that makes naming them once enough. Five
+inputs, and each of them is told to follow ours rather than fetch a copy of nixpkgs of its own; crane
+brings no inputs at all, which is how a library that does this much costs one line here. That flatness is
+not decoration — a second nixpkgs in the graph is a second `rustc`, and the one place where versions
+really matter is the compiler.
+
+The checks are the point of the flake. One per promise, so CI fails on the promise and not on "the build":
+
+- `package` — it builds.
+- `test` — it passes its own tests, including the one about the document regenerating this tree.
+- `clippy` — it is lint-clean, with warnings denied.
+- `treefmt` — every file a formatter has an opinion about is formatted, and the formatters own the
+  document's own code as much as the crate's. (No `cargoFmt`: two tools disagreeing about rustfmt's
+  options is worse than either one alone.)
+- `roundtrip` — the book survives both carriers.
+- `devShell` — the shell can be constructed, because a shell that cannot be built is a shell nobody uses.
+
+`nix flake check` builds every one of those for the machine it runs on and evaluates the rest, so a typo in
+the Darwin branch of anything is caught on Linux. And because the list *is* an attribute of the flake, the
+workflow never repeats it: `githubActions` renders it into a build matrix, which is how the three systems
+stop being a claim and become something that ran.
 
 #chunk("nix: the flake", ````nix
 {
   description = "lp: literate programming for Typst documents";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-  outputs = { nixpkgs, ... }:
-    let
-      systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
-      each = nixpkgs.lib.genAttrs systems;
-      lp = system: (import nixpkgs { inherit system; }).callPackage ./lp.nix { };
-      shell = system: (import nixpkgs { inherit system; }).mkShell {
-        inputsFrom = [ (lp system) ];
-      };
-    in {
-      packages = each (system: {
-        default = lp system;
-        lp = lp system;
-      });
+    # The skeleton. `nixpkgs-lib` follows ours so the module system does not fetch a second
+    # nixpkgs — without that line flake-parts costs a whole extra dependency tree.
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
-      devShells = each (system: { default = shell system; });
+    crane.url = "github:ipetkov/crane";
 
-      checks = each (system: {
-        package = lp system;
-        devShell = shell system;
-      });
-    };
+    nix-github-actions.url = "github:nix-community/nix-github-actions";
+    nix-github-actions.inputs.nixpkgs.follows = "nixpkgs";
+
+    treefmt-nix.url = "github:numtide/treefmt-nix";
+    treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs =
+    inputs@{ flake-parts, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } (
+      { config, ... }:
+      {
+        systems = [
+          "x86_64-linux"
+          "aarch64-linux"
+          "aarch64-darwin"
+        ];
+
+        imports = [
+          (import ./lp.nix { inherit inputs; })
+          inputs.treefmt-nix.flakeModule
+        ];
+
+        # The workflow's matrix is this attribute, so the list of checks exists once — in the
+        # flake — and the YAML only says "build whatever the flake says to build".
+        flake.githubActions = inputs.nix-github-actions.lib.mkGithubMatrix {
+          inherit (config.flake) checks;
+        };
+      }
+    );
 }
 ````)
 
 == The workflow
 
-Four steps: check the generation out, get Nix, get the cache, and run the check. The cache is where a
-pipeline like this earns its keep — a Rust build with Nix is several hundred derivations, and the second
-run should download them instead of building them.
+Three jobs. `matrix` asks the flake which checks exist, so the list of them lives in one place and adding
+one is an edit to `lp.nix`. `check` builds each of them on the runner its system calls for — the matrix
+knows that `aarch64-linux` means an arm runner and `aarch64-darwin` means a Mac, so the three systems are
+three native builds rather than one build and two guesses. `prove` runs the other direction: it unpacks
+the book the binary carries, tangles it, and runs this tree's own checks in what comes out, which is what
+catches a document that no longer reproduces its tree.
 
-The cache name is the Cachix cache this repository pushes to; the token comes from a secret, because a
-signing key in a workflow file is a signing key given away.
+The cache is where a pipeline like this earns its keep — a Rust build with Nix is hundreds of derivations,
+and the second run should download them instead of building them. The name is the Cachix cache this
+repository pushes to; the token comes from a secret, because a signing key in a workflow file is a signing
+key given away.
+
+The workflow asks for `contents: read` and nothing more, because neither job writes; it hands the matrix
+attribute in through the environment rather than into the shell; and it keeps a policy file beside it. Each
+of those is a finding from the linter, and the linter runs here — in `treefmt`, on every build — rather than
+in a script someone remembers to call.
 
 #chunk("nix: the workflow", ````yaml
 name: check
+
+# Neither job writes anything: the read token is the whole of what these two need, and saying
+# so is what keeps the actions' `@vN` pins acceptable (see zizmor.yml).
+permissions:
+  contents: read
 
 on:
   push:
@@ -6896,8 +7139,28 @@ on:
     - cron: "0 6 * * *"
 
 jobs:
+  # The list of checks lives in the flake, not here. This job asks the flake what to build and
+  # the next one builds all of it, one runner per entry — so adding a check is a change to
+  # lp.nix and needs no edit to this file.
+  matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - id: set-matrix
+        name: ask the flake which checks exist
+        run: echo "matrix=$(nix eval --json '.#githubActions.matrix')" >> "$GITHUB_OUTPUT"
+
   check:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.name }} (${{ matrix.system }})
+    needs: matrix
+    strategy:
+      # One failing check should not hide the other seventeen.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
@@ -6905,11 +7168,45 @@ jobs:
         with:
           name: linyinfeng
           signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
-      # Build this tree's own tool, then hand it the book it carries: `self prove` unpacks the book into
-      # an empty directory, tangles it, and runs this tree's own checks there.
-      - run: nix build .#lp --no-update-lock-file
+      # `--no-update-lock-file`: the lock is part of the book this tree carries, so a lock that
+      # does not match is drift to fail on, not a lock to quietly resolve.
+      # The attribute goes through the environment rather than into the command line: zizmor's
+      # one remaining warning was that `${{ }}` in a `run` block expands into shell.
+      - run: nix build -L --no-update-lock-file ".#$ATTR"
+        env:
+          ATTR: ${{ matrix.attr }}
+
+  # The checks above test the tree as committed. This one tests the other direction: unpack the
+  # book the binary carries, tangle it, and run this tree's own checks on what comes out — so a
+  # document that no longer reproduces its tree fails here, not in a reader's clone.
+  prove:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v17
+        with:
+          name: linyinfeng
+          signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
+      - run: nix build -L --no-update-lock-file .#lp
       - run: ./result/bin/lp self prove /tmp/proved
 ````)
+
+The policy file travels with the tree for the same reason the workflow does: `zizmor` now runs *in* the
+build, as one of treefmt's programs, so what it reads has to be part of what the tree is. It is the same
+file the local `gates` script points `zizmor` at, which is why it argues for the `@vN` pins only once.
+
+#chunk("nix: the zizmor policy", ````yaml
+# zizmor, for every workflow this repository has: main's `tangle.yml` and the one this tree carries.
+# The policy accepts moving tags for actions (`actions/checkout@v7`, `dtolnay/rust-toolchain@stable`):
+# readable, and the write token's scope is bounded by `permissions:` in the workflow itself. So that one
+# audit is off; everything else stands.
+
+rules:
+  unpinned-uses:
+    disable: true
+````)
+
 
 = What this repository carries
 
@@ -7163,7 +7460,7 @@ The last section is the one to keep in mind while reading the rest of this docum
 points at a chunk is the difference between a generator and a tool you can debug.
 
 #chunk("demo: the document's opening", ````typst
-#import "@local/lp:0.1.0": chunk, file, tangle-options, show-rule
+#import "@local/lp:0.1.0": chunk, file, show-rule, tangle-options
 #show: show-rule
 
 #set page(width: 15cm, height: auto, margin: 2cm)
@@ -9002,6 +9299,61 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 #chunk("lock: the nix inputs", ````json
 {
   "nodes": {
+    "crane": {
+      "locked": {
+        "lastModified": 1788465171,
+        "narHash": "sha256-Y1/TTVXjYXGF068IThQH9fPSZ0SIE74PABlUxnWTUH0=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "eb35abda9f232cc6610b1d1e3200d15c49b7ac54",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ipetkov",
+        "repo": "crane",
+        "type": "github"
+      }
+    },
+    "flake-parts": {
+      "inputs": {
+        "nixpkgs-lib": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788450739,
+        "narHash": "sha256-glZLQlzIn1fXH6PazR2iUmTo7kzzyYSshrWhLS9TqCU=",
+        "owner": "hercules-ci",
+        "repo": "flake-parts",
+        "rev": "31729ca8cbdb4fa927b34e5f4353e6a83f39e993",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hercules-ci",
+        "repo": "flake-parts",
+        "type": "github"
+      }
+    },
+    "nix-github-actions": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1737420293,
+        "narHash": "sha256-F1G5ifvqTpJq7fdkT34e/Jy9VCyzd5XfJ9TO8fHhJWE=",
+        "owner": "nix-community",
+        "repo": "nix-github-actions",
+        "rev": "f4158fa080ef4503c8f4c820967d946c2af31ec9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "nix-github-actions",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1789006805,
@@ -9020,7 +9372,31 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
     },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "crane": "crane",
+        "flake-parts": "flake-parts",
+        "nix-github-actions": "nix-github-actions",
+        "nixpkgs": "nixpkgs",
+        "treefmt-nix": "treefmt-nix"
+      }
+    },
+    "treefmt-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786901030,
+        "narHash": "sha256-WSFCsDSE5ffgD2MqzkM2CYjeFiKhRF/dJUN8uedb6YE=",
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "rev": "27b3b12a8e6375f28ebe122f07d230ca5459bbfa",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "type": "github"
       }
     }
   },
