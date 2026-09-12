@@ -10,7 +10,8 @@ thinking lives; the code is quoted into it as the evidence that makes the thinki
 
 The book has three parts, and they are three ways of asking the same question. *Writing a literate
 program* is the method: what the four claims cost, how a program is arranged when the reader decides the
-order, how to read what someone else wrote that way, and when it is not worth it. *The tool* is the
+order, how to read what someone else wrote that way, when it is not worth it, and what changes when the reader
+is not a person. *The tool* is the
 design walk: what a declaration is, what a pass does with it, how the result is read back, and why each
 of those choices is the one it is. *This repository* is the evidence: the tests, the build, the seed,
 and the two lock files the document carries verbatim.

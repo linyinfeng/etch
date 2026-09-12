@@ -16,6 +16,7 @@
     "chapters/reading-a-literate-program.typ",
     "chapters/when-not-to.typ",
     "chapters/differences-from-web.typ",
+    "chapters/the-reader-that-is-not-a-person.typ",
     "chapters/package.typ",
     "chapters/weave.typ",
     "chapters/errors.typ",
@@ -61,6 +62,8 @@
 #include "chapters/when-not-to.typ"
 
 #include "chapters/differences-from-web.typ"
+
+#include "chapters/the-reader-that-is-not-a-person.typ"
 
 = Part II — The tool
 

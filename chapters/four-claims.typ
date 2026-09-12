@@ -77,13 +77,9 @@ take from that is not that the method is wrong but that **it has to pay off now*
 comes back to the declaration, a drift check. A tool that only pays off later is a tax, and a tax gets
 uninstalled.
 
-The last decade added an argument on each side. On one side, a generated document is exactly the context a
-reader with no history needs, and a web of named pieces is already the shape of a top-level intent with details
-underneath — which is why the method fits a reader that arrives without having written any of it. On the other,
-skipping the explanation has never been cheaper, since a program can be summarised on demand. What that makes
-the document, in a workflow with a model in it, is a *constraint* rather than a style: the book is the only
-source, every edit goes there, and `--check` is what keeps the two from drifting apart. That is the shape this
-repository chose, and it is a claim about the work rather than about taste.
+The last decade added a reader that is neither a person nor a compiler, and that is a large enough change to
+have a chapter of its own at the end of this part. The short version: it makes an arrangement written for a
+reader invisible, unless the document *is* what gets read.
 
 How to write one, how to read one, when not to, and where this tool departs from WEB are the next four
 chapters; the tool after them is this argument's longest example.
