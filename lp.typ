@@ -44,6 +44,7 @@
     "chapters/the-build-environment.typ",
     "chapters/the-programs-own-pipeline.typ",
     "chapters/this-repository.typ",
+    "chapters/what-comes-from-outside.typ",
     "chapters/appendix-what-is-pinned.typ",
   ),
 ))
@@ -121,5 +122,7 @@
 #include "chapters/the-programs-own-pipeline.typ"
 
 #include "chapters/this-repository.typ"
+
+#include "chapters/what-comes-from-outside.typ"
 
 #include "chapters/appendix-what-is-pinned.typ"
