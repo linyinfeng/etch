@@ -23,6 +23,11 @@ These are not style preferences; each one was paid for.
   anything by itself.
 - *Only changed bytes are written, and a document that does not evaluate is not tangled.*
   The previous good output stays until the document is valid again.
+- *A read is not an edit, and the tool's own output is not a reason to run again.* A watcher that reacts
+to its own reading watches itself: this one ran a pass every two hundred milliseconds, forever, until
+someone counted the passes instead of watching the output. What the tool writes is the result of a pass,
+not a cause of one; what a person writes is a cause, and that is why the output directory is drained
+rather than ignored.
 - *The order is free and the language tag is data* (D18). Thought-first, progressive
   disclosure and logical consistency cannot be checked by a tool, so they are the
   writer's job: this book argues for them, and no check can do it instead.
