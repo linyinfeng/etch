@@ -6747,6 +6747,9 @@ rustPlatform.buildRustPackage rec {
   postCheck = ''
     runHook preCheck
 
+    # `postCheck` is a hook, not a phase: this attribute *is* the function of that name, so a
+    # `runHook postCheck` here would call this script again — which reads as a hang, and did.
+
     # The check phase runs from the source root, which for this flake is a *tree*: `src = ./.` is the
     # generated tree, and the document lives in its book directory rather than at the root.
     root=$PWD
