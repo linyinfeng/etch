@@ -73,7 +73,7 @@ and the process. Two of the reasons are hard to argue with. Editors, version con
 absorbed part of what prose was needed for, so the gap the document fills is narrower than it was. And
 documentation is written for a future reader who does not exist yet, which means the person paying the cost is
 never the person being paid — the same economics that make comments stale everywhere. The lesson a tool should
-take from that is not that the method is wrong but that **it has to pay off now**: live sync, a diagnostic that
+take from that is not that the method is wrong but that *it has to pay off now*: live sync, a diagnostic that
 comes back to the declaration, a drift check. A tool that only pays off later is a tax, and a tax gets
 uninstalled.
 
