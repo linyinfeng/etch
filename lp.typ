@@ -921,12 +921,35 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
         <<tangle: record where each line came from>>
     }
 
+    let mut book_copies = Vec::new();
+    if let Some(settings) = &book {
+        let absolute: Vec<PathBuf> = docs
+            .iter()
+            .map(|doc| doc.canonicalize().unwrap_or_else(|_| doc.clone()))
+            .collect();
+        book_copies = crate::book::plan(settings, &metadata::common_ancestor(&absolute), docs)?;
+        for copy in &book_copies {
+            let (dir, name) = split(&copy.to);
+            if maps
+                .get(Path::new(dir))
+                .is_some_and(|map| map.files.contains_key(name))
+            {
+                return Err(
+                    LpError::plain(format!("the book would overwrite {}", copy.to)).with_help(
+                        "a declaration writes that path; change `book-directory` or `book-files`",
+                    ),
+                );
+            }
+        }
+    }
+
     Ok(Plan {
         maps,
         texts,
         warnings,
         blocks,
         book,
+        book_copies,
     })
 }
 
@@ -1286,6 +1309,8 @@ pub struct Plan {
     pub blocks: Vec<Block>,
     /// What the document asked for, if it asked.
     pub book: Option<Book>,
+    /// The book's files, resolved against the source tree and ready to be carried.
+    pub book_copies: Vec<crate::book::Copy>,
 }
 
 /// The settings a document declares, or an error naming what is missing.
@@ -1468,7 +1493,8 @@ is exactly one answer to that question and no chance of the two disagreeing.
 #chunk("tangle: what the documents produce, per directory", ````rust
 /// What the documents produce, per directory: what `status.rs` counts against.
 pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
-    plan.maps
+    let mut produced: BTreeMap<String, BTreeSet<String>> = plan
+        .maps
         .iter()
         .map(|(dir, map)| {
             (
@@ -1476,7 +1502,17 @@ pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
                 map.files.keys().cloned().collect(),
             )
         })
-        .collect()
+        .collect();
+    // The book is output too: carried by the pass rather than written by a declaration, and just as much
+    // this pass's business — so the ownership check reads it as accounted for.
+    for copy in &plan.book_copies {
+        let (dir, name) = split(&copy.to);
+        produced
+            .entry(dir.to_string())
+            .or_default()
+            .insert(name.to_string());
+    }
+    produced
 }
 ````)
 
@@ -1541,6 +1577,13 @@ pass writes one, and checking first would refuse to bootstrap.
 // the files above, because `.lpignore` is one of the things a document can produce.
 // A fresh repository has no control file yet, and the pass that writes it is the
 // pass that makes the tree consistent (ADR D20).
+if !plan.book_copies.is_empty() {
+    let carried = crate::book::place(out, &plan.book_copies, check)?;
+    if carried > 0 {
+        let plural = if carried == 1 { "" } else { "s" };
+        println!("carried {carried} book file{plural}");
+    }
+}
 outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
 if !outcome.unaccounted.is_empty() {
     let listed = outcome
@@ -1672,6 +1715,143 @@ mod tests {
     }
 }
 ````)
+== Carrying the book into what it produced
+
+A tree that cannot be read on its own is a build artifact; a tree that carries the document which
+produced it is a program with its source of truth beside it. So a document may ask for the copy:
+
+```typst
+#tangle-options((book-directory: "book", book-files: ("*.typ", "README.md")))
+```
+
+Every file under the book's root that matches one of those globs — plus the documents themselves, which
+are the book whatever else it holds — is copied into the output directory under `book-directory`, keeping
+the shape it had in the source. The globs are matched the way a `.gitignore` matches, against the source
+tree, and they respect its own `.gitignore` files: what the source calls ignored is not part of the book.
+
+The copy is output like everything else: written only when its bytes differ, part of what `--check`
+compares, and accounted for by the ownership check rather than reported as a stray.
+
+#file("src/book.rs", ````rust
+<<book: the module note>>
+
+<<book: the imports>>
+
+<<book: what the settings ask for>>
+
+<<book: carrying it over>>
+````)
+
+#chunk("book: the module note", ````rust
+//! Carrying the book into the tree it produced.
+//!
+//! The document says where and which; this walks the source tree, matches, and copies. Nothing here
+//! knows about any declaration: it works on paths and globs, which is all the settings are.
+````)
+
+#chunk("book: the imports", ````rust
+use std::path::{Path, PathBuf};
+
+use ignore::WalkBuilder;
+use ignore::gitignore::GitignoreBuilder;
+
+use crate::diag::LpError;
+use crate::map::Book;
+````)
+
+#chunk("book: what the settings ask for", ````rust
+/// One file to carry: where it comes from, and where it goes, relative to the output directory.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Copy {
+    pub from: PathBuf,
+    pub to: String,
+}
+
+/// Resolve the settings against the source tree. Nothing is written here — the plan can be checked
+/// before anything moves.
+pub fn plan(settings: &Book, anchor: &Path, docs: &[PathBuf]) -> Result<Vec<Copy>, LpError> {
+    let mut matcher = GitignoreBuilder::new(anchor);
+    for glob in &settings.files {
+        matcher.add_line(None, glob).map_err(|err| {
+            LpError::plain(format!("book-files: {glob}: {err}"))
+                .with_help("globs are written the way a .gitignore writes them")
+        })?;
+    }
+    let matcher = matcher
+        .build()
+        .map_err(|err| LpError::plain(format!("book-files: {err}")))?;
+
+    let documents: Vec<PathBuf> = docs
+        .iter()
+        .map(|doc| doc.canonicalize().unwrap_or_else(|_| doc.clone()))
+        .collect();
+
+    // The walk applies the source tree's own `.gitignore` files to every entry, and `require_git(false)`
+    // is what makes that true outside a repository — a build directory is not one, and a tree must not
+    // depend on which of the two it came from. The machine's global rules and any parent's are turned
+    // off: what the book is should be a property of the book.
+    let walk = WalkBuilder::new(anchor)
+        .git_ignore(true)
+        .require_git(false)
+        .git_global(false)
+        .git_exclude(false)
+        .parents(false)
+        .build();
+
+    let mut copies = Vec::new();
+    for entry in walk {
+        let entry =
+            entry.map_err(|err| LpError::plain(format!("reading {}: {err}", anchor.display())))?;
+        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+            continue;
+        }
+        let path = entry.path();
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let wanted = matcher.matched(path, false).is_ignore() || documents.contains(&canonical);
+        if !wanted {
+            continue;
+        }
+        let relative = path.strip_prefix(anchor).unwrap_or(path);
+        copies.push(Copy {
+            from: path.to_path_buf(),
+            to: format!(
+                "{}/{}",
+                settings.directory.trim_end_matches('/'),
+                relative.to_string_lossy().replace('\\', "/")
+            ),
+        });
+    }
+    copies.sort_by(|a, b| a.to.cmp(&b.to));
+    Ok(copies)
+}
+````)
+
+#chunk("book: carrying it over", ````rust
+/// Write the copies whose bytes differ, and say how many those were. Under `check` nothing is written:
+/// a copy that is missing or different is the tree being out of date, which is the same failure as an
+/// output that no longer matches its document.
+pub fn place(out: &Path, copies: &[Copy], check: bool) -> Result<usize, LpError> {
+    let mut written = 0;
+    for copy in copies {
+        let path = out.join(&copy.to);
+        let bytes = std::fs::read(&copy.from).map_err(|err| LpError::io(&copy.from, err))?;
+        if std::fs::read(&path).ok().as_deref() == Some(bytes.as_slice()) {
+            continue;
+        }
+        if check {
+            return Err(LpError::plain(format!("{} is out of date", path.display()))
+                .with_help("run `lp tangle` without `--check` to carry the book again"));
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
+        }
+        std::fs::write(&path, &bytes).map_err(|err| LpError::io(&path, err))?;
+        written += 1;
+    }
+    Ok(written)
+}
+````)
+
 = Weaving the document
 
 Tangling writes the program; weaving renders the document you are reading. The second is Typst's job,
@@ -3238,6 +3418,7 @@ in this file are `lp --help`. Each command gets its own fragment, because each o
 promise about what the tool does.
 
 #chunk("main: the modules, and what they are called", ````rust
+mod book;
 mod diag;
 mod explain;
 mod map;
