@@ -5464,8 +5464,8 @@ jobs:
       - uses: cachix/install-nix-action@v31
       - uses: cachix/cachix-action@v16
         with:
-          name: lp
-          authToken: ${{ secrets.CACHIX_SIGNING_KEY }}
+          name: linyinfeng
+          signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
       - run: nix flake check --print-build-logs
 ````)
 
