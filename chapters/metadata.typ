@@ -25,6 +25,8 @@ impl Decl {
     <<metadata: a kind we do not know>>
 }
 
+<<metadata: unpacking the package>>
+
 <<metadata: finding typst>>
 
 pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError> {
@@ -122,14 +124,14 @@ pub fn kind(&self) -> Result<Kind, LpError> {
 
 == Finding typst, and putting the package where it can be imported
 
-The binary is a hard dependency: without it there are no declarations to read. An explicit override first,
-then `PATH`, and if neither works the error says what to do rather than failing later with a confusing
-message. The same fragment also unpacks the package the document imports, because both are the same
-question asked of the environment — what does Typst need in order to answer this document's imports? The
-package is the copy embedded in this binary, written under `.lp` next to the document, and it is rewritten
-only when the bytes differ, which is what keeps its mtime — and everything downstream of it — still.
+Two things have to be true before the question can be asked: there has to be a Typst binary, and the package
+the document imports has to be where Typst will look for it. The first is a hard dependency with an explicit
+override (`LP_TYPST`) in front of it and a failure that says what to do rather than what went wrong. The second is
+the copy of the package this binary carries, unpacked under `.lp` next to the document and rewritten only when
+its bytes differ — which is what keeps its mtime, and everything downstream of it, still. They are two fragments
+because they answer two questions, and the names say which.
 
-#chunk("metadata: finding typst", ````rust
+#chunk("metadata: unpacking the package", ````rust
 const PACKAGE_MANIFEST: &str = include_str!("../typst/typst.toml");
 const PACKAGE_ENTRY: &str = include_str!("../typst/lp.typ");
 
@@ -151,7 +153,9 @@ pub fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
     }
     Ok(packages)
 }
+````)
 
+#chunk("metadata: finding typst", ````rust
 pub fn binary() -> Result<PathBuf, LpError> {
     if let Some(path) = std::env::var_os("LP_TYPST") {
         return Ok(PathBuf::from(path));
