@@ -87,25 +87,24 @@ The declarations are the contract, so they are also where the help text lives: t
 file are `lp --help`. Each command gets its own fragment, because each one is a promise about what the tool
 does.
 
-One of those promises is to a reader that is a program. The commands that answer questions rather than
-writing files — `list`, `metadata`, `map`, `unaccounted` and `plan` — take `--json`, and a program that asks
-for it gets one JSON document instead of the table or the sentence. So does `tangle`, which is not a question:
-its document says what the pass it just ran did — which files it wrote, which were already right, and what it
-refused to call right. The two counts it prints beside that readout — book files carried and swept — are not
-in the document, because carrying a book is not a decision a program makes. The two are not two implementations: the same
-values are built once and rendered twice, because a second spelling of the same fact is a second fact that
-can go its own way. Every document starts with the same two fields — `version`, which is `1`, and `command`,
-which is the command's name — so a consumer can tell at a glance what it is reading. What the fields carry is
-the data a program acts on — a chunk, a line, a file, whether a mapping is exact — and prose stays prose:
-the warnings stay sentences in an array, there to be shown rather than taken apart, because nothing in a
-sentence about an unreferenced fragment is something a program can do anything with.
+The other half of that promise is where the two kinds of output go, and it is a rule rather than a flag.
+Standard output is data: every command that answers a question writes exactly one JSON document there, and a
+command that changes files writes one that says what it changed. Nothing else is written to standard output —
+no table, no sentence, not even "wrote" — so a program reads it without parsing anything, and a person pipes
+it into `jq`. Standard error is the log: what the tool did to the disk at `INFO`, and what it looked at, plus
+the report it would otherwise have printed, at `DEBUG`. `LP_LOG=debug` is how a person reads that report; the
+readouts this book quotes — `ok`, `wrote`, `STALE`, the sentence `map` answers with — are those log lines.
 
-What `--json` does not change is the shape of a failure. A command that could not answer exits non-zero, its
-report goes to stderr, and stdout carries no document at all — so a program can tell "the answer is empty"
-from "there is no answer", the way the shell does for every filter on the machine. A consumer that always
-finds a document on stdout and always tests the exit status is never surprised; one that parses whatever it
-was handed is. An answer that is bad news is not a failure and keeps its status: `unaccounted` still exits 1
-when something is unaccounted for, and it says so in the document rather than instead of it.
+Every document starts the same way — `version`, which is `1`, and `command`, which is the command's name —
+so a consumer can tell at a glance what it is reading. What the fields carry is the data a program acts on: a
+chunk, a line, a file, whether a mapping is exact. Prose stays prose, in the log, where nothing is expected to
+take it apart, and the two are not two implementations: the same values are built once and rendered twice,
+because a second spelling of the same fact is a second fact that can go its own way.
+
+A failure is not a document. A command that could not answer exits non-zero, writes its report to standard
+error, and leaves standard output empty — so a program can tell "the answer is empty" from "there is no
+answer", the way the shell does for every filter on the machine. Bad news is not a failure: `unaccounted`
+still exits 1 when something is unaccounted for, and it says so in the document rather than instead of it.
 
 #chunk("main: the modules, and what they are called", ````rust
 mod book;

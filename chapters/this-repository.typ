@@ -181,12 +181,13 @@ nix shell nixpkgs#typst -c ./tangled/target/debug/lp plan book/lp.typ --out .
 nix shell nixpkgs#typst -c ./tangled/target/debug/lp tangle book/lp.typ --out .
 ```
 
-The plan says what that pass would do — on a tree nobody has built yet, every file `would write` — and the
-tangle then says what it did: every file `ok` means your expansion and this document agree. A `wrote` means
-they do not — and the tool has just named the file, the line and the declaration to look at. That pass also
-writes the maps beside the generated files, which the tree's own tests read; `cargo test` after it is the
-whole suite, and the test that re-tangles this document into the tree it is running in is the same agreement,
-restated.
+The plan answers with a document that says what that pass would write — on a tree nobody has built yet, all of
+it — and the tangle answers with one that says what it did: an empty `changed` means your expansion and this
+document agree, and anything in `changed`, `drifted` or `missing` means they do not, with the file, the line
+and the declaration named. `LP_LOG=debug` prints the same thing as the readout this book used to quote, `ok`
+for a file that was already right and `wrote` for one that was not. That pass also writes the maps beside the
+generated files, which the tree's own tests read; `cargo test` after it is the whole suite, and the test that
+re-tangles this document into the tree it is running in is the same agreement, restated.
 
 == Keeping the seed in step
 

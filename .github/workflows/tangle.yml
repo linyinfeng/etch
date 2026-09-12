@@ -83,7 +83,8 @@ jobs:
 
           # An ignore rule can hide a file the document declares — the seed would then be a
           # generation missing part of itself, and only a fresh clone would notice.
-          declared=$(./tangled/target/debug/lp tangle lp.typ --check | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/^ok *//')
+          declared=$(./tangled/target/debug/lp tangle lp.typ --check |
+            jq -r '.unchanged[].root, .changed[].root' | sort -u)
           missing=$(printf '%s\n' "$declared" | while read -r file; do
             [ -z "$file" ] && continue
             git cat-file -e "$tree:$file" 2>/dev/null || echo "$file"

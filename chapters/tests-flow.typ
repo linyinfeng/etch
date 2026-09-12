@@ -83,7 +83,7 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: list_reports_declarations>>
 
-<<flow: the_reading_commands_speak_json_when_asked>>
+<<flow: the_reading_commands_speak_json>>
 
 <<flow: a_closed_pipe_is_not_a_panic>>
 
@@ -114,9 +114,9 @@ The cases, in the order they appear:
 - `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
-- `the_reading_commands_speak_json_when_asked` — `list`, `metadata` and `map` hand a program one JSON document, with the data behind the readout
+- `the_reading_commands_speak_json` — `list`, `metadata` and `map` hand a program one JSON document, with the data behind the readout
 - `plan_says_what_a_pass_would_do` — `lp plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
-- `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay prose on stdout
+- `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay in the log
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
@@ -766,9 +766,9 @@ fn map_takes_one_direction() {
 }
 ````)
 
-#chunk("flow: the_reading_commands_speak_json_when_asked", ````rust
+#chunk("flow: the_reading_commands_speak_json", ````rust
 #[test]
-fn the_reading_commands_speak_json_when_asked() {
+fn the_reading_commands_speak_json() {
     let (_guard, dir, _) = project(DOC);
     assert!(
         lp(&dir, &["tangle", "demo.typ", "--out", "out"])

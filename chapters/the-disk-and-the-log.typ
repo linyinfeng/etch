@@ -46,8 +46,10 @@ door, rather than at every caller.
 
 The log records what the tool did to the disk. It is not the tool's report to a reader: what a pass would
 write, which fragments nobody references, which files are nobody's — those are answers, and answers are
-data. A person reading a log wants to know what happened; a program reading standard output wants to know
-what is true. Keeping the two apart is what lets `lp tangle lp.typ | jq` mean something.
+data, on standard output. Every answer is also a log line at `DEBUG`, which is how a person reads it command
+by command, while `INFO` stays what it was: the record of a change. A person reading a log wants to know what
+happened; a program reading standard output wants to know what is true. Keeping the two apart is what lets
+`lp tangle lp.typ | jq` mean something.
 #chunk("disk: the imports", ````rust
 use std::path::Path;
 
