@@ -2227,12 +2227,21 @@ compile time, so `lp self` needs nothing beside it.
 - `lp self read --format (pdf|html)` weaves the document *it carries* into a temporary directory and hands
   the result to the desktop. Weaving reuses `lp weave`, because there is one way to render a document and
   it should not be written twice; opening is best effort — a machine with no desktop still gets the file
-  and its path. An HTML rendering carries the book with it, so what opens is a page that can give its own
-  source back.
+  and its path. Either rendering carries the book with it — the block in a page, the attached files in a
+  PDF — so what opens is something that can give its own source back.
 - `lp self prove <dir>` unpacks that book into `<dir>`, tangles it with *this* binary, and runs the
   tree's own checks in it: the whole bootstrap in one command, with nothing outside the binary but the
   toolchain it borrows. The lock file is part of the book, so nix is asked not to resolve one — writing
   one there would be drift.
+
+*And what it still needs, which is the other half of the same sentence:*
+
+- `lp self book` needs nothing. The book is bytes in the binary.
+- `lp self read` needs Typst: rendering is not this tool's work, so it borrows the compiler.
+- `lp self prove` needs Typst and nix, and the second one is the point rather than an accident. The tree
+  checks *itself* — `nix flake check` is the tree's own decision about itself, and it now renders this
+  document and reads the book back out of both carriers, so the round trip is a condition of the package
+  existing at all. A tool that ran those checks by hand would be claiming a guarantee it did not have.
 
 `include_dir` is the one dependency this adds, and the line D7 asks for: embedding a directory tree is
 `include_bytes!` at scale — one macro, no runtime dependency, and `Dir::extract` writes the tree back out
@@ -6728,8 +6737,56 @@ rustPlatform.buildRustPackage rec {
   nativeBuildInputs = [ makeWrapper ];
   nativeCheckInputs = [ typst ];
 
+  # The round trip as a condition of the build: render the document with the binary that was just built,
+  # take the book back out of each rendering, and compare it with the source it was woven from. A carrier
+  # that loses a byte fails here, before anything is installed. The renderings stay in the build directory
+  # because the install phase runs after this one and can only copy.
+  #
+  # The source tree is read-only in the sandbox, and the tool unpacks its package beside the document it
+  # evaluates, so it works on a copy of the book — the same three files the book names in `tangle-options`.
+  postCheck = ''
+    runHook preCheck
+
+    # The check phase runs from the source root, which for this flake is a *tree*: `src = ./.` is the
+    # generated tree, and the document lives in its book directory rather than at the root.
+    root=$PWD
+    test -f "$root/book/lp.typ"
+    package=$NIX_BUILD_TOP/doc
+    echo "postCheck: root=$root"
+
+    # The target directory is the cargo hook's business, not ours — including the triple it puts in the
+    # path — so the binary is looked for rather than assumed, and the check that it was found is explicit.
+    lpbin=$(find "$root/target" -maxdepth 4 -type f -name lp -perm -u+x -print -quit)
+    test -x "$lpbin"
+
+    # Two copies of the same three files: one stays pristine and is what the extraction is compared with,
+    # and the other is where the weaving happens — because weaving unpacks the package beside the document
+    # it is evaluating, which is the tool's own state and not part of the book.
+    mkdir -p "$package/src" "$package/work"
+    for file in lp.typ README.md .gitignore; do
+      cp "$root/book/$file" "$package/src/$file"
+      cp "$root/book/$file" "$package/work/$file"
+    done
+    # The HTML export warns once per chunk about the spacing the package's tile renderer asks for and HTML
+    # ignores; it is informational, and there is one per chunk, so this phase is loud by design.
+    ( cd "$package/work" && "$lpbin" weave lp.typ ../lp.pdf && "$lpbin" weave lp.typ ../lp.html --features html )
+
+    for format in pdf html; do
+      back=$(mktemp -d)
+      "$lpbin" extract --format "$format" "$package/lp.$format" --out "$back"
+      diff -r "$package/src" "$back"
+    done
+
+  '';
+
   postInstall = ''
     wrapProgram $out/bin/lp --prefix PATH : ${lib.makeBinPath [ typst ]}
+
+    # What `postCheck` rendered and verified, into the package's own share directory: the document as a PDF
+    # and as a page, each one carrying the source it was woven from.
+    package=$NIX_BUILD_TOP/doc
+    install -Dm444 "$package/lp.pdf" "$package/lp.html" -t "$out/share/doc/lp/"
+    cp -r "$package/src" "$out/share/doc/lp/src"
   '';
 
   meta = {
