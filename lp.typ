@@ -98,6 +98,8 @@ as it likes afterwards.
 <<package: a fragment>>
 
 <<package: a root>>
+
+<<package: options>>
 ````)
 
 == The two patterns
@@ -250,6 +252,31 @@ argument.
 #let file(path, code) = {
   [#metadata((lp: "file", name: path, lang: lang-of(code), text: code.text))<lp-decl>]
   tile(path, lang-of(code), code)
+}
+````)
+
+== Settings, and why they are a dict
+
+Not everything a document says is a chunk. Some of it is about the tangling itself — where the book is
+carried, which of its files travel with the tree — and it belongs in the document rather than on the
+command line: the output is the book's, not the invocation's, and a tree whose contents depend on how
+someone called the tool is a tree nobody can check.
+
+So there is one function for settings, and it takes a dict. A dict because the set of settings will
+change: adding one should add a key, not another name to the syntax. Unknown keys are refused where they
+are written, which is the only place the mistake is still fresh.
+
+#chunk("package: options", ````typst
+/// Settings for the tangling, as one dict. A document that needs to say something about how it is
+/// tangled says it here, and the tool reads it from the declaration stream like everything else.
+#let tangle-options(options) = {
+  let known = ("book-directory", "book-files")
+  for key in options.keys() {
+    if not known.contains(key) {
+      panic("unknown tangle option: " + key + " (known: " + known.join(", ") + ")")
+    }
+  }
+  [#metadata((lp: "options", options: options))<lp-decl>]
 }
 ````)
 
