@@ -1,6 +1,6 @@
 = Where this differs from WEB
 
-This book is a literate program in the tradition WEB started, and it departs from WEB in six places
+This book is a literate program in the tradition WEB started, and it departs from WEB in seven places
 worth naming. The point of naming them is that a reader who finds a difference cannot tell a decision
 from an oversight, and two of these are oversights — gaps this tool has not closed, not features it
 declined.
@@ -56,7 +56,18 @@ wrong exactly where the document is clever. The authority is evaluation, so the 
 and reads the answer. The price is that the document has to evaluate, and that Typst is a hard dependency
 of tangling.
 
-One more difference is smaller but felt in every fragment: a reference here takes no parameters, where
-WEB's macros take at most one. The parameter is the code around the reference, and the conditional case is
-a sentence in the prose that says which version applies. It is the narrowest macro system that still lets
-the text be rearranged, which is the only thing it is for.
+== The highlighting is not the tool's
+
+WEB knows the language it is weaving, so its weave can set keywords, comments and section numbers by itself. This
+tool knows the string in the fence and nothing else — that is the orthogonality rule the rules chapter states — so
+whatever a page does with a code block, it does by handing that string to the typesetter. The tool's own
+contribution is a monospace block whose text is exactly what will be written to the file, and the benefit of that
+is not only simplicity: a reader can copy a line out of the page and have it be the line, which is not true of a
+program that has been typeset into something prettier than its source.
+
+== One more: a reference takes no parameters
+
+This one is smaller but felt in every fragment. A reference here takes no parameters, where WEB's macros take at
+most one, and the parameter is the code around the reference — the conditional case is a sentence in the prose
+that says which version applies. It is the narrowest macro system that still lets the text be rearranged, which
+is the only thing it is for.
