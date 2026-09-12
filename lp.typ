@@ -6,56 +6,21 @@
 // this repository was before tangling, not only its prose.
 #tangle-options((
   book-directory: "book",
-  book-files: ("lp.typ", "README.md", ".gitignore", "chapters/errors.typ"),
+  book-files: (
+    "lp.typ",
+    "README.md",
+    ".gitignore",
+    "chapters/the-tool-in-its-own-words.typ",
+    "chapters/four-claims.typ",
+    "chapters/errors.typ",
+  ),
 ))
 
-= The tool, in its own words
+#include "chapters/the-tool-in-its-own-words.typ"
 
-This is the whole of `lp`: the program and the package it is written with.
-There is no second source — the crate and the package in this repository are the
-output of tangling this file, and `lp weave lp.typ lp.pdf` renders what you are reading — which is
-`typst compile` with the package this tool unpacks already in scope.
+= Part I — Writing a literate program
 
-It is a literate program, and that is not a remark about its formatting. The document is
-where the thinking lives; the code is quoted into it as the evidence that makes the
-thinking checkable. Reading front to back is meant to be the design walk: what a
-declaration is, what a pass does with it, how the result is read back, and why each of
-those choices is the one it is.
-
-The arrangement is free — a chapter can be moved without moving its code, because nothing here is in
-the order a compiler wants — and what is not free is whether it is true. The tests are the gate for
-every change, and a document that has stopped reproducing its own tree fails them.
-
-Two mechanical facts for whoever edits this next: a line that is exactly `<<name>>` is a reference,
-and `@<<name>>` is how to write one that is not (D17); and the prose is Typst rather than Markdown, so
-emphasis is *one star*.
-
-== What literate programming is, in four claims
-
-The idea splits into four claims, and they are worth separating because a reader can accept some
-of them without the others.
-
-1. *The document is the source.* The code is tangled out of it, so there is no second copy that
-  can disagree with the prose.
-2. *The order belongs to the reader.* Names are resolved while tangling, not while reading, so
-  the text can be arranged in the order the design is understood rather than the order the
-  machine runs it.
-3. *A program is written as literature.* Prose is not a comment on the code; it is where the
-  thinking lives, and the code is the evidence that the thinking is real.
-4. *The woven document is worth having on its own.* Here that is `lp weave lp.typ lp.pdf`: the same
-  declarations, rendered as the page you are reading.
-
-This document takes the first claim literally and argues for the other three by being an example
-of them. The case against all four is worth stating at its strongest, because most of it is
-reasonable. The payoff falls as a language gets more expressive: good names, small functions and
-tests already carry much of what prose would say. The friction has a history — an extra tool
-between the author and the compiler, no editor support, diagnostics pointing at generated code —
-and it is why WEB and CWEB stayed niche. And reading code just got cheap, which is an argument
-about the work rather than about the tool.
-
-What those objections do not cover is the two things this document is built on: the *why*, which
-was never in the code, and a single source whose drift is a check failure rather than a matter of
-discipline. A stance that cannot state its opposition is not an argument.
+#include "chapters/four-claims.typ"
 
 = The package: what a declaration is
 
