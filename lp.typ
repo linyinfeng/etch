@@ -6901,7 +6901,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
-      - uses: cachix/cachix-action@v16
+      - uses: cachix/cachix-action@v17
         with:
           name: linyinfeng
           signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
