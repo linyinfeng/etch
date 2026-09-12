@@ -19,6 +19,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # the seed lives on another branch
+          # The push takes a token of its own; a checkout that leaves its credentials in the git config
+          # would send them instead, which is how the first two attempts were rejected as an App.
+          persist-credentials: false
 
       # Asked first, so a missing token costs a second instead of a build.
       - name: the token that publishes the generation
