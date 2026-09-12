@@ -73,6 +73,8 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: map_names_the_chunk_a_generated_line_came_from>>
 
+<<flow: tangle_speaks_json_about_what_it_wrote>>
+
 <<flow: plan_says_what_a_pass_would_do>>
 
 <<flow: map_takes_one_direction>>
@@ -114,6 +116,7 @@ The cases, in the order they appear:
 - `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
 - `the_reading_commands_speak_json_when_asked` — `list`, `metadata` and `map` hand a program one JSON document, with the data behind the readout
 - `plan_says_what_a_pass_would_do` — `lp plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
+- `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay prose on stdout
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
@@ -629,6 +632,43 @@ fn map_names_the_chunk_a_generated_line_came_from() {
         "{}",
         stdout(&reverse)
     );
+}
+````)
+
+#chunk("flow: tangle_speaks_json_about_what_it_wrote", ````rust
+#[test]
+fn tangle_speaks_json_about_what_it_wrote() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("README.md"), "the book\n").expect("readme");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint(1)\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let written = lp(dir.path(), &["tangle", "demo.typ", "--json"]);
+    assert!(written.status.success(), "{}", stderr(&written));
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout(&written)).expect("one document, and nothing else on stdout");
+    assert_eq!(json["version"], 1);
+    assert_eq!(json["command"], "tangle");
+    assert_eq!(json["changed"][0]["root"], "main.py");
+    assert_eq!(json["changed"][0]["lang"], "py");
+    assert_eq!(json["unchanged"], serde_json::json!([]));
+    assert!(
+        json.get("carried").is_none(),
+        "the book counts are prose: {}",
+        stdout(&written)
+    );
+
+    let settled = lp(dir.path(), &["tangle", "demo.typ", "--json"]);
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout(&settled)).expect("one document, and nothing else on stdout");
+    assert_eq!(json["changed"], serde_json::json!([]));
+    assert_eq!(json["unchanged"][0]["root"], "main.py");
 }
 ````)
 

@@ -58,16 +58,8 @@ pass writes one, and checking first would refuse to bootstrap.
 
 #chunk("tangle: everything must be accounted for", ````rust
 if let Some(book) = &plan.book {
-    let carried = crate::book::place(out, &plan.book_copies, check)?;
-    if carried > 0 {
-        let plural = if carried == 1 { "" } else { "s" };
-        println!("carried {carried} book file{plural}");
-    }
-    let removed = crate::book::sweep(out, &book.directory, &plan.book_copies, check)?;
-    if removed > 0 {
-        let plural = if removed == 1 { "" } else { "s" };
-        println!("removed {removed} stale book file{plural}");
-    }
+    outcome.carried = crate::book::place(out, &plan.book_copies, check)?;
+    outcome.removed = crate::book::sweep(out, &book.directory, &plan.book_copies, check)?;
 }
 outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
 if !outcome.unaccounted.is_empty() {

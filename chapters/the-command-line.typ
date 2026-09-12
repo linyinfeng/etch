@@ -88,7 +88,10 @@ does.
 
 One of those promises is to a reader that is a program. The commands that answer questions rather than
 writing files — `list`, `metadata`, `map`, `unaccounted` and `plan` — take `--json`, and a program that asks
-for it gets one JSON document instead of the table or the sentence. The two are not two implementations: the same
+for it gets one JSON document instead of the table or the sentence. So does `tangle`, which is not a question:
+its document says what the pass it just ran did — which files it wrote, which were already right, and what it
+refused to call right. The two counts it prints beside that readout — book files carried and swept — are not
+in the document, because carrying a book is not a decision a program makes. The two are not two implementations: the same
 values are built once and rendered twice, because a second spelling of the same fact is a second fact that
 can go its own way. Every document starts with the same two fields — `version`, which is `1`, and `command`,
 which is the command's name — so a consumer can tell at a glance what it is reading. What the fields carry is
@@ -201,6 +204,9 @@ Tangle {
     #[arg(long)]
     #[arg(help = "Write nothing; fail if the generated files are out of date")]
     check: bool,
+    #[arg(long)]
+    #[arg(help = "Print one JSON document instead of the readout")]
+    json: bool,
 },
 ````)
 

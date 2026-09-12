@@ -87,9 +87,41 @@ Command::Itself { method } => match method {
     }
     SelfMethod::Prove { dir } => embedded::prove(&dir),
 },
-Command::Tangle { docs, out, check } => {
+Command::Tangle {
+    docs,
+    out,
+    check,
+    json,
+} => {
     let out = out_dir(out, &docs);
     let outcome = tangle::run(&docs, &out, check)?;
+    let verdict = i32::from(!outcome.drifted.is_empty() || !outcome.missing.is_empty());
+
+    if json {
+        machine(
+            "tangle",
+            json!({
+                "documents": docs.iter().map(|doc| doc.display().to_string()).collect::<Vec<_>>(),
+                "changed": outcome.changed,
+                "unchanged": outcome.unchanged,
+                "drifted": outcome.drifted,
+                "missing": outcome.missing,
+                "unreferenced": outcome.unreferenced,
+                "wordless": outcome.wordless,
+                "unaccounted": outcome.unaccounted,
+            }),
+        )?;
+        return Ok(verdict);
+    }
+
+    if outcome.carried > 0 {
+        let plural = if outcome.carried == 1 { "" } else { "s" };
+        println!("carried {} book file{plural}", outcome.carried);
+    }
+    if outcome.removed > 0 {
+        let plural = if outcome.removed == 1 { "" } else { "s" };
+        println!("removed {} stale book file{plural}", outcome.removed);
+    }
     for output in &outcome.changed {
         println!(
             "wrote  {}  ({} lines, {})",
@@ -118,9 +150,7 @@ Command::Tangle { docs, out, check } => {
     for name in &outcome.wordless {
         eprintln!("warning: chunk ⟪{name}⟫ is declared without a language");
     }
-    Ok(i32::from(
-        !outcome.drifted.is_empty() || !outcome.missing.is_empty(),
-    ))
+    Ok(verdict)
 }
 ````)
 

@@ -42,9 +42,11 @@ pub struct Outcome {
     pub unaccounted: Vec<crate::status::Unaccounted>,
     pub unreferenced: BTreeSet<String>,
     pub wordless: BTreeSet<String>,
+    pub carried: usize,
+    pub removed: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Drift {
     pub root: String,
     pub line: Option<usize>,
