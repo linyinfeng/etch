@@ -12,8 +12,8 @@
 // and `@<<name>>` is how you write such a line without it being one (D17). The prose is Typst,
 // not Markdown: emphasis is *one star*.
 
-#import "@local/lp:0.1.0": chunk, file, rule
-#show: rule
+#import "@local/lp:0.1.0": chunk, file, show-rule
+#show: show-rule
 
 = The tool, in its own words
 
@@ -57,7 +57,8 @@ discipline. A stance that cannot state its opposition is not an argument.
 
 = The package: what a declaration is
 
-This document is written with three functions — `chunk`, `file` and `rule` — and none of them is
+This document is written with four functions — `chunk`, `file`, `tangle-options` and
+`show-rule` — and none of them is
 built into the tool. They are declared in `typst/lp.typ`, which this document produces: the syntax
 and the tool that reads it share one source, so there is no second opinion about what a
 declaration looks like.
@@ -65,7 +66,7 @@ declaration looks like.
 `chunk` and `file` do two things each. They attach a metadata record — the name, the language
 from the fence, the text — and then render the code as a titled block. That is the whole
 difference between a fragment and a root: the same body, one word, and a record that says which
-of the two it is. `rule` is the show rule that marks references when the document is woven.
+of the two it is. `show-rule` marks references when the document is woven.
 
 The declarations deliberately do not depend on that show rule. A show rule that consumes an
 element can hide it from a query, and that is not a hypothesis: a styling rule once made every
@@ -165,7 +166,7 @@ the element it was handed stays where it was for anyone who queries it later.
 #chunk("package: the show rule", ````typst
 /// Ref marking is cosmetics, so a show rule is fine here — the *declarations*
 /// below carry the semantics, and they do not depend on any show rule running.
-#let rule(body) = {
+#let show-rule(body) = {
   show raw.where(block: true): it => {
     let out = none
     for line in it.lines {
@@ -3608,7 +3609,7 @@ const PKG: &str = include_str!("../typst/lp.typ");
 /// A document in the real authoring form: the package is imported, its rules are
 /// installed, and the body declares chunks.
 fn document(body: &str) -> String {
-    format!("#import \"lp.typ\": chunk, file, rule\n#show: rule\n{body}")
+    format!("#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n{body}")
 }
 
 /// One file declaration, a shared fragment, a fragment written in two pieces,
@@ -3936,7 +3937,7 @@ fn the_map_follows_the_document_even_when_no_output_byte_changes() {
     // still be rewritten so it keeps describing the document.
     let moved = format!(
         "{}\n{}",
-        "#import \"lp.typ\": chunk, file, rule\n#show: rule", DOC
+        "#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule", DOC
     );
     std::fs::write(dir.join("demo.typ"), &moved).expect("rewrite");
 
@@ -4131,7 +4132,7 @@ fn weave_renders_a_document_that_imports_the_package() {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(
         dir.path().join("doc.typ"),
-        "#import \"@local/lp:0.1.0\": rule\n#show: rule\n= Woven\n",
+        "#import \"@local/lp:0.1.0\": show-rule\n#show: show-rule\n= Woven\n",
     )
     .expect("doc");
 
@@ -4285,7 +4286,7 @@ fn stderr(output: &Output) -> String {
 
 fn write_doc(dir: &Path, name: &str, body: &str) {
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
-    let text = format!("#import \"lp.typ\": chunk, file, rule\n#show: rule\n{body}");
+    let text = format!("#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n{body}");
     std::fs::write(dir.join(name), text).expect("doc");
 }
 
@@ -4543,7 +4544,7 @@ fn write(dir: &Path, name: &str, body: &str) {
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
     std::fs::write(
         dir.join(name),
-        format!("#import \"lp.typ\": chunk, file, rule\n#show: rule\n{body}"),
+        format!("#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n{body}"),
     )
     .expect("doc");
 }
@@ -4777,7 +4778,7 @@ fn a_document_needs_nothing_but_itself() {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(
         dir.path().join("alone.typ"),
-        "#import \"@local/lp:0.1.0\": chunk, file, rule\n#show: rule\n\n#file(\"main.py\", ```py\n<<body>>\n```)\n\n#chunk(\"body\", ```py\nprint('alone')\n```)\n",
+        "#import \"@local/lp:0.1.0\": chunk, file, show-rule\n#show: show-rule\n\n#file(\"main.py\", ```py\n<<body>>\n```)\n\n#chunk(\"body\", ```py\nprint('alone')\n```)\n",
     )
     .expect("doc");
     let path = dir.path().to_path_buf();
@@ -4920,7 +4921,7 @@ fn stderr(output: &Output) -> String {
 /// Write a document in the real authoring form, plus the package it imports.
 fn write_doc(dir: &Path, name: &str, body: &str) -> String {
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
-    let text = format!("#import \"lp.typ\": chunk, file, rule\n#show: rule\n{body}");
+    let text = format!("#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n{body}");
     std::fs::write(dir.join(name), &text).expect("doc");
     text
 }
@@ -5490,9 +5491,10 @@ files cargo and nix maintain, which no chunk has any business owning.
 /.git
 /.gitignore
 
-# cargo's own files, and the example's build directory — whose own .lpignore governs what is
-# inside it, because a nested document's output is not this document's business.
+# cargo's and nix's own files, and the example's build directory — whose own .lpignore governs
+# what is inside it, because a nested document's output is not this document's business.
 /Cargo.lock
+/flake.lock
 /target
 /examples/demo/build
 ````)
@@ -5708,8 +5710,8 @@ The last section is the one to keep in mind while reading the rest of this docum
 points at a chunk is the difference between a generator and a tool you can debug.
 
 #chunk("demo: the document's opening", ````typst
-#import "@local/lp:0.1.0": chunk, file, rule
-#show: rule
+#import "@local/lp:0.1.0": chunk, file, show-rule
+#show: show-rule
 
 #set page(width: 15cm, height: auto, margin: 2cm)
 #set text(size: 10pt)
