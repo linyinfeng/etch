@@ -906,6 +906,18 @@ fn expand_chunk(
 
 <<tangle: the plan>>
 
+/// The book a document declares, if it declares one. The tangle wants the whole plan; a rendering wants
+/// only this much, and asking for it is what lets a page carry its own source.
+pub(crate) fn declared_book(docs: &[PathBuf]) -> Result<Option<Book>, LpError> {
+    let typst = metadata::binary()?;
+    for declaration in metadata::declarations(&typst, docs)? {
+        if declaration.kind()? == metadata::Kind::Options {
+            return Ok(Some(settings(&declaration)?));
+        }
+    }
+    Ok(None)
+}
+
 pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
     <<tangle: ask typst what the document declares>>
 
@@ -1746,12 +1758,6 @@ compares, and accounted for by the ownership check rather than reported as a str
 
 <<self: reading it>>
 
-<<self: the marker>>
-
-<<self: attaching the book>>
-
-<<self: taking it back>>
-
 <<self: proving it>>
 ````)
 
@@ -1861,6 +1867,100 @@ pub fn plan(settings: &Book, anchor: &Path, docs: &[PathBuf]) -> Result<Vec<Copy
 ````)
 
 #chunk("book: carrying it over", ````rust
+/// The id this tool writes into a rendering and looks for when taking the book back out. A `<script>`
+/// whose type is not JavaScript is a *data block*, not a script, so the book rides inside a valid page
+/// without pretending to be code — and the whole opening tag is the marker, not the text of the id: a
+/// document is free to mention `lp-source` in prose, and prose is not a block.
+const SOURCE_ID: &str = "lp-source";
+
+/// Put the book into a rendered page. The page stays a page: nothing here is executed, and a browser
+/// that ignores the block has lost nothing.
+pub fn attach(page: &Path, copies: &[Copy]) -> Result<(), LpError> {
+    let mut files = serde_json::Map::new();
+    for copy in copies {
+        let bytes = std::fs::read(&copy.from).map_err(|err| LpError::io(&copy.from, err))?;
+        let text = String::from_utf8(bytes).map_err(|_| {
+            LpError::plain(format!(
+                "{} is not text, so it cannot ride in a page",
+                copy.to
+            ))
+            .with_help("the book is carried as JSON strings; binary files would need an encoding")
+        })?;
+        files.insert(copy.to.clone(), serde_json::Value::String(text));
+    }
+    let payload = serde_json::json!({ "version": 1, "files": files }).to_string();
+
+    // `</script>` inside a string would end the block early — and `<` cannot appear outside a string in
+    // JSON, so escaping every one of them is safe and sufficient.
+    let block = format!(
+        "<script type=\"application/json\" id=\"{SOURCE_ID}\" data-lp=\"1\">\n{}\n</script>\n",
+        payload.replace('<', "\\u003c")
+    );
+
+    let mut html = std::fs::read_to_string(page).map_err(|err| LpError::io(page, err))?;
+    match html.rfind("</body>") {
+        Some(at) => html.insert_str(at, &block),
+        None => html.push_str(&block),
+    }
+    std::fs::write(page, html).map_err(|err| LpError::io(page, err))
+}
+
+/// Read the book back out of a page this tool rendered and write it into a directory. A name that would
+/// climb out of the output directory is refused: a page is data, and this one may not be ours.
+pub fn extract(page: &Path, out: &Path) -> Result<usize, LpError> {
+    let html = std::fs::read_to_string(page).map_err(|err| LpError::io(page, err))?;
+    let tag = format!("<script type=\"application/json\" id=\"{SOURCE_ID}\"");
+    let open = html.rfind(&tag).ok_or_else(|| {
+        LpError::plain(format!(
+            "{} carries no book: no {tag}> block",
+            page.display()
+        ))
+        .with_help("only a page this tool wrote carries one")
+    })?;
+    let body = html[open..]
+        .find('>')
+        .ok_or_else(|| LpError::plain(format!("{}: the block never opens", page.display())))?
+        + open
+        + 1;
+    let end = html[body..]
+        .find("</script>")
+        .ok_or_else(|| LpError::plain(format!("{}: the block never closes", page.display())))?
+        + body;
+
+    let value: serde_json::Value = serde_json::from_str(&html[body..end]).map_err(|err| {
+        LpError::plain(format!(
+            "{}: the book is not readable: {err}",
+            page.display()
+        ))
+    })?;
+    let files = value
+        .get("files")
+        .and_then(|files| files.as_object())
+        .ok_or_else(|| LpError::plain(format!("{}: the book has no files", page.display())))?;
+    for name in files.keys() {
+        if name.starts_with('/') || name.split('/').any(|part| part == "..") {
+            return Err(LpError::plain(format!(
+                "{}: {name} would be written outside the output directory",
+                page.display()
+            )));
+        }
+    }
+
+    let mut written = 0;
+    for (name, text) in files {
+        let text = text
+            .as_str()
+            .ok_or_else(|| LpError::plain(format!("{name} is not text in this book")))?;
+        let path = out.join(name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
+        }
+        std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
+        written += 1;
+    }
+    Ok(written)
+}
+
 /// Write the copies whose bytes differ, and say how many those were. Under `check` nothing is written:
 /// a copy that is missing or different is the tree being out of date, which is the same failure as an
 /// output that no longer matches its document.
@@ -1899,14 +1999,8 @@ compile time, so `lp self` needs nothing beside it.
 - `lp self read --format (pdf|html)` weaves the document *it carries* into a temporary directory and hands
   the result to the desktop. Weaving reuses `lp weave`, because there is one way to render a document and
   it should not be written twice; opening is best effort — a machine with no desktop still gets the file
-  and its path.
-- `lp self extract --format html <page> --out <dir>` takes the book back out of a page this tool
-  rendered, which is the same promise the binary makes: a page can be handed to someone and give the
-  source back. The page carries the book as a *data block* — a `<script>` whose type is not JavaScript is
-  data, not code — and what marks it is the whole opening tag, not the text `lp-source`. This document
-  says `lp-source` in prose, right here, and prose is not a block: the first version looked for the id as
-  a substring, found this paragraph, and failed. A marker has to be something a page cannot mention by
-  accident.
+  and its path. An HTML rendering carries the book with it, so what opens is a page that can give its own
+  source back.
 - `lp self prove <dir>` unpacks that book into `<dir>`, tangles it with *this* binary, and runs the
   tree's own checks in it: the whole bootstrap in one command, with nothing outside the binary but the
   toolchain it borrows. The lock file is part of the book, so nix is asked not to resolve one — writing
@@ -1948,96 +2042,6 @@ pub fn book(out: &Path) -> Result<usize, LpError> {
         ))
     })?;
     Ok(BOOK.files().count())
-}
-````)
-
-#chunk("self: the marker", ````rust
-/// The id this tool writes into a rendered page and looks for when taking it back: a `<script>` whose
-/// type is not JavaScript is a *data block*, not a script, so the book rides inside a valid document
-/// without pretending to be code.
-const SOURCE_ID: &str = "lp-source";
-````)
-
-#chunk("self: attaching the book", ````rust
-/// Put the book into a rendered page as a data block. The page stays a page: nothing here is executed,
-/// and a browser that ignores the block has lost nothing.
-pub fn attach(page: &Path) -> Result<(), LpError> {
-    let mut files = serde_json::Map::new();
-    for file in BOOK.files() {
-        let name = file.path().to_string_lossy().replace('\\', "/");
-        let text = std::str::from_utf8(file.contents()).map_err(|_| {
-            LpError::plain(format!("{name} is not text, so it cannot ride in a page")).with_help(
-                "the book is carried as JSON strings; binary files would need an encoding",
-            )
-        })?;
-        files.insert(name, serde_json::Value::String(text.to_string()));
-    }
-    let payload = serde_json::json!({ "version": 1, "files": files }).to_string();
-
-    // `</script>` inside a string would end the block early — and `<` cannot appear outside a string in
-    // JSON, so escaping every one of them is safe and sufficient.
-    let block = format!(
-        "<script type=\"application/json\" id=\"{SOURCE_ID}\" data-lp=\"1\">\n{}\n</script>\n",
-        payload.replace('<', "\\u003c")
-    );
-
-    let mut html = std::fs::read_to_string(page).map_err(|err| LpError::io(page, err))?;
-    match html.rfind("</body>") {
-        Some(at) => html.insert_str(at, &block),
-        None => html.push_str(&block),
-    }
-    std::fs::write(page, html).map_err(|err| LpError::io(page, err))
-}
-````)
-
-#chunk("self: taking it back", ````rust
-/// Read the block back out of a page and write the book it carries into a directory.
-pub fn extract(page: &Path, out: &Path) -> Result<usize, LpError> {
-    let html = std::fs::read_to_string(page).map_err(|err| LpError::io(page, err))?;
-    // The whole opening tag is the marker, not the text of the id: this very document talks about
-    // `id="lp-source"` in prose, and prose is not a block. Take the last one, since ours is appended.
-    let tag = format!("<script type=\"application/json\" id=\"{SOURCE_ID}\"");
-    let open = html.rfind(&tag).ok_or_else(|| {
-        LpError::plain(format!(
-            "{} carries no book: no {tag}> block",
-            page.display()
-        ))
-        .with_help("only a page this tool wrote carries one")
-    })?;
-    let body = html[open..]
-        .find('>')
-        .ok_or_else(|| LpError::plain(format!("{}: the block never opens", page.display())))?
-        + open
-        + 1;
-    let end = html[body..]
-        .find("</script>")
-        .ok_or_else(|| LpError::plain(format!("{}: the block never closes", page.display())))?
-        + body;
-
-    let value: serde_json::Value = serde_json::from_str(&html[body..end]).map_err(|err| {
-        LpError::plain(format!(
-            "{}: the book is not readable: {err}",
-            page.display()
-        ))
-    })?;
-    let files = value
-        .get("files")
-        .and_then(|files| files.as_object())
-        .ok_or_else(|| LpError::plain(format!("{}: the book has no files", page.display())))?;
-
-    let mut written = 0;
-    for (name, text) in files {
-        let text = text
-            .as_str()
-            .ok_or_else(|| LpError::plain(format!("{name} is not text in this book")))?;
-        let path = out.join(name);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
-        }
-        std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
-        written += 1;
-    }
-    Ok(written)
 }
 ````)
 
@@ -2116,10 +2120,6 @@ pub fn read(format: &str) -> Result<PathBuf, LpError> {
         )));
     }
 
-    // The rendering carries the book that produced it: a page can be handed to someone and give the
-    // source back, which is the same promise the binary makes.
-    attach(&output)?;
-
     // Best effort: no desktop, no `xdg-open`, and the file is still there with its path printed.
     let _ = Command::new("xdg-open").arg(&output).spawn();
     Ok(output)
@@ -2146,6 +2146,21 @@ lp weave report.typ report.pdf --input who=me   # ... with Typst's own flags
 Typst's experimental exports arrive the same way, as flags: `lp weave lp.typ lp.html --features html`
 writes an HTML rendering, and Typst warns while doing it that the format is still under development. That
 the tool has no list of which flags are allowed is the point of the trailing arguments.
+
+An HTML rendering also carries the book the document declares — the files `lp tangle` copies beside the
+tree — as a *data block*: a `<script>` whose type is not JavaScript is data, not code, so the page stays a
+valid page and a browser that ignores the block has lost nothing. The payload is the book as JSON, keyed by
+the names the tree uses, with a version inside, because a format that cannot say which format it is cannot
+be improved. `lp extract --format html <page> --out <dir>` is the inverse: it finds the block, reads the
+book back, and writes it where the names say.
+
+What marks the block is the whole opening tag, not the text of the id. This document says "lp-source" in
+prose — here, in this paragraph — and the first version, which searched for the id as a substring, found
+this sentence instead and failed on it. A marker has to be something a page cannot mention by accident.
+
+Only HTML, and the format is never guessed. `extract` demands `--format` because a wrong guess would
+produce silence rather than an error, and only an `.html` output gets a book, because a PDF is not a
+container for a JSON block.
 
 The package is the copy embedded in this binary, unpacked fresh, so weaving needs no tangle before it:
 the document is the source of both. And the document stays a normal Typst file — an editor rendering it
@@ -2197,7 +2212,8 @@ pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, L
     // The document as the writer named it goes to Typst; the absolute one decides where the package
     // is and how far up the root has to reach, because `common_ancestor` starts from a parent.
     let anchor = doc.canonicalize().map_err(|err| LpError::io(doc, err))?;
-    let docs = vec![anchor];
+    // The anchor is kept: after the compile, the same document says which files its book is made of.
+    let docs = vec![anchor.clone()];
     let packages = unpack_package(&common_ancestor(&docs))?;
     let mut root = docs;
     root.push(cwd);
@@ -2220,7 +2236,30 @@ pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, L
     let status = command
         .status()
         .map_err(|err| LpError::plain(format!("cannot run Typst: {err}")))?;
+    if status.success() {
+        carry_the_book(&anchor, output)?;
+    }
     Ok(status.code().unwrap_or(1))
+}
+
+/// A rendering of a literate document carries the source it was woven from, so the page can be handed to
+/// someone and give the book back — the same promise this binary makes about itself.
+///
+/// Only `.html`: Typst decides the format from the output name, and a PDF is not a container for a JSON
+/// block. Refusing to guess is the same rule that makes `extract` demand an explicit `--format`.
+fn carry_the_book(anchor: &Path, output: Option<&Path>) -> Result<(), LpError> {
+    let Some(page) = output.filter(|out| out.extension().is_some_and(|ext| ext == "html")) else {
+        return Ok(());
+    };
+    let Some(directory) = anchor.parent() else {
+        return Ok(());
+    };
+    let docs = vec![anchor.to_path_buf()];
+    let Some(book) = crate::tangle::declared_book(&docs)? else {
+        return Ok(());
+    };
+    let copies = crate::book::plan(&book, directory, &docs)?;
+    crate::book::attach(page, &copies)
 }
 ````)
 
@@ -3631,6 +3670,7 @@ reader finds out what the tool can do without reading the tool.
 #[derive(Subcommand)]
 enum Command {
     <<main: weave>>
+    <<main: extract>>
     <<main: self>>
     <<main: tangle>>
     <<main: map>>
@@ -3724,6 +3764,20 @@ struct Cli {
 }
 ````)
 
+#chunk("main: extract", ````rust
+/// Take the book back out of a page this tool rendered
+Extract {
+    /// Which rendering to read
+    #[arg(long)]
+    format: String,
+    /// The rendered page
+    file: PathBuf,
+    /// Directory to write the book into
+    #[arg(long)]
+    out: PathBuf,
+},
+````)
+
 #chunk("main: self", ````rust
 /// Read, unpack or prove the book this binary carries
 #[command(name = "self")]
@@ -3747,17 +3801,6 @@ enum SelfMethod {
         /// Which rendering to make
         #[arg(long, default_value = "pdf")]
         format: String,
-    },
-    /// Take the book back out of a page this tool rendered
-    Extract {
-        /// Which rendering to read
-        #[arg(long)]
-        format: String,
-        /// The rendered page
-        file: PathBuf,
-        /// Directory to write the book into
-        #[arg(long)]
-        out: PathBuf,
     },
     /// Unpack the book, tangle it with this binary, and run the tree's own checks
     Prove {
@@ -3904,6 +3947,19 @@ module gets a new function.
 
 #chunk("main: tangle, and what it reports", ````rust
 Command::Weave { doc, output, extra } => weave::run(&doc, output.as_deref(), &extra),
+Command::Extract { format, file, out } => {
+    if format != "html" {
+        return Err(diag::LpError::plain(format!(
+            "--format {format} is not implemented yet"
+        ))
+        .with_help(
+            "only `html` carries the book so far: a PDF is not a container for JSON",
+        ));
+    }
+    let files = crate::book::extract(&file, &out)?;
+    println!("wrote {files} files of the book to {}", out.display());
+    Ok(0)
+}
 Command::Itself { method } => match method {
     SelfMethod::Book { out } => {
         let files = embedded::book(&out)?;
@@ -3913,17 +3969,6 @@ Command::Itself { method } => match method {
     SelfMethod::Read { format } => {
         let path = embedded::read(&format)?;
         println!("{}", path.display());
-        Ok(0)
-    }
-    SelfMethod::Extract { format, file, out } => {
-        if format != "html" {
-            return Err(diag::LpError::plain(format!(
-                "--format {format} is not implemented yet"
-            ))
-            .with_help("only `html` carries the book so far"));
-        }
-        let files = embedded::extract(&file, &out)?;
-        println!("wrote {files} files of the book to {}", out.display());
         Ok(0)
     }
     SelfMethod::Prove { dir } => embedded::prove(&dir),
@@ -4261,7 +4306,7 @@ The cases, in the order they appear:
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, in its own shape, minus what the source calls ignored
 - `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
 - `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
-- `a_page_gives_the_book_back` — a page this tool rendered carries the book, and `lp self extract` gets it back byte for byte
+- `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
 - `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
 - `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
@@ -4859,30 +4904,33 @@ fn reading_weaves_what_the_binary_carries() {
 #[test]
 fn a_page_gives_the_book_back() {
     let dir = TempDir::new().expect("temp dir");
-    let woven = lp(dir.path(), &["self", "read", "--format", "html"]);
+    // A document on disk, not the embedded one: carrying the book is what weaving does, not something
+    // only the binary can do about itself.
+    let document = Path::new(env!("CARGO_MANIFEST_DIR")).join("book/lp.typ");
+    let woven = lp(
+        dir.path(),
+        &[
+            "weave",
+            document.to_str().expect("path"),
+            "page.html",
+            "--features",
+            "html",
+        ],
+    );
     assert!(woven.status.success(), "{}", stderr(&woven));
-    let page = PathBuf::from(stdout(&woven).trim());
 
     let taken = lp(
         dir.path(),
-        &[
-            "self",
-            "extract",
-            "--format",
-            "html",
-            page.to_str().expect("path"),
-            "--out",
-            "back",
-        ],
+        &["extract", "--format", "html", "page.html", "--out", "back"],
     );
     assert!(taken.status.success(), "{}", stderr(&taken));
 
-    // The round trip: what the page gave back is the book the binary carries, byte for byte.
-    let beside = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
+    // The round trip: the page carries the book under the names the tree uses, and gives it back whole.
+    let carried = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
     for name in ["lp.typ", "README.md", ".gitignore"] {
-        let back = std::fs::read(dir.path().join("back").join(name)).expect(name);
-        let carried = std::fs::read(beside.join(name)).expect(name);
-        assert_eq!(back, carried, "{name} did not survive the page");
+        let back = std::fs::read(dir.path().join("back/book").join(name)).expect(name);
+        let beside = std::fs::read(carried.join(name)).expect(name);
+        assert_eq!(back, beside, "{name} did not survive the page");
     }
 }
 ````)
