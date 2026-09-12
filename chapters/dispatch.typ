@@ -133,13 +133,19 @@ a person asks, not in a loop.
 ````)
 
 Forward, it resolves the file to one map (the search from the map chapter, including its
-refusal to guess) and then asks that map for the run covering the line.
+refusal to guess) and then asks that map for the run covering the line. The four flags arrive as four
+options, and the surface has already refused every combination but two of them — this match is where a file
+and a line become the pair the rest of the arm needs, and its fallback names the rule rather than trusting a
+guarantee a compiler cannot see.
 
 #chunk("main: map, forward", ````rust
-    let (Some(file), Some(line)) = (file, line) else {
-        return Err(LpError::plain("lp map --file needs a --line").with_help(
-            "use `lp map --file src/main.rs --line 42` for a generated line, or `lp map --typ <chunk>` the other way",
-        ));
+    let (file, line) = match (file, line) {
+        (Some(file), Some(line)) => (file, line),
+        _ => {
+            return Err(LpError::plain("lp map takes one direction").with_help(
+                "use `lp map --file src/main.rs --line 42` for a generated line, or `lp map --typ <chunk>` the other way",
+            ))
+        }
     };
     let (dir, name, entry) = map::resolve_all(&maps, &file)?;
     let rel = map::join(dir, name);

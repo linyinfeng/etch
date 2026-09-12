@@ -95,7 +95,7 @@ use std::collections::BTreeSet;
 use std::io::Read;
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
+use clap::{ArgGroup, Parser, Subcommand};
 
 use diag::LpError;
 ````)
@@ -181,16 +181,28 @@ Tangle {
 },
 ````)
 
+`map` has two directions and they are a choice rather than a set of optional flags, so the choice is
+clap's to enforce, in the declarations below: one required group names the two flags that pick a direction,
+`requires` says that a file comes with a line, and a conflict says that a line beside a chunk name means
+nothing. None of the three can be derived from the others, so all three are written out.
+
 #chunk("main: map", ````rust
 #[command(about = "Name the chunk a generated line came from, or the lines a chunk produced")]
+#[command(group(ArgGroup::new("what").required(true).multiple(false).args(["file", "typ"])))]
 Map {
-    #[arg(long, conflicts_with = "typ")]
+    #[arg(long, requires = "line")]
+    #[arg(help = "A generated file, as the map names it: one direction, with --line")]
     file: Option<String>,
-    #[arg(long, conflicts_with = "file")]
+    #[arg(long, conflicts_with = "line")]
+    #[arg(help = "A chunk name: the other direction, and no line to go with it")]
     typ: Option<String>,
     #[arg(long)]
+    #[arg(help = "A line in that file, 1-based, as the map counts it")]
     line: Option<usize>,
     #[arg(long)]
+    #[arg(
+        help = "Directory the maps are in (default: tangled/, since this command names no document)"
+    )]
     out: Option<PathBuf>,
 },
 ````)

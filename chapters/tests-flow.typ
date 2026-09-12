@@ -73,6 +73,8 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: map_names_the_chunk_a_generated_line_came_from>>
 
+<<flow: map_takes_one_direction>>
+
 <<flow: explain_rewrites_diagnostics_to_the_chunk>>
 
 <<flow: list_reports_declarations>>
@@ -100,6 +102,7 @@ The cases, in the order they appear:
 - `a_file_declaration_can_name_a_nested_path` — `src/main.rs` is created under the output directory, directories and all
 - `unsafe_paths_are_rejected` — `../escape.txt` and its relatives cannot leave the output directory
 - `map_names_the_chunk_a_generated_line_came_from` — `lp map --file --line` answers with the chunk and how far into it the line is
+- `map_takes_one_direction` — an empty `lp map`, and a `--line` beside `--typ`, are refused by the surface (exit 2) rather than by the arm
 - `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
@@ -617,6 +620,39 @@ fn map_names_the_chunk_a_generated_line_came_from() {
         "{}",
         stdout(&reverse)
     );
+}
+````)
+
+#chunk("flow: map_takes_one_direction", ````rust
+#[test]
+fn map_takes_one_direction() {
+    let (_guard, dir, _) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let nothing = lp(&dir, &["map", "--out", "out"]);
+    assert_eq!(nothing.status.code(), Some(2), "{}", stderr(&nothing));
+    assert!(stderr(&nothing).contains("--typ"), "{}", stderr(&nothing));
+
+    let line_beside_a_chunk = lp(
+        &dir,
+        &["map", "--typ", "body", "--line", "3", "--out", "out"],
+    );
+    assert_eq!(
+        line_beside_a_chunk.status.code(),
+        Some(2),
+        "{}",
+        stderr(&line_beside_a_chunk)
+    );
+
+    let pair = lp(
+        &dir,
+        &["map", "--file", "main.py", "--line", "3", "--out", "out"],
+    );
+    assert!(pair.status.success(), "{}", stderr(&pair));
 }
 ````)
 
