@@ -23,6 +23,8 @@ what `--check` and `--delete` each do.
 
 <<owned: check_reports_a_stray_without_removing_it>>
 
+<<owned: the_stray_report_speaks_json>>
+
 <<owned: deleting_a_foreign_subtree_takes_one_line_and_one_command>>
 
 <<owned: without_a_declaration_a_stray_is_still_an_error>>
@@ -40,6 +42,7 @@ The cases, in the order they appear:
 - `the_pass_keeps_its_own_output_and_any_other_dotfile_is_a_stray` — the map is the tool's own output and the ignore file protects itself, but every other dotfile is
 - `a_git_directory_is_ordinary_content` — `.git/` is not special-cased, so it has to be declared like anything else
 - `check_reports_a_stray_without_removing_it` — `--check` lists a stray and changes nothing
+- `the_stray_report_speaks_json` — `unaccounted --json` names the directory and the entries, keeps its status, and `--delete` reports what it removed
 - `deleting_a_foreign_subtree_takes_one_line_and_one_command` — one compressed entry, one `--delete`, and a subtree is gone
 - `without_a_declaration_a_stray_is_still_an_error` — with no `.lpignore` at all, strays are still errors
 - `a_missing_output_directory_is_not_an_io_error` — a missing output file is drift, not an I/O failure
@@ -359,6 +362,43 @@ fn check_reports_a_stray_without_removing_it() {
   }
   ````,
 )
+
+#chunk("owned: the_stray_report_speaks_json", ````rust
+#[test]
+fn the_stray_report_speaks_json() {
+    let (_guard, dir) = tangled(IGNORES, &[("handwritten.txt", "kept")]);
+    std::fs::write(dir.join("out/leftover.py"), "stale").expect("stray");
+
+    let reported = lp(&dir, &["unaccounted", "doc.typ", "--json", "--out", "out"]);
+    assert_eq!(reported.status.code(), Some(1), "bad news is not a failure");
+    let json: serde_json::Value = serde_json::from_str(&stdout(&reported)).expect("one document");
+    assert_eq!(json["version"], 1);
+    assert_eq!(json["command"], "unaccounted");
+    assert_eq!(json["unaccounted"][0]["dir"], "");
+    assert_eq!(json["unaccounted"][0]["entries"][0], "leftover.py");
+    assert_eq!(json["deleted"], serde_json::json!([]));
+    assert!(
+        dir.join("out/leftover.py").exists(),
+        "listing changes nothing"
+    );
+
+    let removed = lp(
+        &dir,
+        &[
+            "unaccounted",
+            "doc.typ",
+            "--delete",
+            "--json",
+            "--out",
+            "out",
+        ],
+    );
+    assert!(removed.status.success(), "{}", stderr(&removed));
+    let cleaned: serde_json::Value = serde_json::from_str(&stdout(&removed)).expect("one document");
+    assert_eq!(cleaned["deleted"][0], "leftover.py");
+    assert!(!dir.join("out/leftover.py").exists(), "it is gone");
+}
+````)
 
 #chunk("owned: without_a_declaration_a_stray_is_still_an_error", ````rust
 #[test]

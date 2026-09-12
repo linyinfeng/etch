@@ -86,6 +86,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use ignore::WalkBuilder;
+use serde::Serialize;
 
 use crate::diag::LpError;
 use crate::map::{MAP_FILE, relative};
@@ -109,7 +110,7 @@ means a whole subtree was compressed into one line — which is why entries are 
 not paths.
 
 #chunk("status: what a directory of strays looks like", ````rust
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Unaccounted {
     pub dir: String,
     pub entries: Vec<String>,

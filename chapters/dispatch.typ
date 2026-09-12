@@ -269,10 +269,32 @@ Command::Metadata { docs, json } => {
 ````)
 
 #chunk("main: unaccounted, which needs a plan", ````rust
-Command::Unaccounted { docs, out, delete } => {
+Command::Unaccounted {
+    docs,
+    out,
+    delete,
+    json,
+} => {
     let out = out_dir(out, &docs);
     let plan = tangle::plan(&docs)?;
-    status::run(&out, &tangle::produced(&plan), delete)
+    let produced = tangle::produced(&plan);
+
+    if json {
+        let listed = status::unaccounted(&out, &produced)?;
+        let deleted = if delete {
+            status::delete(&out, &produced)?
+        } else {
+            Vec::new()
+        };
+        let verdict = i32::from(!listed.is_empty() && !delete);
+        machine(
+            "unaccounted",
+            json!({"unaccounted": listed, "deleted": deleted}),
+        )?;
+        return Ok(verdict);
+    }
+
+    status::run(&out, &produced, delete)
 }
 ````)
 

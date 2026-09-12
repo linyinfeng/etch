@@ -85,19 +85,21 @@ file are `lp --help`. Each command gets its own fragment, because each one is a 
 does.
 
 One of those promises is to a reader that is a program. The commands that answer questions rather than
-writing files — `list`, `metadata` and `map` — take `--json`, and a program that asks for it gets one JSON
-document instead of the table or the sentence. The two are not two implementations: the same values are built
-once and rendered twice, because a second spelling of the same fact is a second fact that can go its own way.
-Every document starts with the same two fields — `version`, which is `1`, and `command`, which is the
-command's name — so a consumer can tell at a glance what it is reading. What the fields carry is the data
-behind the readout and nothing else: `map --json` says whether the run it found is the exact one or the
-nearest earlier one, which the sentence never had room for.
+writing files — `list`, `metadata`, `map` and `unaccounted` — take `--json`, and a program that asks for it
+gets one JSON document instead of the table or the sentence. The two are not two implementations: the same
+values are built once and rendered twice, because a second spelling of the same fact is a second fact that
+can go its own way. Every document starts with the same two fields — `version`, which is `1`, and `command`,
+which is the command's name — so a consumer can tell at a glance what it is reading. What the fields carry is
+the data a program acts on — a chunk, a line, a file, whether a mapping is exact — and prose stays prose:
+the warnings stay sentences in an array, there to be shown rather than taken apart, because nothing in a
+sentence about an unreferenced fragment is something a program can do anything with.
 
 What `--json` does not change is the shape of a failure. A command that could not answer exits non-zero, its
 report goes to stderr, and stdout carries no document at all — so a program can tell "the answer is empty"
 from "there is no answer", the way the shell does for every filter on the machine. A consumer that always
 finds a document on stdout and always tests the exit status is never surprised; one that parses whatever it
-was handed is.
+was handed is. An answer that is bad news is not a failure and keeps its status: `unaccounted` still exits 1
+when something is unaccounted for, and it says so in the document rather than instead of it.
 
 #chunk("main: the modules, and what they are called", ````rust
 mod book;
@@ -276,5 +278,8 @@ Unaccounted {
     #[arg(long)]
     #[arg(help = "Delete them: the explicit alternative to declaring them")]
     delete: bool,
+    #[arg(long)]
+    #[arg(help = "Print one JSON document instead of the report")]
+    json: bool,
 },
 ````)
