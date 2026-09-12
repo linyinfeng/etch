@@ -36,7 +36,9 @@ A program's logic — how it decomposes, why it decomposes that way, and the ord
 to understand it — is usually not an artifact at all. It lives in the author's head, in a review thread, in a
 conversation, and nothing that is not written down can be maintained or improved. The move here is to make
 that logic the source: the code is quoted into the argument, so the argument is what gets edited, reviewed and
-diffed, and the program is a by-product of keeping it good. There is no other way in — a change to the program
+diffed, and the program is a by-product of keeping it good. The order of that argument is part of the
+artifact rather than a courtesy to the reader: the arrangement *is* the logic, written down where it can be
+changed. There is no other way in — a change to the program
 is a change to the book — and that is the whole of the forcing. Drift does not disappear. What changes is the
 kind of thing that drifts: from "the code moved and the explanation stayed" to "the argument is no longer
 true", which is a defect in the main artifact rather than in a commentary on it.

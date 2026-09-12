@@ -22,7 +22,9 @@ code just got cheap, which is an argument about the work rather than about the t
 The argument that survives all of that is the one worth starting from, because it does not depend on
 anyone reading the woven page. It is about the second claim, and it says that a literate program is a
 different program: the arrangement is not a report about the code, it changes what is cheap to write, and
-what is cheap to write is what gets written well. In a conventional file, a procedure that updates a data
+what is cheap to write is what gets written well. The arrangement is also the shape the logic takes once it
+is written down, which is what makes it maintainable at all: what the author arranges is what a later reader —
+or a later machine — can go back and change, and the code is what falls out of keeping it good. In a conventional file, a procedure that updates a data
 structure has to write its error recovery inline, and the recovery then looks like the bulk of the
 procedure. The observation Knuth draws from teaching WEB is that an author avoids that — error handling
 gets written as little and as late as the language allows, because the main step should not look like an
