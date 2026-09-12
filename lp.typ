@@ -1964,14 +1964,18 @@ pub fn prove(dir: &Path) -> Result<i32, LpError> {
         .with_help("`lp self prove` expects the book to be a single document"));
     }
 
+    // The document keeps its usual place: beside its output, not inside it. Tangling in place would put
+    // the book's own sources under the output directory, where the ownership check would rightly ask who
+    // they are — so the tree lands in `tangled/`, exactly as it does in the repository.
+    let tree = dir.join("tangled");
     println!("wrote {files} files of the book to {}", dir.display());
-    crate::tangle::run(&documents, dir, false)?;
+    crate::tangle::run(&documents, &tree, false)?;
 
     // The lock belongs to the book, so nix must not resolve anything here: if the lock were out of date
     // it would write a new one, and a check that can rewrite its own input is not a check.
     let status = Command::new("nix")
         .args(["flake", "check", "--no-update-lock-file"])
-        .current_dir(dir)
+        .current_dir(&tree)
         .status()
         .map_err(|err| LpError::plain(format!("cannot run nix: {err}")))?;
     Ok(status.code().unwrap_or(1))
