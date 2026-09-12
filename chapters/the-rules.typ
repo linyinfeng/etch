@@ -12,8 +12,8 @@ These are not style preferences; each one was paid for.
   chunk-level, and pretending otherwise would mean re-parsing.
 - *Orthogonality.* No knowledge of any target language in the algorithms; language
   differences are data (the fence tag), never code.
-- *Generated files stay out of git*, and only this document is edited: the crate, the package,
-  the control files. The seed is output too, and lives on the `tangled` branch for
+- *Generated files stay out of git*, and the only thing edited is the book: its chapters, and the crate,
+  package and control files they declare. The seed is output too, and lives on the `tangled` branch for
   bootstrap reasons — a fresh clone has no binary to tangle with. It is the same guarded tree, one
   generation behind.
 - *An error points at a declaration*, never at a bare string: which chunk, and which

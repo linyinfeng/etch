@@ -47,13 +47,16 @@ The count it returns is not decoration: the caller uses it to warn that no diagn
 matched anything, which is the difference between "the build is clean" and "the filter
 never recognised a single line".
 
-== A note in the file, and the reason here
+== Why the file explains nothing by itself
 
-Someone who opens the generated `src/explain.rs` should be able to orient themselves
-without this document, so the file keeps a short note. It is orientation only: the
-reasoning is this chapter's job. That split is deliberate — a comment inside a generated
-file is a pointer, and a pointer does not drift, while a second copy of the argument
-would.
+Someone who opens the generated `src/explain.rs` gets the code and nothing else: no note at the top, no line
+over the pattern. That is the rule this document keeps everywhere — an explanation belongs in the prose that
+introduces the fragment — and it is a rule with a cost in exactly this place, because the tree travels. It gets
+built, shipped and read by people who never open this book, and those readers would rather have the note.
+
+What pays for the rule is that a second copy of the argument would drift while a pointer would need
+maintaining, and the file has nowhere to put either that the document would notice. So the code has one home,
+the reasoning has one home, and `lp map` is what connects the two for a reader who arrives from the tree.
 
 == What the filter needs
 

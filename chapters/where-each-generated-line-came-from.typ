@@ -28,10 +28,10 @@ by an older `lp`, and reading one has to be able to say "not mine" instead of gu
 
 == The shape of the record
 
-The names in the skeleton carry a file prefix, `map:`, for a reason worth knowing early:
-chunk names are global to the whole document. Two chapters that both called a fragment
-`the module note` would concatenate their bodies into whichever file referenced that name
-— which is how this chapter was first written, and how it announced the mistake.
+The names in the skeleton carry a file prefix, `map:`, and the reason is worth knowing early: chunk names are
+global to the whole document, and this document is thirty-five files. Two chapters that both called a fragment
+`the module note` would concatenate their bodies into whichever file referenced that name — silently, because
+a repeated name is a concatenation and not a collision.
 
 #file("src/map.rs", ````rust
 <<map: the imports>>
@@ -201,9 +201,7 @@ pub fn read(dir: &Path) -> Result<Self, LpError> {
 ````)
 
 The search is two fragments rather than one: the guard for an output directory that does not exist yet, and
-the walk. The split used to be forced by the blank line between the two thoughts, because a fragment that
-carried one added its indentation to it; the line writer leaves a blank line blank now, so this is a choice
-about what each fragment is about rather than a workaround.
+the walk.
 
 #chunk("map: when there is no output directory", ````rust
 pub fn read_all(out: &Path) -> Vec<(String, LpMap)> {

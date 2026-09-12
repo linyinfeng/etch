@@ -124,18 +124,6 @@ The drift report is deliberately one line per file: where the first difference i
 chunk produced the line on the *document's* side. Anything more is a diff, and a diff is not
 what the reader needs — the reader needs the name of the thing to edit.
 
-#chunk("tangle: every name a block references", ````rust
-pub fn refs_of(block: &Block) -> Vec<String> {
-    let mut names = Vec::new();
-    for line in block.text.lines() {
-        if let Some((target, _)) = ref_target(line) {
-            names.push(target.to_string());
-        }
-    }
-    names
-}
-````)
-
 #chunk("tangle: where two texts first differ", ````rust
 fn first_difference(old: Option<&str>, new: &str) -> Option<usize> {
     let old = old?;

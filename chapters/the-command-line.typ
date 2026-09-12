@@ -78,9 +78,9 @@ fn list(docs: &[PathBuf]) -> Result<(), LpError> {
 
 == The surface
 
-The declarations are the contract, so they are also where the help text lives: the comments
-in this file are `lp --help`. Each command gets its own fragment, because each one is a
-promise about what the tool does.
+The declarations are the contract, so they are also where the help text lives: the `help` attributes in this
+file are `lp --help`. Each command gets its own fragment, because each one is a promise about what the tool
+does.
 
 #chunk("main: the modules, and what they are called", ````rust
 mod book;

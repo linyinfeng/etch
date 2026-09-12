@@ -4,8 +4,9 @@
 
 A tool that can only work inside its own repository is not finished. This one carries three things: the
 program (it is the program), the package it declares chunks with, and — through the settings the document
-carries —
-the book that produced the tree it was built from. `include_dir!` puts that directory in the binary at
+carries — the book that produced the tree it was built from. `include_dir!` puts that directory in the binary
+at compile time, so `lp self` needs nothing beside it.
+
 #file("src/embedded.rs", ````rust
 <<self: the imports>>
 
@@ -15,8 +16,6 @@ the book that produced the tree it was built from. `include_dir!` puts that dire
 
 <<self: proving it>>
 ````)
-
-compile time, so `lp self` needs nothing beside it.
 
 *Three subcommands, three things it can do with what it carries:*
 
@@ -44,6 +43,9 @@ compile time, so `lp self` needs nothing beside it.
 `include_bytes!` at scale — one macro, no runtime dependency, and `Dir::extract` writes the tree back out
 in a single call. It also embeds in *every* profile, which matters more than it sounds: a crate that reads
 from the file system in debug builds would make the test below pass without embedding anything.
+
+Four fragments follow: the imports, the embedded directory itself, and one function per subcommand — proving
+last, because it is the one that uses the other two.
 
 #chunk("self: the imports", ````rust
 use std::path::{Path, PathBuf};

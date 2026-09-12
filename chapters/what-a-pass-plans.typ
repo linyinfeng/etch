@@ -151,10 +151,23 @@ legitimately hold a fragment for a chapter that is still being written — but a
 was declared and then renamed away is almost always a mistake, and this is what catches it.
 A declaration with no language tag is warned about for the same kind of reason: the tag is data
 that downstream tools read and that this program refuses to guess from a file name, so a gap is
-reported rather than quietly filled. The two checks are separate fragments for a reason this project kept
-running into: a blank line inside a fragment referenced from an indented place used to turn into a line of
-spaces, which is not layout. That is fixed where it belonged — the line writer leaves a blank line blank —
-so the split is now only a question of what each warning is about.
+reported rather than quietly filled.
+
+Two places ask the same question about a block — which names does it reference — and it is one function
+rather than two readings of the same text: the warning below, and `lp list`, which marks each declaration as
+referenced or not.
+
+#chunk("tangle: every name a block references", ````rust
+pub fn refs_of(block: &Block) -> Vec<String> {
+    let mut names = Vec::new();
+    for line in block.text.lines() {
+        if let Some((target, _)) = ref_target(line) {
+            names.push(target.to_string());
+        }
+    }
+    names
+}
+````)
 
 #chunk("tangle: fragments nobody uses", ````rust
 let mut warnings = Vec::new();
@@ -182,6 +195,10 @@ for name in set.names() {
 }
 ````)
 
+With the blocks in hand, each declared root is expanded in turn, and the plan records three things about it:
+the text to write, the run of declarations that produced each line of it, and the language it was declared
+with — carried into the map rather than guessed later from the file name.
+
 #chunk("tangle: check it, and expand it", ````rust
 check_output_path(root)?;
 let lang = set
@@ -190,6 +207,10 @@ let lang = set
     .and_then(|block| block.lang.clone());
 let tangled = expand(&set, root)?;
 ````)
+
+The path is checked before anything is expanded, and a root declared twice is an error rather than a second
+write: two declarations producing one file would make the plan's answer to what is in that file depend on
+which of them came last.
 
 #chunk("tangle: the same path twice", ````rust
 if !produced.insert(root.to_string()) {

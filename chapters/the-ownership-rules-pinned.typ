@@ -2,12 +2,11 @@
 
 = The ownership rules, pinned in the file
 
-Five unit tests, in the file they test rather than in `tests/`, because they are about one
-function and need no binary: produced files are accounted for however deep they are,
-declared files are accounted for even in a nested directory, a subtree that overflows is
-named once at the directory that overflows, everything under the output directory is ours at
-any depth — and nothing is accounted for by its name, so a `.lpignore` that neither the
-document declared nor a rule protects is a stray, while the two names the tool writes are not.
+Five unit tests, and they live in the file they test rather than in `tests/`, because they are about one
+function and need no binary. What they pin is the shape of the rule rather than its use: depth on both sides of
+the accounting line, a subtree that overflows named once at the directory that overflows, and no accounting by
+name at all — a `.lpignore` that neither the document declared nor a rule protects is still a stray, while the
+two names the tool writes are not.
 
 #chunk("status: the rules, pinned by four cases", ````rust
 #[cfg(test)]
