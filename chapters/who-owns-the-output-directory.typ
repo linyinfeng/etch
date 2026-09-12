@@ -59,20 +59,6 @@ pub fn unaccounted(
 
 <<status: cleaning up directories that emptied>>
 
-pub fn run(
-    out: &Path,
-    produced: &BTreeMap<String, BTreeSet<String>>,
-    delete_unaccounted: bool,
-) -> Result<i32, LpError> {
-    <<status: nothing was declared>>
-
-    <<status: everything is accounted for>>
-
-    <<status: delete, when that is what was asked>>
-
-    <<status: list them, and say what to do>>
-}
-
 <<status: the rules, pinned by four cases>>
 ````)
 
@@ -329,61 +315,6 @@ without asking.
 Four ways out, three of them 0. Two are a run that found nothing to complain about — nothing declared, or
 everything accounted for — and saying so is not noise: that sentence is what makes silence from `--check`
 meaningful, and the count of produced files is what makes it checkable at a glance.
-
-#chunk("status: nothing was declared", ````rust
-if produced.is_empty() {
-    println!(
-        "{}: the document declares no files, so lp writes nothing here and owns nothing",
-        out.display()
-    );
-    return Ok(0);
-}
-````)
-
-#chunk("status: everything is accounted for", ````rust
-let unaccounted = unaccounted(out, produced)?;
-if unaccounted.is_empty() {
-    let accounted: usize = produced.values().map(BTreeSet::len).sum();
-    println!(
-        "{}: every file under the output directory is accounted for ({accounted} produced by chunks, the rest declared)",
-        out.display()
-    );
-    return Ok(0);
-}
-````)
-
-#chunk("status: delete, when that is what was asked", ````rust
-if delete_unaccounted {
-    for relative in delete(out, produced)? {
-        println!("deleted {relative}");
-    }
-    return Ok(0);
-}
-````)
-
-#chunk("status: list them, and say what to do", ````rust
-for group in &unaccounted {
-    let label = if group.dir.is_empty() {
-        "."
-    } else {
-        group.dir.as_str()
-    };
-    println!("{label}/ — {} nothing accounts for:", group.entries.len());
-    for entry in &group.entries {
-        println!("  {}", crate::map::join(&group.dir, entry));
-    }
-}
-println!();
-println!(
-    "Everything else under there is either produced by a chunk or declared in a .lpignore."
-);
-println!(
-    "Each line above is one of: something a chunk should produce, something to declare in"
-);
-println!("that directory's .lpignore, or stale output to delete.");
-println!("Nothing is removed on its own: declare it, or run `lp unaccounted --delete`.");
-Ok(1)
-````)
 
 The exit status is 1 for the listing, so a caller — a CI step, a script, an agent — can tell
 that case from a clean run without reading the text. The other three ways out are 0: nothing

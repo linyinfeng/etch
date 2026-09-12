@@ -94,13 +94,13 @@ module gets a new function.
 Command::Weave { doc, output, extra } => weave::run(&doc, output.as_deref(), &extra),
 Command::Extract { format, file, out } => {
     let files = crate::book::extract(&file, &format, &out)?;
-    println!("wrote {files} files of the book to {}", out.display());
+    debug!("wrote {files} files of the book to {}", out.display());
     Ok(0)
 }
 Command::Itself { method } => match method {
     SelfMethod::Book { out } => {
         let files = embedded::book(&out)?;
-        println!("wrote {files} files of the book to {}", out.display());
+        debug!("wrote {files} files of the book to {}", out.display());
         Ok(0)
     }
     SelfMethod::Read { format } => {
@@ -110,43 +110,21 @@ Command::Itself { method } => match method {
     }
     SelfMethod::Prove { dir } => embedded::prove(&dir),
 },
-Command::Tangle {
-    docs,
-    out,
-    check,
-    json,
-} => {
+Command::Tangle { docs, out, check } => {
     let out = out_dir(out, &docs);
     let outcome = tangle::run(&docs, &out, check)?;
     let verdict = i32::from(!outcome.drifted.is_empty() || !outcome.missing.is_empty());
 
-    if json {
-        machine(
-            "tangle",
-            json!({
-                "documents": docs.iter().map(|doc| doc.display().to_string()).collect::<Vec<_>>(),
-                "changed": outcome.changed,
-                "unchanged": outcome.unchanged,
-                "drifted": outcome.drifted,
-                "missing": outcome.missing,
-                "unreferenced": outcome.unreferenced,
-                "wordless": outcome.wordless,
-                "unaccounted": outcome.unaccounted,
-            }),
-        )?;
-        return Ok(verdict);
-    }
-
     if outcome.carried > 0 {
         let plural = if outcome.carried == 1 { "" } else { "s" };
-        println!("carried {} book file{plural}", outcome.carried);
+        debug!("carried {} book file{plural}", outcome.carried);
     }
     if outcome.removed > 0 {
         let plural = if outcome.removed == 1 { "" } else { "s" };
-        println!("removed {} stale book file{plural}", outcome.removed);
+        debug!("removed {} stale book file{plural}", outcome.removed);
     }
     for output in &outcome.changed {
-        println!(
+        debug!(
             "wrote  {}  ({} lines, {})",
             output.root,
             output.lines,
@@ -154,7 +132,7 @@ Command::Tangle {
         );
     }
     for output in &outcome.unchanged {
-        println!("ok     {}", output.root);
+        debug!("ok     {}", output.root);
     }
     for drift in &outcome.drifted {
         let origin = match (&drift.chunk, drift.line) {
@@ -162,17 +140,36 @@ Command::Tangle {
             (None, Some(line)) => format!(" (line {line})"),
             _ => String::from(" (file differs)"),
         };
-        eprintln!("STALE  {}{origin}", drift.root);
+        debug!("STALE  {}{origin}", drift.root);
     }
     for root in &outcome.missing {
-        eprintln!("STALE  {root} (file missing)");
+        debug!("STALE  {root} (file missing)");
     }
     for name in &outcome.unreferenced {
-        eprintln!("warning: chunk ⟪{name}⟫ is never referenced");
+        debug!("chunk ⟪{name}⟫ is never referenced");
     }
     for name in &outcome.wordless {
-        eprintln!("warning: chunk ⟪{name}⟫ is declared without a language");
+        debug!("chunk ⟪{name}⟫ is declared without a language");
     }
+    for group in &outcome.unaccounted {
+        for entry in &group.entries {
+            debug!("unaccounted  {}", map::join(&group.dir, entry));
+        }
+    }
+
+    machine(
+        "tangle",
+        json!({
+            "documents": docs.iter().map(|doc| doc.display().to_string()).collect::<Vec<_>>(),
+            "changed": outcome.changed,
+            "unchanged": outcome.unchanged,
+            "drifted": outcome.drifted,
+            "missing": outcome.missing,
+            "unreferenced": outcome.unreferenced,
+            "wordless": outcome.wordless,
+            "unaccounted": outcome.unaccounted,
+        }),
+    )?;
     Ok(verdict)
 }
 ````)
@@ -183,27 +180,12 @@ status is 1 when there is drift and 0 otherwise, so `--check` is usable from a s
 parsing anything.
 
 #chunk("main: plan, which decides nothing", ````rust
-Command::Plan { docs, json, out } => {
+Command::Plan { docs, out } => {
     let out = out_dir(out, &docs);
     let outcome = tangle::inspect(&docs, &out)?;
 
-    if json {
-        machine(
-            "plan",
-            json!({
-                "documents": docs.iter().map(|doc| doc.display().to_string()).collect::<Vec<_>>(),
-                "changed": outcome.changed,
-                "unchanged": outcome.unchanged,
-                "unreferenced": outcome.unreferenced,
-                "wordless": outcome.wordless,
-                "unaccounted": outcome.unaccounted,
-            }),
-        )?;
-        return Ok(0);
-    }
-
     for output in &outcome.changed {
-        println!(
+        debug!(
             "would write  {}  ({} lines, {})",
             output.root,
             output.lines,
@@ -211,19 +193,31 @@ Command::Plan { docs, json, out } => {
         );
     }
     for output in &outcome.unchanged {
-        println!("nothing to do  {}", output.root);
+        debug!("nothing to do  {}", output.root);
     }
     for name in &outcome.unreferenced {
-        eprintln!("warning: chunk ⟪{name}⟫ is never referenced");
+        debug!("chunk ⟪{name}⟫ is never referenced");
     }
     for name in &outcome.wordless {
-        eprintln!("warning: chunk ⟪{name}⟫ is declared without a language");
+        debug!("chunk ⟪{name}⟫ is declared without a language");
     }
     for group in &outcome.unaccounted {
         for entry in &group.entries {
-            eprintln!("unaccounted  {}", map::join(&group.dir, entry));
+            debug!("unaccounted  {}", map::join(&group.dir, entry));
         }
     }
+
+    machine(
+        "plan",
+        json!({
+            "documents": docs.iter().map(|doc| doc.display().to_string()).collect::<Vec<_>>(),
+            "changed": outcome.changed,
+            "unchanged": outcome.unchanged,
+            "unreferenced": outcome.unreferenced,
+            "wordless": outcome.wordless,
+            "unaccounted": outcome.unaccounted,
+        }),
+    )?;
     Ok(0)
 }
 ````)
@@ -233,7 +227,6 @@ Command::Map {
     file,
     typ,
     line,
-    json,
     out,
 } => {
     let out = out_dir(out, &[]);
@@ -258,20 +251,17 @@ a person asks, not in a loop.
                 }
             }
         }
-        if json {
-            let places: Vec<serde_json::Value> = hits
-                .iter()
-                .map(|(file, line)| json!({"file": file, "line": line}))
-                .collect();
-            machine("map", json!({"chunk": chunk, "hits": places}))?;
-            return Ok(0);
-        }
         for (file, line) in &hits {
-            println!("{file}:{line}");
+            debug!("{file}:{line}");
         }
         if hits.is_empty() {
-            eprintln!("note: nothing in the generated files came from chunk ⟪{chunk}⟫");
+            debug!("nothing in the generated files came from chunk ⟪{chunk}⟫");
         }
+        let places: Vec<serde_json::Value> = hits
+            .iter()
+            .map(|(file, line)| json!({"file": file, "line": line}))
+            .collect();
+        machine("map", json!({"chunk": chunk, "hits": places}))?;
         return Ok(0);
     }
 ````)
@@ -301,21 +291,18 @@ guarantee a compiler cannot see.
 ````)
 
 #chunk("main: map, the answer", ````rust
-    if json {
-        machine(
-            "map",
-            json!({
-                "file": rel,
-                "line": line,
-                "chunk": run.chunk,
-                "offset": offset,
-                "exact": run.first <= line && line <= run.last,
-            }),
-        )?;
-        return Ok(0);
-    }
-    println!("chunk ⟪{}⟫, line {offset} of it", run.chunk);
-    println!("    find it with: rg '#chunk(\"{}\")'", run.chunk);
+    debug!("chunk ⟪{}⟫, line {offset} of it", run.chunk);
+    debug!("    find it with: rg '#chunk(\"{}\")'", run.chunk);
+    machine(
+        "map",
+        json!({
+            "file": rel,
+            "line": line,
+            "chunk": run.chunk,
+            "offset": offset,
+            "exact": run.first <= line && line <= run.last,
+        }),
+    )?;
     Ok(0)
 ````)
 
@@ -328,7 +315,7 @@ Command::Explain { out } => {
         .map_err(|e| LpError::plain(e.to_string()))?;
     let mapped = explain::run(&out, &input)?;
     if mapped == 0 {
-        eprintln!("note: no diagnostic line matched any map");
+        debug!("no diagnostic line matched any map");
     }
     Ok(0)
 }
@@ -339,24 +326,19 @@ prints diagnostics can be piped in, and the note about nothing matching goes to 
 pipeline's stdout stays exactly what it was.
 
 #chunk("main: list, one document", ````rust
-Command::List { doc, json } => {
-    list(std::slice::from_ref(&doc), json)?;
+Command::List { doc } => {
+    list(std::slice::from_ref(&doc))?;
     Ok(0)
 }
 ````)
 
 #chunk("main: metadata, the stream itself", ````rust
-Command::Metadata { docs, json } => {
+Command::Metadata { docs } => {
     let typst = metadata::binary()?;
     let declarations = metadata::declarations(&typst, &docs)?;
 
-    if json {
-        machine("metadata", json!({ "declarations": declarations }))?;
-        return Ok(0);
-    }
-
-    for declaration in declarations {
-        println!(
+    for declaration in &declarations {
+        debug!(
             "{:<6} {:<28} {:<8} {}",
             declaration.lp,
             declaration.name,
@@ -364,37 +346,52 @@ Command::Metadata { docs, json } => {
             declaration.text.lines().next().unwrap_or("")
         );
     }
+
+    machine("metadata", json!({ "declarations": declarations }))?;
     Ok(0)
 }
 ````)
 
 #chunk("main: unaccounted, which needs a plan", ````rust
-Command::Unaccounted {
-    docs,
-    out,
-    delete,
-    json,
-} => {
+Command::Unaccounted { docs, out, delete } => {
     let out = out_dir(out, &docs);
     let plan = tangle::plan(&docs)?;
     let produced = tangle::produced(&plan);
+    let listed = status::unaccounted(&out, &produced)?;
 
-    if json {
-        let listed = status::unaccounted(&out, &produced)?;
-        let deleted = if delete {
-            status::delete(&out, &produced)?
+    if listed.is_empty() {
+        debug!(
+            "{}: every file under the output directory is accounted for",
+            out.display()
+        );
+    }
+    for group in &listed {
+        let label = if group.dir.is_empty() {
+            ".".to_string()
         } else {
-            Vec::new()
+            group.dir.clone()
         };
-        let verdict = i32::from(!listed.is_empty() && !delete);
-        machine(
-            "unaccounted",
-            json!({"unaccounted": listed, "deleted": deleted}),
-        )?;
-        return Ok(verdict);
+        debug!("{label}/ — {} nothing accounts for:", group.entries.len());
+        for entry in &group.entries {
+            debug!("  {}", map::join(&group.dir, entry));
+        }
     }
 
-    status::run(&out, &produced, delete)
+    let deleted = if delete {
+        status::delete(&out, &produced)?
+    } else {
+        Vec::new()
+    };
+    for relative in &deleted {
+        debug!("deleted {relative}");
+    }
+
+    let verdict = i32::from(!listed.is_empty() && !delete);
+    machine(
+        "unaccounted",
+        json!({"unaccounted": listed, "deleted": deleted}),
+    )?;
+    Ok(verdict)
 }
 ````)
 
@@ -411,33 +408,31 @@ let referenced = &plan.referenced;
 ````)
 
 #chunk("main: the same list, for a program", ````rust
-if json {
-    let declarations: Vec<serde_json::Value> = plan
-        .blocks
-        .iter()
-        .map(|block| {
-            json!({
-                "kind": if block.root { "file" } else { "chunk" },
-                "name": block.name,
-                "lang": block.lang,
-                "referenced": referenced.contains(&block.name) || block.root,
-            })
-        })
-        .collect();
-    return machine(
-        "list",
+let declarations: Vec<serde_json::Value> = plan
+    .blocks
+    .iter()
+    .map(|block| {
         json!({
-            "documents": docs.iter().map(|doc| doc.display().to_string()).collect::<Vec<_>>(),
-            "declarations": declarations,
-            "outputs": set.roots(),
-        }),
-    );
-}
+            "kind": if block.root { "file" } else { "chunk" },
+            "name": block.name,
+            "lang": block.lang,
+            "referenced": referenced.contains(&block.name) || block.root,
+        })
+    })
+    .collect();
+machine(
+    "list",
+    json!({
+        "documents": docs.iter().map(|doc| doc.display().to_string()).collect::<Vec<_>>(),
+        "declarations": declarations,
+        "outputs": set.roots(),
+    }),
+)?;
 ````)
 
 #chunk("main: one row per declaration", ````rust
 for doc in docs {
-    println!("{}", doc.display());
+    debug!("{}", doc.display());
 }
 for block in &plan.blocks {
     let kind = if block.root { "file" } else { "frag" };
@@ -446,7 +441,7 @@ for block in &plan.blocks {
     } else {
         "unreferenced".to_string()
     };
-    println!(
+    debug!(
         "  {kind}  {:<28} {:<8} {}",
         format!("⟪{}⟫", block.name),
         block.lang.as_deref().unwrap_or("-"),
@@ -457,7 +452,7 @@ for block in &plan.blocks {
 
 #chunk("main: the outputs at the end", ````rust
 let roots = set.roots();
-println!(
+debug!(
     "\noutputs: {}",
     if roots.is_empty() {
         "(none)".to_string()

@@ -178,6 +178,7 @@ not a chunk
 fn lp(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_lp"))
         .args(args)
+        .env("LP_LOG", "debug")
         .current_dir(dir)
         .output()
         .expect("run lp")
@@ -344,9 +345,9 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
         ],
     );
     assert!(
-        stdout(&mapped).starts_with("chunk ⟪greeting⟫, line 1 of it"),
+        stderr(&mapped).contains("chunk ⟪greeting⟫, line 1 of it"),
         "{}",
-        stdout(&mapped)
+        stderr(&mapped)
     );
 
     let no_files = lp(&path, &["tangle", "chapter.typ", "--out", "out2"]);
@@ -393,9 +394,9 @@ fn maps_live_next_to_the_files_they_explain() {
         );
         assert!(output.status.success(), "{file}: {}", stderr(&output));
         assert!(
-            stdout(&output).starts_with("chunk ⟪src/b.py⟫"),
+            stderr(&output).contains("chunk ⟪src/b.py⟫"),
             "{file}: {}",
-            stdout(&output)
+            stderr(&output)
         );
     }
 }
@@ -488,8 +489,10 @@ fn check_names_the_chunk_of_the_first_difference() {
 
       let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
       assert!(output.status.success(), "{}", stderr(&output));
-      assert!(
-          !stdout(&output).contains("wrote"),
+      let json: serde_json::Value = serde_json::from_str(&stdout(&output)).expect("one document");
+      assert_eq!(
+          json["changed"],
+          serde_json::json!([]),
           "outputs are unchanged: {}",
           stdout(&output)
       );
@@ -499,9 +502,9 @@ fn check_names_the_chunk_of_the_first_difference() {
           &["map", "--file", "main.py", "--line", "3", "--out", "out"],
       );
       assert!(
-          stdout(&forward).starts_with("chunk ⟪body⟫, line 2 of it"),
+          stderr(&forward).contains("chunk ⟪body⟫, line 2 of it"),
           "{}",
-          stdout(&forward)
+          stderr(&forward)
       );
   }
   ````,
@@ -615,22 +618,23 @@ fn map_names_the_chunk_a_generated_line_came_from() {
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
     assert!(output.status.success(), "{}", stderr(&output));
-    assert_eq!(
-        stdout(&output).lines().next(),
-        Some("chunk ⟪body⟫, line 2 of it")
+    assert!(
+        stderr(&output).contains("chunk ⟪body⟫, line 2 of it"),
+        "{}",
+        stderr(&output)
     );
 
     let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
     assert!(reverse.status.success(), "{}", stderr(&reverse));
     assert!(
-        stdout(&reverse).contains("main.py:2"),
+        stdout(&reverse).contains("\"file\":\"main.py\""),
         "{}",
-        stdout(&reverse)
+        stderr(&reverse)
     );
     assert!(
-        stdout(&reverse).contains("main.py:3"),
+        stderr(&reverse).contains("main.py:3"),
         "{}",
-        stdout(&reverse)
+        stderr(&reverse)
     );
 }
 ````)
@@ -649,7 +653,7 @@ fn tangle_speaks_json_about_what_it_wrote() {
     )
     .expect("doc");
 
-    let written = lp(dir.path(), &["tangle", "demo.typ", "--json"]);
+    let written = lp(dir.path(), &["tangle", "demo.typ"]);
     assert!(written.status.success(), "{}", stderr(&written));
     let json: serde_json::Value =
         serde_json::from_str(&stdout(&written)).expect("one document, and nothing else on stdout");
@@ -661,10 +665,10 @@ fn tangle_speaks_json_about_what_it_wrote() {
     assert!(
         json.get("carried").is_none(),
         "the book counts are prose: {}",
-        stdout(&written)
+        stderr(&written)
     );
 
-    let settled = lp(dir.path(), &["tangle", "demo.typ", "--json"]);
+    let settled = lp(dir.path(), &["tangle", "demo.typ"]);
     let json: serde_json::Value =
         serde_json::from_str(&stdout(&settled)).expect("one document, and nothing else on stdout");
     assert_eq!(json["changed"], serde_json::json!([]));
@@ -679,10 +683,10 @@ fn plan_says_what_a_pass_would_do() {
 
     let fresh = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
     assert!(fresh.status.success(), "{}", stderr(&fresh));
+    let planned: serde_json::Value = serde_json::from_str(&stdout(&fresh)).expect("one document");
     assert!(
-        stdout(&fresh)
-            .lines()
-            .all(|line| line.starts_with("would write  ")),
+        planned["changed"].as_array().is_some_and(|c| !c.is_empty())
+            && planned["unchanged"] == serde_json::json!([]),
         "{}",
         stdout(&fresh)
     );
@@ -695,10 +699,13 @@ fn plan_says_what_a_pass_would_do() {
     );
     let settled = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
     assert!(settled.status.success(), "{}", stderr(&settled));
+    let settled_json: serde_json::Value =
+        serde_json::from_str(&stdout(&settled)).expect("one document");
     assert!(
-        stdout(&settled)
-            .lines()
-            .all(|line| line.starts_with("nothing to do  ")),
+        settled_json["unchanged"]
+            .as_array()
+            .is_some_and(|u| !u.is_empty())
+            && settled_json["changed"] == serde_json::json!([]),
         "{}",
         stdout(&settled)
     );
@@ -711,13 +718,13 @@ fn plan_says_what_a_pass_would_do() {
         stderr(&drifted)
     );
     assert!(
-        stdout(&drifted).contains("would write  main.py"),
+        stderr(&drifted).contains("would write  main.py"),
         "{}",
-        stdout(&drifted)
+        stderr(&drifted)
     );
 
     std::fs::write(dir.join("out/leftover.py"), "stale\n").expect("stray");
-    let reported = lp(&dir, &["plan", "demo.typ", "--out", "out", "--json"]);
+    let reported = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
     assert!(reported.status.success(), "{}", stderr(&reported));
     let json: serde_json::Value = serde_json::from_str(&stdout(&reported)).expect("one document");
     assert_eq!(json["version"], 1);
@@ -769,7 +776,7 @@ fn the_reading_commands_speak_json_when_asked() {
             .success()
     );
 
-    let listed = lp(&dir, &["list", "demo.typ", "--json"]);
+    let listed = lp(&dir, &["list", "demo.typ"]);
     assert!(listed.status.success(), "{}", stderr(&listed));
     let list: serde_json::Value = serde_json::from_str(&stdout(&listed)).expect("one document");
     assert_eq!(list["version"], 1);
@@ -786,7 +793,7 @@ fn the_reading_commands_speak_json_when_asked() {
     assert_eq!(body["lang"], "py");
     assert_eq!(body["referenced"], true);
 
-    let carried = lp(&dir, &["metadata", "demo.typ", "--json"]);
+    let carried = lp(&dir, &["metadata", "demo.typ"]);
     assert!(carried.status.success(), "{}", stderr(&carried));
     let metadata: serde_json::Value =
         serde_json::from_str(&stdout(&carried)).expect("one document");
@@ -804,9 +811,7 @@ fn the_reading_commands_speak_json_when_asked() {
 
     let forward = lp(
         &dir,
-        &[
-            "map", "--file", "main.py", "--line", "3", "--json", "--out", "out",
-        ],
+        &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
     assert!(forward.status.success(), "{}", stderr(&forward));
     let mapped: serde_json::Value = serde_json::from_str(&stdout(&forward)).expect("one document");
@@ -817,9 +822,7 @@ fn the_reading_commands_speak_json_when_asked() {
 
     let past_the_end = lp(
         &dir,
-        &[
-            "map", "--file", "main.py", "--line", "99", "--json", "--out", "out",
-        ],
+        &["map", "--file", "main.py", "--line", "99", "--out", "out"],
     );
     let nearest: serde_json::Value =
         serde_json::from_str(&stdout(&past_the_end)).expect("one document");
@@ -829,7 +832,7 @@ fn the_reading_commands_speak_json_when_asked() {
         "a tolerance is not an exact answer"
     );
 
-    let reverse = lp(&dir, &["map", "--typ", "body", "--json", "--out", "out"]);
+    let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
     assert!(reverse.status.success(), "{}", stderr(&reverse));
     let hits: serde_json::Value = serde_json::from_str(&stdout(&reverse)).expect("one document");
     assert_eq!(hits["hits"][0]["file"], "main.py");
@@ -897,7 +900,7 @@ fn explain_rewrites_diagnostics_to_the_chunk() {
     let output = child.wait_with_output().expect("wait");
 
     assert!(stdout(&output).contains("out/main.py:3:1: boom"));
-    let message = stderr(&output);
+    let message = stdout(&output);
     assert!(message.contains("chunk ⟪body⟫, line 2 of it"), "{message}");
 }
 ````)
@@ -931,16 +934,17 @@ fn the_book_comes_back_out_whole() {
     let beside = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
     let names = under(&beside);
     assert!(!names.is_empty(), "the book carries nothing");
-    let said: usize = stdout(&output)
-        .split_whitespace()
-        .nth(1)
-        .and_then(|count| count.parse().ok())
+    let said: usize = stderr(&output)
+        .lines()
+        .find(|line| line.contains("files of the book"))
+        .and_then(|line| line.split("wrote ").nth(1))
+        .and_then(|rest| rest.split_whitespace().next()?.parse().ok())
         .expect("the number of files it says it wrote");
     assert_eq!(
         said,
         names.len(),
         "the count is the whole book, not its top level: {}",
-        stdout(&output)
+        stderr(&output)
     );
     for name in names {
         let embedded = std::fs::read(dir.path().join("unpacked").join(&name)).expect("carried");
@@ -1295,7 +1299,7 @@ fn list_reports_declarations() {
     let (_guard, dir, _) = project(DOC);
     let output = lp(&dir, &["list", "demo.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
-    let listed = stdout(&output);
+    let listed = stderr(&output);
     assert!(listed.contains("file  ⟪main.py⟫"), "{listed}");
     assert!(listed.contains("frag  ⟪body⟫"), "{listed}");
     assert!(listed.contains("outputs: <main.py>"), "{listed}");
@@ -1321,9 +1325,9 @@ fn a_chunk_built_by_code_is_attributed_to_itself() {
         &["map", "--file", "gen-0.py", "--line", "1", "--out", "out"],
     );
     assert!(
-        stdout(&mapped).starts_with("chunk ⟪gen-0.py⟫, line 1 of it"),
+        stderr(&mapped).contains("chunk ⟪gen-0.py⟫, line 1 of it"),
         "{}",
-        stdout(&mapped)
+        stderr(&mapped)
     );
 }
 ````)

@@ -56,6 +56,7 @@ fn typst_available() -> bool {
 fn lp(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_lp"))
         .args(args)
+        .env("LP_LOG", "debug")
         .current_dir(dir)
         .output()
         .expect("run lp")
@@ -99,7 +100,7 @@ fn a_styling_show_rule_does_not_hide_a_chunk() {
 
     let output = lp(&path, &["metadata", "styled.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
-    let report = stdout(&output);
+    let report = stderr(&output);
     assert!(report.contains("styled"), "{report}");
     assert!(report.contains("print('styled')"), "{report}");
 }
@@ -143,9 +144,9 @@ fn a_chapter_is_tangled_without_being_listed() {
         ],
     );
     assert!(
-        stdout(&mapped).starts_with("chunk ⟪src/main.py⟫, line 1 of it"),
+        stderr(&mapped).contains("chunk ⟪src/main.py⟫, line 1 of it"),
         "{}",
-        stdout(&mapped)
+        stderr(&mapped)
     );
 }
 ````)
@@ -169,7 +170,7 @@ fn the_document_reports_chunks_no_parser_could_find() {
 
     let output = lp(&path, &["metadata", "dynamic.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
-    let report = stdout(&output);
+    let report = stderr(&output);
     assert!(
         report.contains("part-0") && report.contains("part-1"),
         "{report}"
@@ -329,9 +330,12 @@ fn a_document_without_declarations_says_what_to_do() {
 
     let output = lp(&path, &["metadata", "plain.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
-    assert!(
-        stdout(&output).trim().is_empty(),
-        "nothing is still an answer"
+    let json: serde_json::Value = serde_json::from_str(&stdout(&output)).expect("one document");
+    assert_eq!(
+        json["declarations"],
+        serde_json::json!([]),
+        "nothing is still an answer: {}",
+        stdout(&output)
     );
 }
 ````)

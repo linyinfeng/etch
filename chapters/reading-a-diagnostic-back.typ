@@ -106,7 +106,7 @@ let Some((run, offset)) = entry.locate(out_line) else {
     continue;
 };
 let rel = join(dir, name);
-eprintln!(
+println!(
     "  ↳ chunk ⟪{}⟫, line {offset} of it  ({rel}:{out_line})",
     run.chunk
 );

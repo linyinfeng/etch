@@ -68,7 +68,7 @@ fn run() -> Result<i32, LpError> {
     }
 }
 
-fn list(docs: &[PathBuf], json: bool) -> Result<(), LpError> {
+fn list(docs: &[PathBuf]) -> Result<(), LpError> {
     <<main: plan, and who is referenced>>
 
     <<main: the same list, for a program>>
@@ -124,6 +124,7 @@ use std::path::PathBuf;
 
 use clap::{ArgGroup, Parser, Subcommand};
 use serde_json::json;
+use tracing::debug;
 
 use diag::LpError;
 ````)
@@ -206,9 +207,6 @@ Tangle {
     #[arg(long)]
     #[arg(help = "Write nothing; fail if the generated files are out of date")]
     check: bool,
-    #[arg(long)]
-    #[arg(help = "Print one JSON document instead of the readout")]
-    json: bool,
 },
 ````)
 
@@ -222,9 +220,6 @@ Plan {
     #[arg(required = true)]
     #[arg(help = "Documents to plan for, e.g. book/lp.typ")]
     docs: Vec<PathBuf>,
-    #[arg(long)]
-    #[arg(help = "Print one JSON document instead of the readout")]
-    json: bool,
     #[arg(long)]
     #[arg(
         help = "Directory the root chunk names resolve into (default: tangled/ next to the documents, or in the working directory for commands that take none)"
@@ -247,9 +242,6 @@ Map {
     #[arg(help = "A line in that file, 1-based, as the map counts it")]
     line: Option<usize>,
     #[arg(long)]
-    #[arg(help = "Print one JSON document instead of the sentence")]
-    json: bool,
-    #[arg(long)]
     #[arg(
         help = "Directory the maps are in (default: tangled/, since this command names no document)"
     )]
@@ -267,12 +259,7 @@ Explain {
 
 #chunk("main: list", ````rust
 #[command(about = "List the chunks a document declares")]
-List {
-    doc: PathBuf,
-    #[arg(long)]
-    #[arg(help = "Print one JSON document instead of the table")]
-    json: bool,
-},
+List { doc: PathBuf },
 ````)
 
 `list` and `metadata` are the two commands that exist for the person debugging a document
@@ -285,9 +272,6 @@ it without writing anything.
 Metadata {
     #[arg(required = true)]
     docs: Vec<PathBuf>,
-    #[arg(long)]
-    #[arg(help = "Print one JSON document instead of the table, with every text in full")]
-    json: bool,
 },
 ````)
 
@@ -304,8 +288,5 @@ Unaccounted {
     #[arg(long)]
     #[arg(help = "Delete them: the explicit alternative to declaring them")]
     delete: bool,
-    #[arg(long)]
-    #[arg(help = "Print one JSON document instead of the report")]
-    json: bool,
 },
 ````)

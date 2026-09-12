@@ -52,6 +52,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use include_dir::{Dir, include_dir};
+use tracing::debug;
 
 use crate::diag::LpError;
 use crate::disk;
@@ -110,7 +111,7 @@ pub fn prove(dir: &Path) -> Result<i32, LpError> {
     }
 
     let tree = dir.join("tangled");
-    println!("wrote {files} files of the book to {}", dir.display());
+    debug!("wrote {files} files of the book to {}", dir.display());
     crate::tangle::run(&documents, &tree, false)?;
 
     let status = Command::new("nix")

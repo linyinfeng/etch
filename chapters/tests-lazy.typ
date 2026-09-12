@@ -65,6 +65,7 @@ print('two')
 fn lp(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_lp"))
         .args(args)
+        .env("LP_LOG", "debug")
         .current_dir(dir)
         .output()
         .expect("run lp")
@@ -112,8 +113,8 @@ fn a_pass_does_not_touch_files_that_did_not_change() {
     let (_guard, dir) = project();
     let first = lp(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
     assert!(first.status.success(), "{}", stderr(&first));
-    assert!(stdout(&first).contains("wrote  main.py"));
-    assert!(stdout(&first).contains("wrote  other.py"));
+    assert!(stderr(&first).contains("wrote  main.py"));
+    assert!(stderr(&first).contains("wrote  other.py"));
 
     let before = (
         modified(&dir.join("out/main.py")),
@@ -124,8 +125,10 @@ fn a_pass_does_not_touch_files_that_did_not_change() {
 
     let second = lp(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
     assert!(second.status.success(), "{}", stderr(&second));
-    assert!(
-        !stdout(&second).contains("wrote"),
+    let written: serde_json::Value = serde_json::from_str(&stdout(&second)).expect("one document");
+    assert_eq!(
+        written["changed"],
+        serde_json::json!([]),
         "nothing should be rewritten: {}",
         stdout(&second)
     );
@@ -157,7 +160,7 @@ fn only_the_affected_output_is_rewritten() {
 
     let output = lp(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
-    let report = stdout(&output);
+    let report = stderr(&output);
     assert!(report.contains("wrote  main.py"), "{report}");
     assert!(
         !report.contains("wrote  other.py"),
@@ -218,15 +221,15 @@ fn map_works_in_both_directions() {
     );
     assert!(forward.status.success(), "{}", stderr(&forward));
     assert!(
-        stdout(&forward).starts_with("chunk ⟪body⟫, line 2 of it"),
+        stderr(&forward).contains("chunk ⟪body⟫, line 2 of it"),
         "{}",
-        stdout(&forward)
+        stderr(&forward)
     );
 
     let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
     assert!(reverse.status.success(), "{}", stderr(&reverse));
     assert!(
-        stdout(&reverse).contains("main.py:3"),
+        stdout(&reverse).contains("\"file\":\"main.py\""),
         "{}",
         stdout(&reverse)
     );
