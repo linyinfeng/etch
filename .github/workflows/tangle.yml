@@ -64,8 +64,17 @@ jobs:
           path: lp.html
 
       - name: hand the generation to the seed branch
+        env:
+          # The tree carries a workflow file, and a repository token may not push one — the `workflows`
+          # permission cannot be granted to it. A token with that scope also makes the pushed branch
+          # trigger its own workflows, which is how the generated pipeline runs at all.
+          TOKEN: ${{ secrets.TANGLED_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::set secrets.TANGLED_TOKEN — a token with repo and workflow scopes; a repository token cannot publish a workflow file, nor trigger the branch's own pipeline"
+            exit 1
+          fi
           root=$PWD
           git init -q tangled
           git -C tangled add -A
@@ -85,5 +94,5 @@ jobs:
           fi
           commit=$(git -c user.name=github-actions -c user.email=github-actions@github.com \
             commit-tree "$tree" -p "$parent" -m "The generation main writes ($GITHUB_SHA)")
-          git push origin "$commit:refs/heads/tangled"
+          git push "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$commit:refs/heads/tangled"
           echo "pushed $(git rev-parse --short "$commit") to tangled"
