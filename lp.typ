@@ -1,7 +1,7 @@
 // lp, described by itself.
 //
 // Nothing here is documentation *about* the tool: this file is the tool. Tangling it produces the
-// crate, the package, the example and the control files; compiling it produces the document you
+// crate, the package and the control files; compiling it produces the document you
 // are reading.
 //
 // The document is arranged as an argument — from what a declaration is, through what a pass
@@ -25,8 +25,8 @@
 
 = The tool, in its own words
 
-This is the whole of `lp`: the program, the package it is written with, and the example it ships.
-There is no second source — the crate, the package and the example in this repository are the
+This is the whole of `lp`: the program and the package it is written with.
+There is no second source — the crate and the package in this repository are the
 output of tangling this file, and `lp weave lp.typ lp.pdf` renders what you are reading — which is
 `typst compile` with the package this tool unpacks already in scope.
 
@@ -78,7 +78,7 @@ of the two it is. `show-rule` marks references when the document is woven.
 
 The declarations deliberately do not depend on that show rule. A show rule that consumes an
 element can hide it from a query, and that is not a hypothesis: a styling rule once made every
-chunk in this project's own example vanish from the pass that collects them (ADR D12). So the
+chunk in this project vanish from the pass that collects them (ADR D12). So the
 metadata is attached where the declaration is written, and rendering is free to be as decorative
 as it likes afterwards.
 
@@ -4111,7 +4111,7 @@ Weave {
 #chunk("main: tangle", ````rust
 /// Expand a .typ document into its source files
 Tangle {
-    /// Documents to tangle, e.g. tangled/examples/demo/literate.typ
+    /// Documents to tangle, e.g. book/lp.typ
     #[arg(required = true)]
     docs: Vec<PathBuf>,
     /// Directory the root chunk names resolve into (default: tangled/ next to the
@@ -4152,7 +4152,7 @@ Explain {
 #chunk("main: watch", ````rust
 /// Keep the generated files in step while the document is edited
 Watch {
-    /// Documents to watch, e.g. tangled/examples/demo/literate.typ
+    /// Documents to watch, e.g. book/lp.typ
     #[arg(required = true)]
     docs: Vec<PathBuf>,
     #[arg(long)]
@@ -7213,7 +7213,7 @@ rules:
 `lp` treats its output directory as its own and refuses to guess: every file under it
 is produced by a declaration or listed in the `.lpignore` of its directory. Here the
 output directory is the repository root, so what this document does *not* produce is
-whatever is not the crate, the package, the example or a control file — and the lock
+whatever is not the crate, the package or a control file — and the lock
 files cargo and nix maintain, which no chunk has any business owning.
 
 #file(".gitignore", ````gitignore
@@ -7221,10 +7221,6 @@ files cargo and nix maintain, which no chunk has any business owning.
 .lp
 target
 
-# The example's build directory is a nested document's output, and this document declares the one
-# file in it that governs the rest.
-examples/demo/build/*
-!examples/demo/build/.lpignore
 ````)
 
 #file(".lpignore", ````gitignore
@@ -7239,17 +7235,15 @@ examples/demo/build/*
 # content, and this is the line that says so.
 /.git
 
-# What the build tools write, and the example's build directory — whose own .lpignore governs what is
-# inside it, because a nested document's output is not this document's business. The lock files are
-# not here: they are decisions, declared in the appendix.
+# What the build tools write. The lock files are not here: they are decisions, declared in the
+# appendix.
 /target
-/examples/demo/build
 ````)
 
 = What git is asked to ignore
 
 Everything under `tangled/` is generated, so the whole directory is ignored: the crate, the
-package, the example, the protect list and the maps. What is tracked at the root is the document,
+package, the protect list and the maps. What is tracked at the root is the document,
 the pointer, the pipeline, and this file. `README.md` is that pointer, and there is one of it: a second name for
 the same text is a second name that can drift, which is the whole reason this file's text is a
 pointer. The `.gitignore` is written as the list itself — ignore everything, then allow these — so it
@@ -7294,7 +7288,7 @@ assembles the environment for you.
 The tangle writes to `tangled/` without being told to: when `--out` is not given it is the
 directory `tangled` next to the document, because the document is what the output belongs to. The
 older lp reads the declarations here and writes this generation over its own tree — crate, package,
-example, protect list. Its own history is what makes it readable a generation later, which is the
+protect list. Its own history is what makes it readable a generation later, which is the
 whole trick: the seed was never a special artifact, only an older generation of this.
 
 That tree is a copy that can be read on its own, and it is a repository, but it is not this
@@ -7314,10 +7308,6 @@ it. Being output, it is written when it differs and compared by `--check` like e
 .lp
 target
 
-# The example's build directory is a nested document's output, and this document declares the one
-# file in it that governs the rest.
-examples/demo/build/*
-!examples/demo/build/.lpignore
 ```
 
 Write it, declare it in the protect list above next to `/.git` — they are the same kind of file,
@@ -7368,8 +7358,7 @@ out, and each for a reason worth being able to say:
   alone. The first tangle of a fresh clone writes it back.
 - `.lp/`, the copy of the package unpacked next to a document so Typst can import it. Also
   derived: it is the declaration of the package, unpacked.
-- `target/` and the example's `build/`, which the build and the nested document produce rather than
-  this document.
+- `target/`, which the build produces rather than this document.
 
 So the seed is the program, not the state around it: a generation to read, to build, and — in the
 one case where that matters — one to bootstrap from. Being a program is also the test: if the
@@ -7396,7 +7385,7 @@ These are not style preferences; each one was paid for.
 - *Orthogonality.* No knowledge of any target language in the algorithms; language
   differences are data (the fence tag), never code.
 - *Generated files stay out of git*, and only this document is edited: the crate, the package,
-  the example, the control files. The seed is output too, and lives on the `tangled` branch for
+  the control files. The seed is output too, and lives on the `tangled` branch for
   bootstrap reasons — a fresh clone has no binary to tangle with. It is the same guarded tree, one
   generation behind.
 - *An error points at a declaration*, never at a bare string: which chunk, and which
@@ -7412,318 +7401,31 @@ These are not style preferences; each one was paid for.
 - *Dependencies are chosen from mature crates* (D7); every new one gets a line saying
   why. `typst` is a hard dependency of tangling (`LP_TYPST`, then `PATH`).
 
-= The example: the same tool, used on something small
-
-`tangled/examples/demo/` is a small Rust crate written as one document: one fragment shared by two
-files, indentation that matters, a woven PDF, and a real rustc error translated back to the chunk
-it came from. It is here because it is the loud half of every claim this document makes — `run.sh`
-fails when the tool stops working, and it runs with the tests.
-
-It is also the best answer to the question this document keeps asking itself. The example *is* a
-literate program, and it is a separate one: its own document, its own sections, its own
-record of decisions. So its sections are fragments of this document in exactly the same way
-the chapters above are — which is the point being made, made twice.
-
-#file("examples/demo/literate.typ", ````typst
-<<demo: the document's opening>>
-
-<<demo: the manifest>>
-
-<<demo: the library>>
-
-<<demo: the binary>>
-
-<<demo: the shared preamble>>
-
-<<demo: the module body>>
-
-<<demo: what main prints>>
-
-<<demo: running the result>>
-
-<<demo: who owns that directory>>
-
-<<demo: when it breaks>>
-````)
-
-== What the example demonstrates
-
-Its document is tangled into `tangled/examples/demo/` — the tree is where it lives, and the
-commands inside its own document are written from there, which is also where `run.sh` runs them.
-
-The order of its sections is the argument of a much smaller program, and it is worth reading as
-one: what the crate is, the three files as skeletons, then the pieces each in the section that
-explains it, then how to run it, who owns the directory it writes into, and what a broken build
-looks like after the error has been translated.
-
-The last section is the one to keep in mind while reading the rest of this document: an error that
-points at a chunk is the difference between a generator and a tool you can debug.
-
-#chunk("demo: the document's opening", ````typst
-#import "@local/lp:0.1.0": chunk, file, show-rule, tangle-options
-#show: show-rule
-
-#set page(width: 15cm, height: auto, margin: 2cm)
-#set text(size: 10pt)
-
-= A multi-file crate, written as one document
-
-This document is a normal Typst file — `typst compile examples/demo/literate.typ`
-renders it. It is also the only source of a small Rust crate: every `#file(...)`
-declaration names a real file to write when you run
-
-```sh
-lp tangle examples/demo/literate.typ --out examples/demo/build
-```
-
-Text like this never reaches the generated code. `#chunk("name", …)` declares a
-fragment and chunks pull each other in with `<<name>>`. The order below is a
-choice: the three files first, as skeletons that name what they need, then each
-piece in the section that explains it. Pieces first and assembly last would be
-just as legitimate — the argument decides, not the tool — and this document says
-so in its first paragraph because a reader should know which shape they are in.
-````)
-
-#chunk("demo: the manifest", ````typst
-== The manifest
-
-The crate is its own workspace so the surrounding repository's `Cargo.toml`
-does not claim it.
-
-#file("Cargo.toml", ```toml
-[package]
-name = "lp-demo"
-version = "0.0.0"
-edition = "2024"
-
-# `lp` output is standalone; keep it out of the parent workspace.
-[workspace]
-```)
-````)
-
-#chunk("demo: the library", ````typst
-== The library
-
-Two thirds of the crate: a banner comment it shares with the binary, and one
-module. Neither is spelled out here — the sections below do that, in the order a
-reader wants them.
-
-`` `<<math-items>>` `` sits inside a module, so its two chunks are indented by four
-spaces on the way out:
-
-#file("src/lib.rs", ```rust
-@<<crate-preamble>>
-
-pub mod math {
-    @<<math-items>>
-}
-```)
-````)
-
-#chunk("demo: the binary", ````typst
-== The binary
-
-The entry point: the same banner, the library's module, and whatever `main`
-prints.
-
-#file("src/main.rs", ```rust
-@<<crate-preamble>>
-
-use lp_demo::math;
-
-fn main() {
-    @<<print-results>>
-}
-```)
-````)
-
-#chunk("demo: the shared preamble", ````typst
-== The shared preamble
-
-Both crate roots want the same banner comment at the top. It is not something
-`lp` injects: the tool writes exactly the chunks you give it, nothing else. This
-is just a chunk that two different root chunks happen to pull in — the same text
-in two files, written once:
-
-#chunk("crate-preamble", ```rust
-//! generated by lp from literate.typ — edit the document, not this file
-```)
-````)
-
-#chunk("demo: the module body", ````typst
-== The module body
-
-The module has two functions, declared as two separate `#chunk("math-items", …)`
-blocks. Tangling concatenates declarations sharing a name, in document order, the
-way noweb and org-babel do. The first one:
-
-#chunk("math-items", ```rust
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-```)
-
-and the second one, which the reader meets right where it belongs:
-
-#chunk("math-items", ```rust
-pub fn square(x: i32) -> i32 {
-    x * x
-}
-```)
-````)
-
-#chunk("demo: what main prints", ````typst
-== What `main` prints
-
-#chunk("print-results", ```rust
-println!("add(2, 3) = {}", math::add(2, 3));
-println!("square(5) = {}", math::square(5));
-```)
-````)
-
-#chunk("demo: running the result", ````typst
-== Running the result
-
-```sh
-lp tangle examples/demo/literate.typ --out examples/demo/build
-cargo run --quiet --manifest-path examples/demo/build/Cargo.toml
-```
-
-```
-add(2, 3) = 5
-square(5) = 25
-```
-````)
-
-#chunk("demo: who owns that directory", ````typst
-== Who owns that directory
-
-`examples/demo/build/.lpignore` declares it as ours: every file in there that no
-chunk produces gets removed, and the ones listed in the file are left alone —
-cargo's `target/` and `Cargo.lock`, the woven PDF, the PNGs. Delete a root chunk
-here and its file follows, instead of lingering for `cargo` to compile.
-
-The rule is simple: point `--out` at a directory and that whole directory is
-`lp`'s. Every file in it must be either produced by a chunk or declared in an
-`.lpignore`. Anything else is an error — `lp tangle` fails and names it — and the
-two ways out are to declare it, or to delete it on purpose with
-`lp unaccounted --delete`. `lp` never removes anything by itself.
-````)
-
-#chunk("demo: when it breaks", ````typst
-== When it breaks
-
-If that binary stops compiling, the error is reported against the *generated*
-file — `src/main.rs:6:5: cannot find function ...`. `lp` records which chunk
-produced every generated line, so the diagnostic can be translated back:
-
-```sh
-cargo build --manifest-path examples/demo/build/Cargo.toml --message-format=short 2>&1 \
-  | lp explain --out examples/demo/build
-```
-
-That is the difference between this and a preprocessor that only knows how to
-dump text: the generated code stays accountable to the prose it came from.
-````)
-
-== The harness, and the files it owns
-
-The example is a document *and* a script. `run.sh` is what makes it a claim rather than an
-illustration: it tangles the crate, builds it, runs it, compares the output with what the
-document says it should be, weaves the PDF, checks for drift, and then breaks one line on
-purpose so that a real rustc error can be translated back to the chunk it came from.
-
-The files in `tangled/examples/demo/build/` are the demonstration's own territory, and its `.lpignore`
-says which of them other tools own — cargo's directory and lock file, the PDF, the frames
-`run.sh` produces for the transcript.
-
-Two of its steps are plain `typst` rather than `lp`, on purpose: the example is also a demonstration
-that a woven document is an ordinary Typst file. Those steps need the package path the tangle unpacked,
-so `TYPST_PACKAGE_PATH` is set for them — the same line an editor needs, and the one `lp weave` exists
-to save everyone else from typing.
-
-One thing to know about tangled scripts: a file the tangle writes has ordinary permissions, so a
-shell script comes out readable and not executable. `bash run.sh` is the way in, and a project
-that wants the bit set can `chmod` it or declare it in its build; the tool will not decide by
-looking at the name.
-
-#file("examples/demo/run.sh", ````bash
-<<demo: the harness>>
-````)
-
-#chunk("demo: the harness", ````bash
-#!/usr/bin/env bash
-# The whole flow: tangle, build and run the result, weave, drift check, and
-# translating a real rustc error back into the document.
-# Run with: bash examples/demo/run.sh (typst and cargo on the path)
-set -euo pipefail
-cd "$(dirname "$0")/../.."          # the tangled tree, which holds this crate
-
-LP=(cargo run --quiet --manifest-path Cargo.toml)
-DOC=examples/demo/literate.typ
-OUT=examples/demo/build
-
-# The weave below is plain `typst`, not `lp`, so it needs the package path the tangle unpacked
-# (`lp` passes it to its own Typst call; a user's editor has to set it the same way).
-export TYPST_PACKAGE_PATH="$PWD/examples/demo/.lp/packages"
-
-echo "== tangle =="
-"${LP[@]}" tangle "$DOC" --out "$OUT"
-
-echo "== run the tangled crate =="
-cargo run --quiet --manifest-path "$OUT/Cargo.toml" > "$OUT/run.txt"
-diff -u examples/demo/expected.txt "$OUT/run.txt" && echo "output matches the document"
-
-echo "== weave (PDF in $OUT) =="
-typst compile --root . "$DOC" "$OUT/demo.pdf"
-
-# A reference line's indentation decides the indentation of the expanded chunk, so
-# the woven document has to show it (regression: it used to render flush left).
-echo "== weave: references keep their indentation =="
-indent=$(typst eval '{ import "@local/lp:0.1.0": ref-indent; ref-indent("    <<print-results>>") }')
-if [ "$indent" != '"    "' ]; then
-    echo "FAIL: reference indentation is lost when weaving (got $indent)" >&2
-    exit 1
-fi
-echo "reference indent survives: $indent"
-
-echo "== drift check =="
-"${LP[@]}" tangle "$DOC" --out "$OUT" --check
-
-echo "== which chunk produced src/main.rs:6 =="
-"${LP[@]}" map --file src/main.rs --line 6 --out "$OUT"
-
-echo "== translate a real rustc error =="
-sed -i 's/math::add(2, 3)/math::ad(2, 3)/' "$OUT/src/main.rs"
-cargo build --manifest-path "$OUT/Cargo.toml" --message-format=short 2>&1 | "${LP[@]}" explain --out "$OUT" || true
-
-echo "== restore =="
-"${LP[@]}" tangle "$DOC" --out "$OUT" > /dev/null
-"${LP[@]}" tangle "$DOC" --out "$OUT" --check && echo "document and generated code agree"
-````)
-
-#file("examples/demo/expected.txt", ````text
-<<demo: what the output must be>>
-````)
-
-#chunk("demo: what the output must be", ````text
-add(2, 3) = 5
-square(5) = 25
-````)
-
-#file("examples/demo/build/.lpignore", ````gitignore
-<<demo: what cargo owns in the build directory>>
-````)
-
-#chunk("demo: what cargo owns in the build directory", ````gitignore
-# This directory belongs to lp: a file here that no chunk produces is removed.
-# These are the ones other tools own, plus the weave output.
-Cargo.lock
-target/
-*.pdf
-*.png
-run.txt
-````)
+= The example, which is this document
+
+A literate program is worth what its subject is worth. Forty lines can show the syntax — a reference
+resolves, indentation survives, a compiler's complaint comes back with a chunk name — and can show none of
+the decisions that make the practice worth the trouble: what belongs in one fragment, where the seams go,
+what to do when the reference graph is deeper than a reader can hold in mind, and which corner you would
+rather cut. A program that small never asks, so it never answers.
+
+The decisions are here instead, because this document is a program rather than a description of one:
+
+- *One source, two outputs.* `lp tangle lp.typ` writes the crate, the package and the control files;
+  `lp weave lp.typ lp.pdf` renders what you are reading.
+- *A document that reproduces its own tree*, checked by a test that re-tangles the book and compares it —
+  `the_document_regenerates_the_sources_we_are_running`, which is also why the crate's source has to be
+  the whole tree.
+- *A seed that has to be able to read the next generation*, because a fresh clone has no binary to tangle
+  with.
+- *Six claims with a name each.* `package`, `test`, `clippy`, `treefmt`, `roundtrip`, `devShell` —
+  `nix flake check` is the loud half of every claim this document makes, and it is not a script anyone has
+  to remember to run.
+
+Every command a demonstration would have shown you appears in the chapters above, applied to this document:
+`lp tangle --check` for drift, `lp map` for which declaration produced a line, `lp explain` for a compiler's
+complaint handed back to the chunk that caused it, and the pipeline that published the tree you are reading.
+Read it front to back and the order is the design walk.
 
 = Appendix: what is pinned
 
