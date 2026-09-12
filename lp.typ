@@ -1872,7 +1872,10 @@ const SOURCE_ID: &str = "lp-source";
 
 /// Put the book into a rendered page. The page stays a page: nothing here is executed, and a browser
 /// that ignores the block has lost nothing.
-pub fn attach(page: &Path, copies: &[Copy]) -> Result<(), LpError> {
+pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
+    // The page carries the book under the book's own names, not where the tree happens to put it: what
+    // comes back out is the book, and a directory inside the output tree is a placement, not a name.
+    let prefix = format!("{}/", directory.trim_end_matches('/'));
     let mut files = serde_json::Map::new();
     for copy in copies {
         let bytes = std::fs::read(&copy.from).map_err(|err| LpError::io(&copy.from, err))?;
@@ -1883,7 +1886,8 @@ pub fn attach(page: &Path, copies: &[Copy]) -> Result<(), LpError> {
             ))
             .with_help("the book is carried as JSON strings; binary files would need an encoding")
         })?;
-        files.insert(copy.to.clone(), serde_json::Value::String(text));
+        let name = copy.to.strip_prefix(&prefix).unwrap_or(&copy.to);
+        files.insert(name.to_string(), serde_json::Value::String(text));
     }
     let payload = serde_json::json!({ "version": 1, "files": files }).to_string();
 
@@ -2156,7 +2160,8 @@ tree — as a *data block*: a `<script>` whose type is not JavaScript is data, n
 valid page and a browser that ignores the block has lost nothing. The payload is the book as JSON, keyed by
 the names the tree uses, with a version inside, because a format that cannot say which format it is cannot
 be improved. `lp extract --format html <page> --out <dir>` is the inverse: it finds the block, reads the
-book back, and writes it where the names say.
+book back, and writes it into `<dir>` under the book's own names — the same names `lp self book` writes —
+because where the *tree* puts a book is a placement, not a property of the book.
 
 What marks the block is the whole opening tag, not the text of the id. This document says "lp-source" in
 prose — here, in this paragraph — and the first version, which searched for the id as a substring, found
@@ -2263,7 +2268,7 @@ fn carry_the_book(anchor: &Path, output: Option<&Path>) -> Result<(), LpError> {
         return Ok(());
     };
     let copies = crate::book::plan(&book, directory, &docs)?;
-    crate::book::attach(page, &copies)
+    crate::book::attach(page, &book.directory, &copies)
 }
 ````)
 
@@ -4956,7 +4961,7 @@ fn a_page_gives_the_book_back() {
     // The round trip: the page carries the book under the names the tree uses, and gives it back whole.
     let carried = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
     for name in ["lp.typ", "README.md", ".gitignore"] {
-        let back = std::fs::read(dir.path().join("back/book").join(name)).expect(name);
+        let back = std::fs::read(dir.path().join("back").join(name)).expect(name);
         let beside = std::fs::read(carried.join(name)).expect(name);
         assert_eq!(back, beside, "{name} did not survive the page");
     }
