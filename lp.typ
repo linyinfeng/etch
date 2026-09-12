@@ -1,17 +1,3 @@
-// lp, described by itself.
-//
-// Nothing here is documentation *about* the tool: this file is the tool. Tangling it produces the
-// crate, the package and the control files; compiling it produces the document you
-// are reading.
-//
-// The document is arranged as an argument — from what a declaration is, through what a pass
-// does with it, to the pieces that read the result back — and the tests are the gate for every
-// change. Order is free here, so a chapter can be moved without moving its code.
-//
-// Two mechanical facts about writing here: a line that is exactly `<<name>>` is a reference,
-// and `@<<name>>` is how you write such a line without it being one (D17). The prose is Typst,
-// not Markdown: emphasis is *one star*.
-
 #import "@local/lp:0.1.0": chunk, file, show-rule, tangle-options
 #show: show-rule
 
@@ -35,6 +21,14 @@ where the thinking lives; the code is quoted into it as the evidence that makes 
 thinking checkable. Reading front to back is meant to be the design walk: what a
 declaration is, what a pass does with it, how the result is read back, and why each of
 those choices is the one it is.
+
+The arrangement is free — a chapter can be moved without moving its code, because nothing here is in
+the order a compiler wants — and what is not free is whether it is true. The tests are the gate for
+every change, and a document that has stopped reproducing its own tree fails them.
+
+Two mechanical facts for whoever edits this next: a line that is exactly `<<name>>` is a reference,
+and `@<<name>>` is how to write one that is not (D17); and the prose is Typst rather than Markdown, so
+emphasis is *one star*.
 
 == What literate programming is, in four claims
 
@@ -89,8 +83,6 @@ as it likes afterwards.
 ````)
 
 #file("typst/lp.typ", ````typst
-<<package: what this file is>>
-
 <<package: what a reference looks like>>
 
 <<package: the escape>>
@@ -120,47 +112,15 @@ it too, or the page disagrees with the file it claims to describe.
 The second pattern is the escape, and it exists because this document quotes itself: a chapter
 showing what a reference looks like has to write a line that looks exactly like one.
 
-#chunk("package: what this file is", ````typst
-// lp.typ — declare chunks for the `lp` tool.
-//
-// A chunk is written by calling `chunk` (a fragment, referenced as <<name>>) or
-// `file` (a chunk whose name is the output path, i.e. a root). The code block is
-// passed as the argument, so the declaration carries everything the tool needs —
-// name, language, text — and the tool never has to read the source to find out
-// what a chunk is.
-//
-//   #import "lp.typ": chunk, file
-//
-//   #chunk("imports", ```rust
-//   use std::fmt;
-//   ```)
-//
-//   #file("src/main.rs", ```rust
-//   <<imports>>
-//   ```)
-//
-// Rendering lives here too, so the document does not need show rules: a chunk
-// shows up as a titled block with its references marked.
-````)
-
 #chunk("package: what a reference looks like", ````typst
-// A reference line is indentation + <<name>>. The indentation is part of what a
-// reference *means*: it decides how the expanded chunk is laid out when tangled,
-// so the woven page has to show it — otherwise the document lies about the code.
 #let ref-re = regex("^(\\s*)<<([^<>]+)>>\\s*$")
 ````)
 
 #chunk("package: the escape", ````typst
-// The escape: a line that starts with `@` is a reference only to the eye. Tangling
-// writes it out as `<<name>>`, so a document can quote the syntax it is written in
-// (ADR D17).
 #let esc-re = regex("^(\\s*)@<<([^<>]+)>>\\s*$")
 ````)
 
 #chunk("package: the indentation a reference contributes", ````typst
-/// The indentation a reference line contributes to the expanded chunk, or "" when
-/// the line is not a reference. The renderer below uses it too, so this is the
-/// implementation rather than a helper kept alive for a test.
 #let ref-indent(line) = {
   let m = line.match(ref-re)
   if m == none { "" } else { m.captures.at(0) }
@@ -174,8 +134,6 @@ rule must not do is *consume* anything: it walks the lines of a raw block and re
 the element it was handed stays where it was for anyone who queries it later.
 
 #chunk("package: the show rule", ````typst
-/// Ref marking is cosmetics, so a show rule is fine here — the *declarations*
-/// below carry the semantics, and they do not depend on any show rule running.
 #let show-rule(body) = {
   show raw.where(block: true): it => {
     let out = none
@@ -225,8 +183,6 @@ with a default. The tag is data rather than a promise (D18), so a missing one me
 declared" and the tool records nothing.
 
 #chunk("package: a fence without a language", ````typst
-// A fence without an info string has no `lang` field at all. The tag is data rather than
-// a promise (ADR D18): missing means "not declared", and the tool records nothing.
 #let lang-of(code) = code.at("lang", default: none)
 ````)
 
@@ -253,7 +209,6 @@ between the document and the tool: it should be readable in one place, not assem
 argument.
 
 #chunk("package: a fragment", ````typst
-/// A named fragment: referenced as `<<name>>`, written nowhere on its own.
 #let chunk(name, code) = {
   [#metadata((
     lp: "chunk",
@@ -266,7 +221,6 @@ argument.
 ````)
 
 #chunk("package: a root", ````typst
-/// A root chunk: the name is the path it is tangled to.
 #let file(path, code) = {
   [#metadata((
     lp: "file",
@@ -290,8 +244,6 @@ change: adding one should add a key, not another name to the syntax. Unknown key
 are written, which is the only place the mistake is still fresh.
 
 #chunk("package: options", ````typst
-/// Settings for the tangling, as one dict. A document that needs to say something about how it is
-/// tangled says it here, and the tool reads it from the declaration stream like everything else.
 #let tangle-options(options) = {
   let known = ("book-directory", "book-files")
   for key in options.keys() {
@@ -348,12 +300,6 @@ use std::fmt;
 ````)
 
 #chunk("diag: what an error carries", ````rust
-/// A user-facing error: what went wrong, and what to do about it.
-///
-/// No source spans. Typst gives no source positions, so a span could only come
-/// from searching the source or parsing Typst again, and that is not worth doing
-/// for the sake of an underline (ADR D14). Errors name the chunk and quote the
-/// line instead.
 #[derive(Debug)]
 pub struct LpError {
     message: String,
@@ -378,8 +324,6 @@ pub fn plain(message: impl Into<String>) -> Self {
 ````)
 
 #chunk("diag: adding advice", ````rust
-/// Add advice. Repeated calls append, so a caller can add its own context
-/// without dropping what the error already said.
 pub fn with_help(mut self, help: impl Into<String>) -> Self {
     let help = help.into();
     self.help = Some(match self.help {
@@ -440,8 +384,6 @@ recovered from the source afterwards, which is why the sources are never read.
 == The shape of the file
 
 #file("src/metadata.rs", ````rust
-<<metadata: the module note>>
-
 <<metadata: the imports>>
 
 <<metadata: the one query>>
@@ -456,13 +398,6 @@ impl Decl {
 
 <<metadata: finding typst>>
 
-/// Evaluate the documents and read their declarations.
-///
-/// Typst resolves `#include` against its project root, which is the directory of
-/// the file being evaluated. So the wrapper is written where every document lives
-/// and includes them relatively: a document outside the working directory works
-/// the same as one inside it. (Writing the wrapper into the working directory, as
-/// this did at first, silently refused any document that was not under it.)
 pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError> {
     <<metadata: absolute documents, and where we are>>
 
@@ -497,29 +432,6 @@ a serde error at runtime, reported with the raw output that Typst actually print
 the weakest joint in the program, and it is a joint by construction: two languages, two
 files, one agreement.
 
-#chunk("metadata: the module note", ````rust
-//! What the document declares its chunks to be.
-//!
-//! Typst is Turing-complete: a chunk can come from a loop, a branch, a function
-//! or an `#include`d file, so the only authority is evaluation. The document
-//! declares its chunks through the `lp` package (`typst/lp.typ`), whose `chunk` and
-//! `file` functions take the code block as an argument and emit one metadata
-//! record each:
-//!
-//! ```typ
-//! #chunk("imports", ```rust
-//! use std::fmt;
-//! ```)
-//!
-//! #file("src/main.rs", ```rust
-//! <<imports>>
-//! ```)
-//! ```
-//!
-//! A declaration carries name, language and text, so nothing has to be recovered
-//! from the source afterwards — which is why the sources are not read at all.
-````)
-
 #chunk("metadata: the imports", ````rust
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -530,7 +442,6 @@ use crate::diag::LpError;
 ````)
 
 #chunk("metadata: the one query", ````rust
-/// Every declaration, in the order the document produced them.
 const QUERY: &str = "query(<lp-decl>).map(declaration => declaration.value)";
 ````)
 
@@ -545,37 +456,28 @@ a feature the tool has not learned yet, which is not something to guess at.
 #chunk("metadata: what a declaration says", ````rust
 #[derive(Debug, Clone, Deserialize)]
 pub struct Decl {
-    /// `"chunk"`, `"file"` or `"options"`.
     pub lp: String,
-    /// The fragment's name, or the path for a file declaration. Settings have none.
     #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub lang: Option<String>,
     #[serde(default)]
     pub text: String,
-    /// The dict of a settings declaration, carried as it was written.
     #[serde(default)]
     pub options: Option<serde_json::Value>,
 }
 ````)
 
 #chunk("metadata: the two kinds", ````rust
-/// What the three declaration functions mean.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
-    /// `#chunk(name, …)`: a fragment that only exists where it is referenced.
     Chunk,
-    /// `#file(path, …)`: a chunk whose name is the path it is written to.
     File,
-    /// `#tangle-options(…)`: a setting, which produces no file.
     Options,
 }
 ````)
 
 #chunk("metadata: a kind we do not know", ````rust
-/// A declaration that says something else is a mistake in the package or in
-/// whatever emitted the metadata — not a fragment by default.
 pub fn kind(&self) -> Result<Kind, LpError> {
     match self.lp.as_str() {
         "chunk" => Ok(Kind::Chunk),
@@ -597,26 +499,15 @@ override first, then `PATH`, and if neither works the error says what to do rath
 failing later with a confusing message.
 
 #chunk("metadata: finding typst", ````rust
-/// The package this tool is written with, compiled into the binary: a document should not have
-/// to ship a copy of it to be tangled, or find one (D21). `include_str!` is the whole
-/// mechanism — the standard library, no dependency, checked at compile time.
 const PACKAGE_MANIFEST: &str = include_str!("../typst/typst.toml");
 const PACKAGE_ENTRY: &str = include_str!("../typst/lp.typ");
 
-/// The directory, next to a document, that the package is unpacked into. It belongs to the tool,
-/// so the ownership check treats it like a control file rather than content.
 pub const PACKAGE_ROOT: &str = ".lp";
 
-/// Where the package goes inside that directory: the place `--package-path` points at.
 const PACKAGE_DIR: &str = "packages";
 
-/// Where a document's import (`@local/lp:0.1.0`) resolves below it — namespace, name, version, which is
-/// Typst's own layout and not ours to choose.
 const PACKAGE_NAMESPACE: &str = "local/lp/0.1.0";
 
-/// Write the embedded package to `<root>/.lp/packages/…` so Typst can resolve what the document imports,
-/// and hand back the directory to point `--package-path` at. Only changed bytes are written, so
-/// a pass in a loop does not touch the disk.
 pub fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
     let packages = root.join(PACKAGE_ROOT).join(PACKAGE_DIR);
     let dir = packages.join(PACKAGE_NAMESPACE);
@@ -630,7 +521,6 @@ pub fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
     Ok(packages)
 }
 
-/// Locate the `typst` binary: an explicit override, then `PATH`.
 pub fn binary() -> Result<PathBuf, LpError> {
     if let Some(path) = std::env::var_os("LP_TYPST") {
         return Ok(PathBuf::from(path));
@@ -661,10 +551,6 @@ let docs: Vec<PathBuf> = docs
 ````)
 
 #chunk("metadata: where the wrapper goes", ````rust
-// Typst refuses to read outside its project root, and a document may import a
-// package from outside its own directory, so the root has to cover the working
-// directory *and* every document. The wrapper lives next to the documents (it
-// must be inside the root to be readable) and includes them relatively.
 let root = common_ancestor(
     &docs
         .iter()
@@ -736,8 +622,6 @@ works there, and one reserved name is enough. Inside `.lp` a leftover — a run 
 could clean up — is invisible rather than reported, because no pass reads that directory at all.
 
 #chunk("metadata: the wrapper document", ````rust
-/// A wrapper document, removed when it goes out of scope — including when the
-/// evaluation fails, and including on panic.
 struct Wrapper {
     path: PathBuf,
 }
@@ -745,16 +629,12 @@ struct Wrapper {
 
 #chunk("metadata: writing the wrapper", ````rust
 fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
-    // One level under `.lp`, which puts every document one `..` away and keeps the tool's files inside the
-    // one directory no pass reports on. A name beside a document is a name taken from whoever works there.
     let path = root
         .join(PACKAGE_ROOT)
         .join(format!("entry-{}.typ", std::process::id()));
     let mut text = String::new();
     for doc in docs {
         let relative = doc.strip_prefix(root).unwrap_or(doc);
-        // Quoted, because that is how Typst takes a path; a quote or backslash
-        // in a file name must not break the wrapper open.
         let quoted = relative
             .to_string_lossy()
             .replace('\\', "/")
@@ -786,7 +666,6 @@ easy to get subtly wrong, and the failure mode is quiet: a wrapper written outsi
 refused by Typst, with a message about a path, not about this function.
 
 #chunk("metadata: the deepest directory that contains every document", ````rust
-/// The deepest directory that contains every document.
 pub fn common_ancestor(docs: &[PathBuf]) -> PathBuf {
     let mut root = docs
         .first()
@@ -866,8 +745,6 @@ which is why the quoted line is what tells the reader where to look.
 == The shape of the file
 
 #file("src/tangle.rs", ````rust
-<<tangle: the module note>>
-
 <<tangle: the imports>>
 
 <<tangle: a chunk as declared>>
@@ -926,8 +803,6 @@ fn expand_chunk(
 
 <<tangle: the plan>>
 
-/// The book a document declares, if it declares one. The tangle wants the whole plan; a rendering wants
-/// only this much, and asking for it is what lets a page carry its own source.
 pub(crate) fn declared_book(docs: &[PathBuf]) -> Result<Option<Book>, LpError> {
     let typst = metadata::binary()?;
     for declaration in metadata::declarations(&typst, docs)? {
@@ -1025,16 +900,6 @@ it — plus the one thing that layer had already resolved and this one needs: wh
 declaration is a root. The one method on it exists because errors here cannot point at a place:
 an error about a chunk line quotes that line and says which line of which chunk it was.
 
-#chunk("tangle: the module note", ````rust
-//! Tangling: expand chunks into whole files, write them, and record where every
-//! output line came from.
-//!
-//! Which chunks exist is Typst's answer (`metadata.rs`), and it is the only thing
-//! the tool cannot work out for itself. What is left here is our own small part:
-//! `<<references>>`, indentation, writing files, and recording which chunk
-//! produced which output lines.
-````)
-
 #chunk("tangle: the imports", ````rust
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -1045,10 +910,7 @@ use crate::metadata;
 ````)
 
 #chunk("tangle: a chunk as declared", ````rust
-/// A chunk as the document declared it.
 pub struct Block {
-    /// A `file` declaration names the path it is tangled to; a `chunk` is a
-    /// fragment that only exists where it is referenced.
     pub root: bool,
     pub name: String,
     pub lang: Option<String>,
@@ -1058,9 +920,6 @@ pub struct Block {
 
 #chunk("tangle: an error quotes the line", ````rust
 impl Block {
-    /// An error about the `index`-th line of this chunk. It quotes the line: with
-    /// no source positions to point at, the quote is what tells the reader where
-    /// to look (ADR D14).
     fn error(&self, index: usize, message: impl Into<String>) -> LpError {
         let line = self.text.lines().nth(index).unwrap_or("");
         LpError::plain(format!("{}: {line}", message.into())).with_help(format!(
@@ -1085,8 +944,6 @@ pub struct ChunkSet<'a> {
 ````)
 
 #chunk("tangle: one set, in document order", ````rust
-/// One set over every chunk of the invocation, in the order the document
-/// produced them.
 pub fn new(blocks: &'a [Block]) -> Self {
     let mut chunks: BTreeMap<&str, Vec<&Block>> = BTreeMap::new();
     for block in blocks {
@@ -1097,7 +954,6 @@ pub fn new(blocks: &'a [Block]) -> Self {
 ````)
 
 #chunk("tangle: the declared files", ````rust
-/// The declared files, in the order the document declared them.
 pub fn roots(&self) -> Vec<&'a str> {
     let mut roots: Vec<&str> = Vec::new();
     for blocks in self.chunks.values() {
@@ -1132,7 +988,6 @@ runs before anything is expanded, so a document cannot write outside the directo
 given even by accident.
 
 #chunk("tangle: names that stay inside the output directory", ````rust
-/// Reject declared paths that would write outside the output directory.
 pub fn check_output_path(name: &str) -> Result<(), LpError> {
     let unsafe_name = name.is_empty()
         || name.starts_with('/')
@@ -1161,8 +1016,6 @@ This predicate is the whole syntax of references: a line whose trimmed text star
 else is literal, which is what keeps `a << b` and `assert_eq!(x, "<<y>>")` out of trouble.
 
 #chunk("tangle: what counts as a reference", ````rust
-/// `<<name>>` on a line of its own, with any indentation. Anything else on the
-/// line (prose, `a << b` in C++) stays literal.
 fn ref_target(line: &str) -> Option<(&str, &str)> {
     let trimmed = line.trim();
     let inner = trimmed.strip_prefix("<<")?.strip_suffix(">>")?;
@@ -1179,9 +1032,6 @@ fn ref_target(line: &str) -> Option<(&str, &str)> {
 it is not a reference for the purposes of the unused-chunk warning either (D17).
 
 #chunk("tangle: how to write one without it being one", ````rust
-/// A line that reads as a reference but has to stay literal: `@<<name>>` comes out
-/// as `<<name>>`. A document quoting the syntax itself — this one, for example —
-/// needs it (D17).
 fn escaped_ref(line: &str) -> Option<String> {
     let indent = &line[..line.len() - line.trim_start().len()];
     let rest = line.trim().strip_prefix('@')?;
@@ -1201,20 +1051,14 @@ known at the moment the line is written.
 
 #chunk("tangle: what comes out of an expansion", ````rust
 pub struct Tangled {
-    /// File contents, always ending in a newline.
     pub text: String,
-    /// Which chunk produced which consecutive output lines.
     pub runs: Vec<Run>,
-    /// Lines written so far, so a run can be extended without counting the text.
     lines: usize,
 }
 ````)
 
 #chunk("tangle: one line, with its indentation", ````rust
 fn push(&mut self, chunk: &str, indent: &str, line: &str) {
-    // A blank line gets no indentation: writing one would leave trailing whitespace, which no formatter
-    // accepts and no reader can see. A line of nothing but spaces is blank for the same reason — and the
-    // line count is kept either way, because the runs below are line numbers.
     if !line.trim().is_empty() {
         self.text.push_str(indent);
         self.text.push_str(line);
@@ -1329,36 +1173,24 @@ pub struct Output {
 #chunk("tangle: what a pass is", ````rust
 #[derive(Debug, Default)]
 pub struct Outcome {
-    /// Outputs whose bytes differ from what is on disk (written unless checking).
     pub changed: Vec<Output>,
-    /// Outputs that were already up to date.
     pub unchanged: Vec<Output>,
-    /// Drift reports, filled only when `check` is set.
     pub stale: Vec<String>,
-    /// Files under the output directory that neither a chunk nor a declaration
-    /// accounts for. Non-empty means the pass failed.
     pub unaccounted: Vec<crate::status::Unaccounted>,
     pub warnings: Vec<String>,
 }
 ````)
 
 #chunk("tangle: the plan", ````rust
-/// What the documents produce, without writing anything.
 pub struct Plan {
     pub maps: BTreeMap<PathBuf, LpMap>,
     pub texts: BTreeMap<String, String>,
     pub warnings: Vec<String>,
     pub blocks: Vec<Block>,
-    /// What the document asked for, if it asked.
     pub book: Option<Book>,
-    /// The book's files, resolved against the source tree and ready to be carried.
     pub book_copies: Vec<crate::book::Copy>,
 }
 
-/// The settings a document declares, or an error naming what is missing.
-///
-/// The keys are the package's own list; the tool checks them again because a document can be
-/// written against a newer package than the binary reading it.
 fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
     let value = declaration
         .options
@@ -1390,8 +1222,6 @@ fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
             let name = entry
                 .as_str()
                 .ok_or_else(|| LpError::plain("`book-files` is a list of file names"))?;
-            // The names are read as paths, by this tool and by the package both, so a name that climbs
-            // out of the tree is refused here rather than followed.
             if name.starts_with('/') || name.split('/').any(|part| part == "..") {
                 return Err(
                     LpError::plain(format!("book-files: {name} leaves the source tree")).with_help(
@@ -1405,9 +1235,6 @@ fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
     Ok(Book { directory, files })
 }
 
-/// The documents as the output directory sees them: relative to the root the given paths share,
-/// which is where the book's copy of each one lands. Absolute paths here would make a published
-/// tree depend on the machine that tangled it.
 fn book_relative(docs: &[PathBuf]) -> Vec<String> {
     let absolute: Vec<PathBuf> = docs
         .iter()
@@ -1499,11 +1326,6 @@ for name in set.names() {
 ````)
 
 #chunk("tangle: declarations with no language", ````rust
-// The language tag is data: the map records it, the woven page shows it, and downstream
-// tools read it. It cannot be recovered from a file name — and this program will not try,
-// because a guess dressed as data is worse than a gap — so a declaration that does not
-// carry one is said out loud. It is a warning rather than an error: a `.lpignore` has no
-// language to declare (D18).
 for name in set.names() {
     let missing = set
         .get(name)
@@ -1549,7 +1371,6 @@ this pass account for? It is derived from the maps rather than kept alongside th
 is exactly one answer to that question and no chance of the two disagreeing.
 
 #chunk("tangle: what the documents produce, per directory", ````rust
-/// What the documents produce, per directory: what `status.rs` counts against.
 pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
     let mut produced: BTreeMap<String, BTreeSet<String>> = plan
         .maps
@@ -1561,8 +1382,6 @@ pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
             )
         })
         .collect();
-    // The book is output too: carried by the pass rather than written by a declaration, and just as much
-    // this pass's business — so the ownership check reads it as accounted for.
     for copy in &plan.book_copies {
         let (dir, name) = split(&copy.to);
         produced
@@ -1625,24 +1444,12 @@ itself be something the document produces, so a fresh tree has no control file u
 pass writes one, and checking first would refuse to bootstrap.
 
 #chunk("tangle: everything must be accounted for", ````rust
-// A map tracks the *document*, so it can be stale even when no output byte
-// moved (a line of prose shifts every mapping); `write_if_changed` compares
-// content rather than the output files'. Maps for directories that stopped
-// producing anything are removed with the directories themselves: the map
-// travels with the files it explains.
-//
-// The ownership check comes first: it runs before any map is written, but *after*
-// the files above, because `.lpignore` is one of the things a document can produce.
-// A fresh repository has no control file yet, and the pass that writes it is the
-// pass that makes the tree consistent (ADR D20).
 if let Some(book) = &plan.book {
     let carried = crate::book::place(out, &plan.book_copies, check)?;
     if carried > 0 {
         let plural = if carried == 1 { "" } else { "s" };
         println!("carried {carried} book file{plural}");
     }
-    // The directory is the list, so what the list stopped naming is removed rather than left behind. A list
-    // that became empty is the one case a copy loop cannot see, which is why this runs on the settings.
     let removed = crate::book::sweep(out, &book.directory, &plan.book_copies, check)?;
     if removed > 0 {
         let plural = if removed == 1 { "" } else { "s" };
@@ -1685,8 +1492,6 @@ for (dir, mut map) in plan.maps {
     }
     let dir = dir.to_string_lossy().replace('\\', "/");
     if dir.is_empty() {
-        // The pass's own map carries what the pass was: which documents, and what the
-        // document asked for. A directory's map is about that directory.
         map.set_docs(documented.clone());
         map.book = book.clone();
     }
@@ -1711,7 +1516,6 @@ chunk produced the line on the *document's* side. Anything more is a diff, and a
 what the reader needs — the reader needs the name of the thing to edit.
 
 #chunk("tangle: every name a block references", ````rust
-/// Every name referenced by a block, in document order.
 pub fn refs_of(block: &Block) -> Vec<String> {
     let mut names = Vec::new();
     for line in block.text.lines() {
@@ -1764,7 +1568,6 @@ mod tests {
     fn only_a_whole_line_reference_counts() {
         assert_eq!(ref_target("<<body>>"), Some(("body", "")));
         assert_eq!(ref_target("    <<body>>  "), Some(("body", "    ")));
-        // Not references: they must survive tangling as literal text.
         assert_eq!(ref_target("std::cout << x << std::endl;"), None);
         assert_eq!(ref_target("<<a>><<b>>"), None);
         assert_eq!(ref_target("auto y = <<x>>;"), None);
@@ -1802,8 +1605,6 @@ by `--check`. That is the one report a `.lpignore` could not have answered — t
 for, it was simply old — so the book stops producing it rather than explaining it.
 
 #file("src/embedded.rs", ````rust
-<<self: the module note>>
-
 <<self: the imports>>
 
 <<self: the book, carried>>
@@ -1814,20 +1615,11 @@ for, it was simply old — so the book stops producing it rather than explaining
 ````)
 
 #file("src/book.rs", ````rust
-<<book: the module note>>
-
 <<book: the imports>>
 
 <<book: what the settings ask for>>
 
 <<book: carrying it over>>
-````)
-
-#chunk("book: the module note", ````rust
-//! Carrying the book into the tree it produced.
-//!
-//! The document says where and which; this walks the source tree, matches, and copies. Nothing here
-//! knows about any declaration: it works on paths and globs, which is all the settings are.
 ````)
 
 #chunk("book: the imports", ````rust
@@ -1840,7 +1632,6 @@ use crate::map::Book;
 ````)
 
 #chunk("book: what the settings ask for", ````rust
-/// One file to carry: where it comes from, and where it goes, relative to the output directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Copy {
     pub from: PathBuf,
@@ -1848,8 +1639,6 @@ pub struct Copy {
 }
 
 impl Copy {
-    /// The book's own name for this file. Where the tree puts it is a placement; the name is the file's,
-    /// and it is also the path an attachment reads, which is why one name serves both carriers.
     pub fn name<'a>(&'a self, directory: &str) -> &'a str {
         self.to
             .strip_prefix(&format!("{}/", directory.trim_end_matches('/')))
@@ -1857,12 +1646,6 @@ impl Copy {
     }
 }
 
-/// Resolve the settings against the source tree. Nothing is written here — the plan can be checked
-/// before anything moves.
-///
-/// The list is the plan. It used to be a walk with a matcher, matching globs the way a `.gitignore`
-/// matches, which was more machinery than the book needed and, worse, a second way to decide what the
-/// book is: the package could not read a glob at all. A list can be read by both.
 pub fn plan(settings: &Book, anchor: &Path) -> Result<Vec<Copy>, LpError> {
     let mut copies = Vec::new();
     for name in &settings.files {
@@ -1882,24 +1665,14 @@ pub fn plan(settings: &Book, anchor: &Path) -> Result<Vec<Copy>, LpError> {
 ````)
 
 #chunk("book: carrying it over", ````rust
-/// The id this tool writes into a rendering and looks for when taking the book back out. A `<script>`
-/// whose type is not JavaScript is a *data block*, not a script, so the book rides inside a valid page
-/// without pretending to be code — and the whole opening tag is the marker, not the text of the id: a
-/// document is free to mention `lp-source` in prose, and prose is not a block.
 const SOURCE_ID: &str = "lp-source";
 
-/// What this tool writes into a PDF so it can tell its own attachments from anyone else's — the PDF's
-/// answer to the `id="lp-source"` a page carries.
 const MARKER: &str = "the book this document declares";
 
-/// Turn a PDF library's failure into this tool's, naming the file it happened in.
 fn pdf_err(page: &Path) -> impl Fn(lopdf::Error) -> LpError + '_ {
     move |err| LpError::plain(format!("{}: {err}", page.display()))
 }
 
-/// Put the book into a rendering. Which carrier follows the format, and the format is the one the compiler
-/// chose from the output's name: a page takes a data block, a PDF takes attached files, anything else —
-/// an SVG, a PNG, a bundle — takes nothing and is not asked to.
 pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
     match page.extension().and_then(|ext| ext.to_str()) {
         Some("html") => attach_html(page, directory, copies),
@@ -1908,8 +1681,6 @@ pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpErr
     }
 }
 
-/// Put the book into a rendered page. The page stays a page: nothing here is executed, and a browser
-/// that ignores the block has lost nothing.
 fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
     let mut files = serde_json::Map::new();
     for copy in copies {
@@ -1928,8 +1699,6 @@ fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpEr
     }
     let payload = serde_json::json!({ "version": 1, "files": files }).to_string();
 
-    // `</script>` inside a string would end the block early — and `<` cannot appear outside a string in
-    // JSON, so escaping every one of them is safe and sufficient.
     let block = format!(
         "<script type=\"application/json\" id=\"{SOURCE_ID}\" data-lp=\"1\">\n{}\n</script>\n",
         payload.replace('<', "\\u003c")
@@ -1943,10 +1712,6 @@ fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpEr
     std::fs::write(page, html).map_err(|err| LpError::io(page, err))
 }
 
-/// Attach the book to a PDF the compiler has just written. A PDF cannot be given a block of text the way
-/// a page can, so the book goes in as what a PDF calls an attached file: one stream per file, named as the
-/// book names it. The file is read back, given that structure, and written again — which is why this is the
-/// tool's work, and why the vocabulary of PDF dictionaries stops inside these two functions.
 fn attach_pdf(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
     let mut document = Document::load(page).map_err(pdf_err(page))?;
     let mut listed = Vec::new();
@@ -1985,9 +1750,6 @@ fn attach_pdf(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpErr
         .map_err(|err| LpError::io(page, err))
 }
 
-/// Read the book back out of a rendering this tool wrote, and write it into a directory, under the names
-/// the book uses. A name that would climb out of the output directory is refused: a rendering is data, and
-/// it may not be ours.
 pub fn extract(page: &Path, format: &str, out: &Path) -> Result<usize, LpError> {
     match format {
         "html" => extract_html(page, out),
@@ -2060,9 +1822,6 @@ fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
     Ok(written)
 }
 
-/// Walk a PDF's attached files and write back the ones that are ours, which the description marks. The name
-/// tree is flat when this tool wrote the file and may be nested when someone else did, so both are walked —
-/// and a file that is not ours is left alone rather than written into the output directory.
 fn extract_pdf(page: &Path, out: &Path) -> Result<usize, LpError> {
     let document = Document::load(page).map_err(pdf_err(page))?;
     let mut attached = Vec::new();
@@ -2077,7 +1836,6 @@ fn extract_pdf(page: &Path, out: &Path) -> Result<usize, LpError> {
     write_names(page, out, attached)
 }
 
-/// Collect the files a name tree names, following whatever shape it has.
 fn collect_attached(
     document: &Document,
     node: lopdf::ObjectId,
@@ -2117,8 +1875,6 @@ fn collect_attached(
     Ok(())
 }
 
-/// Write the pairs the way the HTML carrier writes them, so both carriers come back in the same shape — and
-/// so the guard against a name that climbs out of the output directory exists in exactly one place.
 fn write_names(
     page: &Path,
     out: &Path,
@@ -2144,9 +1900,6 @@ fn write_names(
     Ok(written)
 }
 
-/// Remove what the book directory holds and the plan does not name. With a list, "what should be here" is
-/// exact: a copy from an earlier generation is stale, not something to declare in a `.lpignore` that is
-/// itself output. Under `check` nothing is removed, and a stale copy is the tree being out of date.
 pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Result<usize, LpError> {
     let root = out.join(directory.trim_end_matches('/'));
     let listed: Vec<&str> = copies.iter().map(|copy| copy.name(directory)).collect();
@@ -2171,8 +1924,6 @@ pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Resul
             parents.push(parent.to_path_buf());
         }
     }
-    // Deepest first, so a directory that only held stale copies goes too — and `remove_dir` refuses a
-    // directory that still has something in it, which is exactly the answer wanted.
     parents.sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
     for parent in parents {
         if parent != root {
@@ -2182,8 +1933,6 @@ pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Resul
     Ok(removed)
 }
 
-/// Every file under a directory, with the path relative to it. No opinion about `.gitignore`: the book's own
-/// ignore rules are for git, and must not hide a stale copy from the sweep.
 fn files_under(root: &Path) -> Result<Vec<(PathBuf, String)>, LpError> {
     let mut found = Vec::new();
     let mut stack = vec![root.to_path_buf()];
@@ -2193,9 +1942,6 @@ fn files_under(root: &Path) -> Result<Vec<(PathBuf, String)>, LpError> {
         };
         for entry in entries.flatten() {
             let path = entry.path();
-            // The tool unpacks its package next to whatever document it evaluates — including the copy this
-            // very pass has just written — so that directory is state, never part of the book, and the sweep
-            // has to leave it alone. This is the rule the plan used to carry when the plan was a walk.
             if path
                 .components()
                 .any(|part| part.as_os_str() == crate::metadata::PACKAGE_ROOT)
@@ -2217,9 +1963,6 @@ fn files_under(root: &Path) -> Result<Vec<(PathBuf, String)>, LpError> {
     Ok(found)
 }
 
-/// Write the copies whose bytes differ, and say how many those were. Under `check` nothing is written:
-/// a copy that is missing or different is the tree being out of date, which is the same failure as an
-/// output that no longer matches its document.
 pub fn place(out: &Path, copies: &[Copy], check: bool) -> Result<usize, LpError> {
     let mut written = 0;
     for copy in copies {
@@ -2276,14 +2019,6 @@ compile time, so `lp self` needs nothing beside it.
 in a single call. It also embeds in *every* profile, which matters more than it sounds: a crate that reads
 from the file system in debug builds would make the test below pass without embedding anything.
 
-#chunk("self: the module note", ````rust
-//! The book, carried inside this binary.
-//!
-//! `include_dir!` embeds the directory beside this crate at compile time. That directory is the book:
-//! this document, the pointer next to it, and the tree's own ignore rules. It is what makes `lp self`
-//! self-contained — the binary carries its own source of truth, and needs nothing else to hand it over.
-````)
-
 #chunk("self: the imports", ````rust
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -2292,12 +2027,10 @@ use include_dir::{Dir, include_dir};
 
 use crate::diag::LpError;
 
-/// The book, embedded: the document, the pointer, and the ignore rules.
 static BOOK: Dir = include_dir!("$CARGO_MANIFEST_DIR/book");
 ````)
 
 #chunk("self: the book, carried", ````rust
-/// Write the book out, entire, and say how many files that was.
 pub fn book(out: &Path) -> Result<usize, LpError> {
     std::fs::create_dir_all(out).map_err(|err| LpError::io(out, err))?;
     BOOK.extract(out).map_err(|err| {
@@ -2311,15 +2044,9 @@ pub fn book(out: &Path) -> Result<usize, LpError> {
 ````)
 
 #chunk("self: proving it", ````rust
-/// Materialise the book in a directory, tangle it with this binary, and run the tree's own checks.
-///
-/// This is the whole bootstrap in one command: nothing outside the binary and the toolchain it borrows
-/// is needed — no repository, no seed branch, no network beyond what `cargo` and `nix` themselves want.
 pub fn prove(dir: &Path) -> Result<i32, LpError> {
     let files = book(dir)?;
 
-    // The book names no document as *the* document, and this does not guess by file name either: it
-    // takes the .typ files it finds and insists there is exactly one.
     let mut documents: Vec<PathBuf> = Vec::new();
     let entries = std::fs::read_dir(dir).map_err(|err| LpError::io(dir, err))?;
     for entry in entries {
@@ -2336,15 +2063,10 @@ pub fn prove(dir: &Path) -> Result<i32, LpError> {
         .with_help("`lp self prove` expects the book to be a single document"));
     }
 
-    // The document keeps its usual place: beside its output, not inside it. Tangling in place would put
-    // the book's own sources under the output directory, where the ownership check would rightly ask who
-    // they are — so the tree lands in `tangled/`, exactly as it does in the repository.
     let tree = dir.join("tangled");
     println!("wrote {files} files of the book to {}", dir.display());
     crate::tangle::run(&documents, &tree, false)?;
 
-    // The lock belongs to the book, so nix must not resolve anything here: if the lock were out of date
-    // it would write a new one, and a check that can rewrite its own input is not a check.
     let status = Command::new("nix")
         .args(["flake", "check", "--no-update-lock-file"])
         .current_dir(&tree)
@@ -2355,11 +2077,6 @@ pub fn prove(dir: &Path) -> Result<i32, LpError> {
 ````)
 
 #chunk("self: reading it", ````rust
-/// Weave the document this binary carries and hand the result to the desktop.
-///
-/// The rendering goes to a directory of its own under the system temporary directory and stays there:
-/// the opener returns long before anyone has looked at it, and a viewer that is still starting up cannot
-/// be asked to hold a temporary file open.
 pub fn read(format: &str) -> Result<PathBuf, LpError> {
     let (name, flags): (&str, &[&str]) = match format {
         "pdf" => ("lp.pdf", &[]),
@@ -2385,7 +2102,6 @@ pub fn read(format: &str) -> Result<PathBuf, LpError> {
         )));
     }
 
-    // Best effort: no desktop, no `xdg-open`, and the file is still there with its path printed.
     let _ = Command::new("xdg-open").arg(&output).spawn();
     Ok(output)
 }
@@ -2449,8 +2165,6 @@ of its own. An editor willing to touch the machine instead can link the same dir
 directory, and then no project needs the variable at all.
 
 #file("src/weave.rs", ````rust
-<<weave: the module note>>
-
 <<weave: the imports>>
 
 <<weave: the command>>
@@ -2469,14 +2183,6 @@ Two facts, and both are things the tool already knows from tangling:
 Everything else is Typst's, and is passed on as it came. That is why the arguments are trailing: after
 the document and the output, nothing is ours to interpret.
 
-#chunk("weave: the module note", ````rust
-//! Rendering the document: `typst compile`, with the two facts this tool knows.
-//!
-//! The package this tool unpacks has to be in scope, and Typst's root has to cover the document and
-//! the working directory. Everything else about rendering belongs to the compiler, so the command is
-//! thin on purpose.
-````)
-
 #chunk("weave: the imports", ````rust
 use std::path::Path;
 use std::process::Command;
@@ -2490,10 +2196,7 @@ pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, L
     let typst = binary()?;
     let cwd = std::env::current_dir()
         .map_err(|err| LpError::plain(format!("cannot read the working directory: {err}")))?;
-    // The document as the writer named it goes to Typst; the absolute one decides where the package
-    // is and how far up the root has to reach, because `common_ancestor` starts from a parent.
     let anchor = doc.canonicalize().map_err(|err| LpError::io(doc, err))?;
-    // The anchor is kept: after the compile, the same document says which files its book is made of.
     let docs = vec![anchor.clone()];
     let packages = unpack_package(&common_ancestor(&docs))?;
     let mut root = docs;
@@ -2523,13 +2226,6 @@ pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, L
     Ok(status.code().unwrap_or(1))
 }
 
-/// A rendering of a literate document carries the source it was woven from, so the file can be handed to
-/// someone and give the book back — the same promise this binary makes about itself.
-///
-/// The tool carries the book into whatever a rendering can hold: a data block in a page, an attached file in
-/// a PDF. It cannot be the package's work — a package cannot name the document's files, because Typst
-/// resolves a path relative to the file the call is written in, so it would go looking for `lp.typ` inside
-/// itself — and so the carrying happens here, on the file the compiler has left behind.
 fn carry_the_book(anchor: &Path, output: Option<&Path>) -> Result<(), LpError> {
     let Some(page) = output.filter(|out| {
         out.extension()
@@ -2574,8 +2270,6 @@ like `file:line:col:` it adds one note about where that line came from.
 Every line of this file is a name; the details come in the sections after it.
 
 #file("src/explain.rs", ````rust
-<<explain: the module note>>
-
 <<explain: the imports>>
 
 pub fn run(out: &Path, input: &str) -> Result<usize, LpError> {
@@ -2605,18 +2299,6 @@ without this document, so the file keeps a short note. It is orientation only: t
 reasoning is this chapter's job. That split is deliberate — a comment inside a generated
 file is a pointer, and a pointer does not drift, while a second copy of the argument
 would.
-
-#chunk("explain: the module note", ````rust
-//! Turning a toolchain's diagnostics into chunk references.
-//!
-//! `lp explain` is a filter: it echoes what it reads and, for every
-//! `file:line:col:` it can find in a map, prints which chunk that generated line
-//! came from and how far into it the line is. Find that chunk in the document —
-//! `rg '#chunk("print-results"'` — and you are at the place to edit.
-//!
-//! It knows nothing about any language, and it does not know `.typ` line numbers
-//! either: Typst does not expose source positions (ADR D14).
-````)
 
 == What the filter needs
 
@@ -2707,8 +2389,6 @@ chunk names are global to the whole document. Two chapters that both called a fr
 — which is how this chapter was first written, and how it announced the mistake.
 
 #file("src/map.rs", ````rust
-<<map: the module note>>
-
 <<map: the imports>>
 
 <<map: the two constants>>
@@ -2751,16 +2431,6 @@ in the map because the map is an interface: whatever consumes generated code lat
 editor, another tool — cannot derive the language from a file name, and re-deriving it is
 not its job.
 
-#chunk("map: the module note", ````rust
-//! Which chunk produced which lines of a generated file.
-//!
-//! Not line numbers: Typst exposes no source positions, and recovering them would
-//! mean searching the source or parsing Typst again — neither is worth doing for
-//! a convenience (ADR D14). What expansion *does* know for free is which chunk
-//! produced each run of output lines, and how far into that chunk the run starts.
-//! That is what a map records, one per directory, next to the files it explains.
-````)
-
 #chunk("map: the imports", ````rust
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -2792,38 +2462,28 @@ entry for one file, and one run of lines.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LpMap {
     pub version: u32,
-    /// Documents that produced the files listed here, relative to the book's root. Only the
-    /// tangle's own map — the one in the output directory itself — carries them: they say
-    /// something about the whole pass, not about this directory.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub docs: Vec<String>,
-    /// The settings the document declared, in that same map.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub book: Option<Book>,
-    /// Keyed by file name *within this directory*.
     pub files: BTreeMap<String, FileMap>,
 }
 
-/// What `#tangle-options(…)` asked for: where the book is carried, and which of its files match.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Book {
-    /// Directory inside the output directory that the book's files are copied into.
     pub directory: String,
-    /// Globs, matched against the source tree the way a `.gitignore` matches.
     pub files: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMap {
     pub lang: Option<String>,
-    /// Consecutive output lines that came from one chunk, in output order.
     pub runs: Vec<Run>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Run {
     pub chunk: String,
-    /// 1-based first and last output line of the run.
     pub first: usize,
     pub last: usize,
 }
@@ -2876,8 +2536,6 @@ pub fn set_docs(&mut self, docs: impl IntoIterator<Item = String>) {
 ````)
 
 #chunk("map: write only what changed", ````rust
-/// Write only when the serialized map actually differs, so a no-op pass leaves
-/// the mtime alone.
 pub fn write_if_changed(&self, dir: &Path) -> Result<bool, LpError> {
     let (path, json) = self.serialize(dir)?;
     if std::fs::read_to_string(&path).ok().as_deref() == Some(json.as_str()) {
@@ -2903,8 +2561,6 @@ carried one added its indentation to it; the line writer leaves a blank line bla
 about what each fragment is about rather than a workaround.
 
 #chunk("map: when there is no output directory", ````rust
-/// Every map under `out`, paired with its directory relative to `out` (`""`
-/// for the output directory itself), in a stable order.
 pub fn read_all(out: &Path) -> Vec<(String, LpMap)> {
     if !out.exists() {
         return Vec::new();
@@ -2952,9 +2608,6 @@ the offset it reports is allowed to run past the end of the chunk when that is w
 truth looks like.
 
 #chunk("map: which chunk produced a line", ````rust
-/// Which chunk produced this output line, and how far into it the line is
-/// (1-based). Falls back to the closest earlier run so blank lines still
-/// report something.
 pub fn locate(&self, line: usize) -> Option<(&Run, usize)> {
     let run = self
         .runs
@@ -2973,8 +2626,6 @@ diagnostics written by other tools, and through JSON, so the shape is fixed once
 rather than re-derived at each use.
 
 #chunk("map: paths, in one shape", ````rust
-/// Split an output path into `(directory, file name)`; the directory is `""` for
-/// files directly in the output directory. Both use forward slashes.
 pub fn split(rel: &str) -> (&str, &str) {
     match rel.rsplit_once('/') {
         Some((dir, name)) => (dir, name),
@@ -2990,7 +2641,6 @@ pub fn join(dir: &str, name: &str) -> String {
     }
 }
 
-/// Relative path with forward slashes.
 pub fn relative(out: &Path, path: &Path) -> String {
     path.strip_prefix(out)
         .unwrap_or(path)
@@ -3014,14 +2664,6 @@ wrong file. And when none matches, the error lists every file the maps know, whi
 typo into something visible instead of a mystery.
 
 #chunk("map: finding the map that knows a file", ````rust
-/// Find the map that knows a file: every directory's map is consulted, and the
-/// most specific one wins.
-///
-/// The path may be written relative to the output directory, to the working
-/// directory, or absolutely — so the *directory* part of what a toolchain reported
-/// is compared against each map's own directory, and only maps that are a suffix
-/// of it (or the output directory itself) are considered. A bare file name with
-/// several candidates is an error rather than a guess.
 pub fn resolve_all<'a>(
     maps: &'a [(String, LpMap)],
     file: &str,
@@ -3098,16 +2740,12 @@ what it finds and stops.
 == The shape of that rule
 
 #file("src/status.rs", ````rust
-<<status: the module note>>
-
 <<status: the imports>>
 
 <<status: the file that says what lp does not manage>>
 
 <<status: what a directory of strays looks like>>
 
-/// Everything under the output directory that no chunk produces and no
-/// declaration owns.
 pub fn unaccounted(
     out: &Path,
     produced: &BTreeMap<String, BTreeSet<String>>,
@@ -3156,26 +2794,6 @@ pub fn run(
 The module note states the model in the file itself, which is where a reader who opens
 `src/status.rs` needs it; the rest of this chapter is why each piece is shaped that way.
 
-#chunk("status: the module note", ````rust
-//! What nothing accounts for.
-//!
-//! Every file under the output directory falls into exactly one of three groups:
-//!
-//! * **produced** — a `#file` declaration writes it;
-//! * **declared** — a `.lpignore` says *"lp does not manage this"*;
-//! * **unaccounted** — neither. Nothing explains why it is there.
-//!
-//! The third group is the one worth reporting: a file a chunk should probably
-//! produce, a file to declare, or stale output to delete — and only the user knows
-//! which. Nothing here deletes anything; `delete` is called from
-//! `lp unaccounted --delete` and never as a side effect of tangling.
-//!
-//! Point `--out` at a directory and the whole directory is `lp`'s, at any depth.
-//! The `.lpignore` rules say what is not, and the crate's own walker applies them
-//! — nested files, deepest wins, whitelists — so there is no second
-//! implementation of that logic here.
-````)
-
 #chunk("status: the imports", ````rust
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -3193,7 +2811,6 @@ not manage in exactly this file, and the walker below is told to look for this n
 of git's default.
 
 #chunk("status: the file that says what lp does not manage", ````rust
-/// The file in which a directory declares what `lp` does not manage.
 pub const IGNORE_FILE: &str = ".lpignore";
 ````)
 
@@ -3205,12 +2822,9 @@ means a whole subtree was compressed into one line — which is why entries are 
 not paths.
 
 #chunk("status: what a directory of strays looks like", ````rust
-/// Entries in one directory that nothing accounts for.
 #[derive(Debug)]
 pub struct Unaccounted {
-    /// Directory relative to the output directory (`""` for the output itself).
     pub dir: String,
-    /// File or directory names, a directory marked with a trailing `/`.
     pub entries: Vec<String>,
 }
 ````)
@@ -3227,9 +2841,6 @@ if produced.is_empty() || !out.exists() {
 ````)
 
 #chunk("status: ask the walker", ````rust
-// What the walker yields is content: it applies every `.lpignore` in the tree
-// as it descends, so a declared file — or a whole declared directory — never
-// reaches this loop.
 let mut builder = WalkBuilder::new(out);
 builder
     .standard_filters(false)
@@ -3249,10 +2860,6 @@ let mut files: BTreeSet<String> = BTreeSet::new();
 for entry in builder.build() {
     let entry =
         entry.map_err(|err| LpError::plain(format!("cannot scan {}: {err}", out.display())))?;
-    // A directory is structure rather than content: what is under it is what gets reported. A
-    // symlink is neither — it is a name in the tree, and one nothing accounts for is a stray like
-    // any other file. Skipping non-files quietly is how a `result` left behind by a `nix build`
-    // run inside the tree stayed invisible.
     if entry.file_type().is_some_and(|kind| kind.is_dir()) {
         continue;
     }
@@ -3261,10 +2868,6 @@ for entry in builder.build() {
         continue;
     }
     let rel = relative(out, path);
-    // The directory the package is unpacked into is the tool's own scratch space, like the map: a
-    // document does not have to declare it, and neither does a project (D21). Matched anywhere in
-    // the path rather than at the root, because a book woven inside the tree unpacks one beside
-    // itself — and that directory is this tool's as much as the first one is.
     if rel
         .split('/')
         .any(|part| part == crate::metadata::PACKAGE_ROOT)
@@ -3282,8 +2885,6 @@ for entry in builder.build() {
 #chunk("status: group them by directory", ````rust
 let mut found: BTreeMap<String, Vec<String>> = BTreeMap::new();
 for entry in compress("", &files) {
-    // A compressed entry keeps its trailing slash so a reader can tell a
-    // directory from a file.
     let (whole_directory, path) = match entry.strip_suffix('/') {
         Some(path) => (true, path),
         None => (false, entry.as_str()),
@@ -3325,10 +2926,6 @@ other file, or written by a person, who then says so inside it. Exempting it by 
 nothing matched it, and nothing removed it, because the report had never seen it.
 
 #chunk("status: what the tool writes is not content", ````rust
-/// The tool's own output, by name: the map it writes beside a directory it produces, and the
-/// directory it unpacks the package into. Names nobody else uses, and the second is matched
-/// anywhere rather than at the root, because weaving a book unpacks a package beside that book —
-/// same tool, same document, one directory deeper.
 fn is_own_output(path: &Path) -> bool {
     path.file_name().is_some_and(|name| name == MAP_FILE)
 }
@@ -3340,14 +2937,10 @@ One constant, and its value is a judgement: eight entries is where a list stops 
 and naming the directory starts being more useful.
 
 #chunk("status: when a subtree is too big to list", ````rust
-/// Beyond this many entries a subtree stops being listed file by file and is
-/// named as a directory instead: a build directory is one line, not thousands.
 const COMPRESS_ABOVE: usize = 8;
 ````)
 
 #chunk("status: compressing a subtree", ````rust
-/// Turn the unaccounted files into the entries to show, compressing a directory
-/// that carries too many of them.
 fn compress(dir: &str, files: &BTreeSet<String>) -> Vec<String> {
     let prefix = if dir.is_empty() {
         String::new()
@@ -3399,11 +2992,6 @@ The only code in the program that removes anything, and the walk that tidies up 
 it leaves empty behind it.
 
 #chunk("status: delete, on request", ````rust
-/// Delete everything nothing accounts for.
-///
-/// This is the only way `lp` ever removes a file, and it never happens as a side
-/// effect of tangling: stale output is either declared (then it is accounted for)
-/// or deleted on request.
 pub fn delete(
     out: &Path,
     produced: &BTreeMap<String, BTreeSet<String>>,
@@ -3494,8 +3082,6 @@ for group in &unaccounted {
     };
     println!("{label}/ — {} nothing accounts for:", group.entries.len());
     for entry in &group.entries {
-        // The full path, so a line here can be copied, grepped, or declared
-        // as it stands.
         println!("  {}", crate::map::join(&group.dir, entry));
     }
 }
@@ -3556,8 +3142,6 @@ mod tests {
         write(&out.join("stray.txt"), "who put this here");
         write(&out.join("stray-dir/inside.txt"), "and this");
 
-        // The ignore file is a file like any other, so this fixture accounts for it the way the
-        // document does: by declaring it. What a hand-written one does instead is the test below.
         let produced: BTreeMap<String, BTreeSet<String>> =
             [names("", &["produced.txt", ".lpignore"])]
                 .into_iter()
@@ -3653,12 +3237,8 @@ mod tests {
     fn the_ignore_file_is_not_exempt_and_the_tools_own_output_is() {
         let dir = TempDir::new().unwrap();
         let out = dir.path();
-        // Nothing declares this and no rule matches it, so it is a file like any other. A
-        // hand-written `.lpignore` says otherwise by protecting itself, and a document says so by
-        // declaring it. Neither is not an option, which is the point.
         write(&out.join(".lpignore"), "theirs.txt\n");
         write(&out.join("theirs.txt"), "protected");
-        // These two are the tool's: names nothing else uses, written by a pass of this program.
         write(
             &out.join(".lp/packages/local/lp/0.1.0/lib.typ"),
             "the package",
@@ -3709,8 +3289,6 @@ hurt.
 == The shape of the file
 
 #file("src/watch.rs", ````rust
-<<watch: the module note>>
-
 <<watch: the imports>>
 
 <<watch: what the command line passes in>>
@@ -3726,8 +3304,6 @@ pub fn run(options: Options) -> Result<(), LpError> {
     Ok(())
 }
 
-/// One pass. `initial` only changes the wording when there is nothing to do.
-/// Returns whether the pass rewrote anything.
 fn pass(options: &Options, initial: bool, events: &mpsc::Receiver<()>) -> bool {
     let started = Instant::now();
 
@@ -3762,26 +3338,6 @@ The watched documents, the output directory, the debounce window, and an optiona
 run after a pass that changed something. Nothing here knows about `lp` itself; this is the
 part of the program that touches the outside world.
 
-#chunk("watch: the module note", ````rust
-//! `lp watch`: keep the generated files in step with the document while it is
-//! being edited, and fuse the check loop in.
-//!
-//! Three properties matter more than raw speed here:
-//!
-//! 1. **Only real changes are written.** A pass compares the tangled bytes with
-//!    what is on disk, so files that did not change keep their mtime — cargo and
-//!    rust-analyzer stay asleep instead of rebuilding the world on every keypress.
-//! 2. **Half-written documents are not tangled.** Mid-edit states are normal, so a
-//!    syntax error prints and skips the pass, leaving the last good output alone.
-//! 3. **Editor events are coalesced.** `notify`'s debouncer plus draining our own
-//!    writes means one pass per burst, not one per keystroke.
-//!
-//! ponytail: every pass re-reads and re-parses the whole document and re-expands
-//! every root (measured: ~1ms for 2k lines). Reverse-reachability
-//! and `typst-syntax`'s reparser are only worth it if that ever shows up in a
-//! profile on a book-sized document.
-````)
-
 #chunk("watch: the imports", ````rust
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -3799,8 +3355,6 @@ pub struct Options {
     pub docs: Vec<PathBuf>,
     pub out: PathBuf,
     pub debounce: Duration,
-    /// Run after a pass that changed something, e.g.
-    /// `cargo build --message-format=short`.
     pub check_cmd: Option<String>,
 }
 ````)
@@ -3825,8 +3379,6 @@ let mut debouncer = new_debouncer(
 ````)
 
 #chunk("watch: the directories, not the files", ````rust
-// Watch the containing directories, not the files: editors save by renaming a
-// temporary file over the target, which drops a file-level watch.
 let mut watched: Vec<PathBuf> = Vec::new();
 for doc in &options.docs {
     let dir = doc
@@ -3875,8 +3427,6 @@ A pass is four decisions in a row: drop the events our own writes caused, tangle
 report, and run the check command only if something actually moved.
 
 #chunk("watch: the events our own writes caused", ````rust
-// Drop events queued while we were working (our own writes included) so a
-// single edit cannot trigger a second, useless pass.
 while events.try_recv().is_ok() {}
 ````)
 
@@ -3919,8 +3469,6 @@ if dormant {
 ````)
 
 #chunk("watch: say what happened, then check", ````rust
-// Report even when nothing was written: deleting a root chunk leaves a file
-// behind without changing any other output.
 eprintln!(
     "sync   {} rewritten, {} untouched ({ms:.1}ms): {}",
     outcome.changed.len(),
@@ -3976,7 +3524,6 @@ cargo writes errors to stderr and notes to stdout, and a filter that reads one o
 wrong half the time.
 
 #chunk("watch: the same translation as lp explain", ````rust
-// Same translation as `lp explain`, reading the maps we just wrote.
 let _ = crate::explain::run(&options.out, &text);
 ````)
 
@@ -4030,9 +3577,6 @@ fn main() {
     <<main: the exit status>>
 }
 
-/// Where tangled files go: the directory that was named, or `tangled` next to the documents —
-/// `tangled` in the working directory for a command that takes no documents. The document is what
-/// decides, because it is the document's output.
 fn out_dir(given: Option<PathBuf>, docs: &[PathBuf]) -> PathBuf {
     if let Some(path) = given {
         return path;
@@ -4109,21 +3653,20 @@ struct Cli {
 ````)
 
 #chunk("main: extract", ````rust
-/// Take the book back out of a page this tool rendered
+#[command(about = "Take the book back out of a page this tool rendered")]
 Extract {
-    /// Which rendering to read
     #[arg(long)]
+    #[arg(help = "Which rendering to read")]
     format: String,
-    /// The rendered page
+    #[arg(help = "The rendered page")]
     file: PathBuf,
-    /// Directory to write the book into
     #[arg(long)]
+    #[arg(help = "Directory to write the book into")]
     out: PathBuf,
 },
 ````)
 
 #chunk("main: self", ````rust
-/// Read, unpack or prove the book this binary carries
 #[command(name = "self")]
 Itself {
     #[command(subcommand)]
@@ -4134,65 +3677,58 @@ Itself {
 #chunk("main: self, what it can do", ````rust
 #[derive(Subcommand)]
 enum SelfMethod {
-    /// Write the book out, entire
+    #[command(about = "Write the book out, entire")]
     Book {
-        /// Directory to write it into
         #[arg(long)]
+        #[arg(help = "Directory to write it into")]
         out: PathBuf,
     },
-    /// Weave the document this binary carries, then open it
+    #[command(about = "Weave the document this binary carries, then open it")]
     Read {
-        /// Which rendering to make
         #[arg(long, default_value = "pdf")]
+        #[arg(help = "Which rendering to make")]
         format: String,
     },
-    /// Unpack the book, tangle it with this binary, and run the tree's own checks
+    #[command(about = "Unpack the book, tangle it with this binary, and run the tree's own checks")]
     Prove {
-        /// Directory to build the book in
+        #[arg(help = "Directory to build the book in")]
         dir: PathBuf,
     },
 }
 ````)
 
 #chunk("main: weave", ````rust
-/// Render a document, with the package this tool unpacks in scope
 Weave {
-    /// The document to render
     doc: PathBuf,
-    /// Where to write it (Typst reads the format off the extension)
     output: Option<PathBuf>,
-    /// Arguments passed on to `typst compile`, untouched
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     extra: Vec<String>,
 },
 ````)
 
 #chunk("main: tangle", ````rust
-/// Expand a .typ document into its source files
+#[command(about = "Expand a .typ document into its source files")]
 Tangle {
-    /// Documents to tangle, e.g. book/lp.typ
     #[arg(required = true)]
+    #[arg(help = "Documents to tangle, e.g. book/lp.typ")]
     docs: Vec<PathBuf>,
-    /// Directory the root chunk names resolve into (default: tangled/ next to the
-    /// documents, or in the working directory for commands that take none)
     #[arg(long)]
+    #[arg(
+        help = "Directory the root chunk names resolve into (default: tangled/ next to the documents, or in the working directory for commands that take none)"
+    )]
     out: Option<PathBuf>,
-    /// Write nothing; fail if the generated files are out of date
     #[arg(long)]
+    #[arg(help = "Write nothing; fail if the generated files are out of date")]
     check: bool,
 },
 ````)
 
 #chunk("main: map", ````rust
-/// Tell which chunk produced a line of a generated file (or the reverse)
 Map {
-    /// Generated file, relative to --out (a unique basename also works)
     #[arg(long, conflicts_with = "typ")]
     file: Option<String>,
-    /// Reverse mode: list the generated lines that came from this chunk
     #[arg(long, conflicts_with = "file")]
     typ: Option<String>,
-    /// Line of the generated file (required with --file)
     #[arg(long)]
     line: Option<usize>,
     #[arg(long)]
@@ -4201,7 +3737,7 @@ Map {
 ````)
 
 #chunk("main: explain", ````rust
-/// Rewrite diagnostics so they name the chunk that produced the line
+#[command(about = "Rewrite diagnostics so they name the chunk that produced the line")]
 Explain {
     #[arg(long)]
     out: Option<PathBuf>,
@@ -4209,25 +3745,20 @@ Explain {
 ````)
 
 #chunk("main: watch", ````rust
-/// Keep the generated files in step while the document is edited
 Watch {
-    /// Documents to watch, e.g. book/lp.typ
     #[arg(required = true)]
     docs: Vec<PathBuf>,
     #[arg(long)]
     out: Option<PathBuf>,
-    /// Coalesce editor events for this many milliseconds
     #[arg(long, default_value_t = 200)]
     debounce: u64,
-    /// Command to run after a pass that changed something, e.g.
-    /// 'cargo build --message-format=short'; its diagnostics get translated
     #[arg(long)]
     check_cmd: Option<String>,
 },
 ````)
 
 #chunk("main: list", ````rust
-/// List the chunks a document declares
+#[command(about = "List the chunks a document declares")]
 List { doc: PathBuf },
 ````)
 
@@ -4237,24 +3768,24 @@ time — which chunks exist, in what order, and what does Typst actually hand ov
 it without writing anything.
 
 #chunk("main: metadata", ````rust
-/// Ask the documents which chunks they have, in order
 Metadata {
-    /// Documents to ask, e.g. book.typ chapter.typ
     #[arg(required = true)]
     docs: Vec<PathBuf>,
 },
 ````)
 
 #chunk("main: unaccounted", ````rust
-/// List (or delete) files under the output directory that nothing accounts for
+#[command(
+    about = "List (or delete) files under the output directory that nothing accounts for"
+)]
 Unaccounted {
-    /// Documents that decide what counts as produced
     #[arg(required = true)]
+    #[arg(help = "Documents that decide what counts as produced")]
     docs: Vec<PathBuf>,
     #[arg(long)]
     out: Option<PathBuf>,
-    /// Delete them: the explicit alternative to declaring them
     #[arg(long)]
+    #[arg(help = "Delete them: the explicit alternative to declaring them")]
     delete: bool,
 },
 ````)
@@ -4385,7 +3916,6 @@ a person asks, not in a loop.
 
 #chunk("main: map, in reverse", ````rust
     if let Some(chunk) = typ {
-        // Reverse: which generated lines came from this chunk?
         let mut hits = 0;
         for (dir, map) in &maps {
             for (name, file) in &map.files {
@@ -4425,8 +3955,6 @@ refusal to guess) and then asks that map for the run covering the line.
 ````)
 
 #chunk("main: map, the answer", ````rust
-    // Where to edit: the chunk, and how far into it this line is. Typst
-    // exposes no source positions, so a name is the pointer (ADR D14).
     println!("chunk ⟪{}⟫, line {offset} of it", run.chunk);
     println!("    find it with: rg '#chunk(\"{}\")'", run.chunk);
     Ok(0)
@@ -4558,8 +4086,6 @@ commands that read the result back. Most of the cases share one fixture, because
 what the *same* document produces in different situations.
 
 #file("tests/flow.rs", ````rust
-<<flow: the file's purpose>>
-
 <<flow: the fixtures and helpers>>
 
 <<flow: tangle_writes_files_with_concat_and_indentation>>
@@ -4667,10 +4193,6 @@ The cases, in the order they appear:
 - `a_chunk_built_by_code_is_attributed_to_itself` — roots declared by a loop are attributed to the declarations the loop produced
 - `the_declaration_is_where_the_line_lives` — the answer includes the `rg` command that finds the declaration
 
-#chunk("flow: the file's purpose", ````rust
-//! End-to-end tests: they run the real binary against throwaway documents.
-````)
-
 #chunk("flow: the fixtures and helpers", ````rust
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -4679,18 +4201,10 @@ use tempfile::TempDir;
 
 const PKG: &str = include_str!("../typst/lp.typ");
 
-/// A document in the real authoring form: the package is imported, its rules are
-/// installed, and the body declares chunks.
 fn document(body: &str) -> String {
     format!("#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}")
 }
 
-/// One file declaration, a shared fragment, a fragment written in two pieces,
-/// and a code sample that is not a chunk at all.
-///
-/// The two references are spliced in rather than written on lines of their own:
-/// a line that is exactly `<<name>>` would be expanded when this file is tangled
-/// (ADR D15).
 const DOC: &str = concat!(
     "\
 = Demo
@@ -4785,7 +4299,6 @@ fn tangle_records_which_chunk_every_line_came_from() {
         serde_json::from_str(&std::fs::read_to_string(dir.join("out/.lpmap.json")).expect("map"))
             .expect("json");
     let entry = &map["files"]["main.py"];
-    // No source positions anywhere: a run says which chunk, and which lines it covers.
     assert_eq!(
         entry["runs"],
         serde_json::json!([
@@ -4835,8 +4348,6 @@ fn indentation_follows_the_reference_site() {
 #chunk("flow: a_chapter_can_hold_the_fragment_another_file_references", ````rust
 #[test]
 fn a_chapter_can_hold_the_fragment_another_file_references() {
-    // Documents are chapters of one program: prose in one, the fragment in another,
-    // the file that pulls them together in a third.
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
     write_doc(
@@ -4879,7 +4390,6 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
         stdout(&mapped)
     );
 
-    // A run with no file declarations anywhere is still an error.
     let no_files = lp(&path, &["tangle", "chapter.typ", "--out", "out2"]);
     assert!(!no_files.status.success());
     assert!(
@@ -5011,8 +4521,6 @@ fn check_names_the_chunk_of_the_first_difference() {
               .success()
       );
 
-      // Prose above the declarations shifts nothing in the output; the map must
-      // still be rewritten so it keeps describing the document.
       let moved = format!(
           "{}\n{}",
           "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule", DOC
@@ -5153,7 +4661,6 @@ fn map_names_the_chunk_a_generated_line_came_from() {
         Some("chunk ⟪body⟫, line 2 of it")
     );
 
-    // Reverse: which generated lines came from that chunk?
     let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
     assert!(reverse.status.success(), "{}", stderr(&reverse));
     assert!(
@@ -5206,8 +4713,6 @@ fn explain_rewrites_diagnostics_to_the_chunk() {
 #chunk("flow: weave_renders_a_document_that_imports_the_package", ````rust
 #[test]
 fn weave_renders_a_document_that_imports_the_package() {
-    // No `lp.typ` next to it: the only way this document can be rendered is through the package
-    // this tool unpacks, which is exactly what `weave` passes on to Typst.
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(
         dir.path().join("doc.typ"),
@@ -5231,7 +4736,6 @@ fn the_book_comes_back_out_whole() {
     let output = lp(dir.path(), &["self", "book", "--out", "unpacked"]);
     assert!(output.status.success(), "{}", stderr(&output));
 
-    // Byte for byte, against the book beside the crate: this is the embedding itself, and it can fail.
     let beside = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
     for name in ["lp.typ", "README.md", ".gitignore"] {
         let embedded = std::fs::read(dir.path().join("unpacked").join(name)).expect(name);
@@ -5277,8 +4781,6 @@ fn a_blank_line_in_an_indented_fragment_stays_blank() {
     assert!(output.status.success(), "{}", stderr(&output));
     let written = std::fs::read_to_string(dir.path().join("tangled/src/main.rs")).expect("file");
 
-    // The blank line between the two statements is indented into place, and stays blank rather than
-    // becoming a line of spaces — which is what a formatter would refuse and a reader would never see.
     assert!(
         written.contains("    let a = 1;\n\n    let b = 2;\n"),
         "{written:?}"
@@ -5304,9 +4806,6 @@ fn tangling_leaves_only_dot_lp_beside_the_document() {
     let output = lp(dir.path(), &["tangle", "demo.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
 
-    // Everything the tool leaves beside a document is state, and state is one directory. A wrapper, a
-    // package, a scratch file — all of it under `.lp`, because a name beside a document belongs to whoever
-    // works there, not to the tool.
     let mut unexpected: Vec<String> = std::fs::read_dir(dir.path())
         .expect("the source directory")
         .flatten()
@@ -5335,7 +4834,6 @@ fn a_pdf_gives_the_book_back() {
     );
     assert!(taken.status.success(), "{}", stderr(&taken));
 
-    // The round trip through a PDF, which cannot hold the book as text: the same three files, byte for byte.
     let carried = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
     for name in ["lp.typ", "README.md", ".gitignore"] {
         let back = std::fs::read(dir.path().join("back").join(name)).expect(name);
@@ -5351,8 +4849,6 @@ fn weaving_a_document_with_no_book_carries_none() {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("plain.typ"), "= Plain\n\nJust words.\n").expect("doc");
 
-    // `lp weave` is `typst compile` with the package path filled in, so a document that declares nothing
-    // is still a document. It gets no block, and it gets no complaint either.
     let woven = lp(
         dir.path(),
         &["weave", "plain.typ", "plain.html", "--features", "html"],
@@ -5370,8 +4866,6 @@ fn weaving_a_document_with_no_book_carries_none() {
 #[test]
 fn a_page_gives_the_book_back() {
     let dir = TempDir::new().expect("temp dir");
-    // A document on disk, not the embedded one: carrying the book is what weaving does, not something
-    // only the binary can do about itself.
     let document = Path::new(env!("CARGO_MANIFEST_DIR")).join("book/lp.typ");
     let woven = lp(
         dir.path(),
@@ -5391,7 +4885,6 @@ fn a_page_gives_the_book_back() {
     );
     assert!(taken.status.success(), "{}", stderr(&taken));
 
-    // The round trip: the page carries the book under the names the tree uses, and gives it back whole.
     let carried = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
     for name in ["lp.typ", "README.md", ".gitignore"] {
         let back = std::fs::read(dir.path().join("back").join(name)).expect(name);
@@ -5489,7 +4982,6 @@ fn a_stale_book_copy_is_removed_and_check_refuses_it() {
     let output = lp(dir.path(), &["tangle", "demo.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
 
-    // A copy from an earlier generation: the list no longer names it, and this directory is the list.
     let stale = dir.path().join("tangled/book/old.txt");
     std::fs::write(&stale, "from a generation ago\n").expect("stale");
     let checked = lp(dir.path(), &["tangle", "demo.typ", "--check"]);
@@ -5525,8 +5017,6 @@ fn a_book_name_may_not_leave_the_tree() {
     )
     .expect("doc");
 
-    // The names are read as paths — by this tool, which copies them, and by the package, which attaches
-    // them — so one that climbs out of the tree is refused instead of followed.
     let output = lp(dir.path(), &["tangle", "demo.typ"]);
     assert!(
         !output.status.success(),
@@ -5614,8 +5104,6 @@ fn list_reports_declarations() {
 #chunk("flow: a_chunk_built_by_code_is_attributed_to_itself", ````rust
 #[test]
 fn a_chunk_built_by_code_is_attributed_to_itself() {
-    // The declaration is written once, inside a loop. There is no line to point at
-    // and none is invented; the chunk it produced is named instead.
     let body = "#for i in range(2) [\n  #file(\"gen-\" + str(i) + \".py\", ```py\n  print(#i)\n  ```)\n]\n";
     let (_guard, dir, _) = project(body);
     let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
@@ -5638,8 +5126,6 @@ fn a_chunk_built_by_code_is_attributed_to_itself() {
 #chunk("flow: the_declaration_is_where_the_line_lives", ````rust
 #[test]
 fn the_declaration_is_where_the_line_lives() {
-    // A sanity check that the document text itself is what the chunk quotes back,
-    // which is what makes "find it with rg" work.
     let (_guard, _dir, text) = project(DOC);
     assert!(line_of(&text, "#chunk(\"imports\"") > 0);
     assert!(line_of(&text, "print('two')") > 0);
@@ -5653,8 +5139,6 @@ which bytes it writes and which it leaves alone. The mtime assertions are the re
 exists — cargo wakes on an mtime, not on a diff.
 
 #file("tests/lazy.rs", ````rust
-<<lazy: the file's purpose>>
-
 <<lazy: the fixtures and helpers>>
 
 <<lazy: a_pass_does_not_touch_files_that_did_not_change>>
@@ -5676,12 +5160,6 @@ The cases, in the order they appear:
 - `map_works_in_both_directions` — `lp map` answers forwards and backwards
 - `unused_fragment_warns_without_failing` — a fragment nobody references is a warning, not a failure
 
-#chunk("lazy: the file's purpose", ````rust
-//! The lazy contract: a pass touches only what actually changed, refuses to
-//! tangle a document that does not evaluate, and keeps the line map usable in
-//! both directions.
-````)
-
 #chunk("lazy: the fixtures and helpers", ````rust
 use std::path::Path;
 use std::process::{Command, Output};
@@ -5690,8 +5168,6 @@ use tempfile::TempDir;
 
 const PKG: &str = include_str!("../typst/lp.typ");
 
-/// The two references are spliced in: a line that is exactly `<<name>>` would be
-/// expanded when this file is tangled (ADR D15).
 const DOC: &str = concat!(
     "\
 = Demo
@@ -5837,8 +5313,6 @@ fn a_half_written_document_is_not_tangled() {
     );
     let good = std::fs::read_to_string(dir.join("out/main.py")).expect("main");
 
-    // Mid-edit, the document does not evaluate: nothing is tangled and the last
-    // good output stays where it is.
     write_doc(
         dir.as_path(),
         "demo.typ",
@@ -5869,7 +5343,6 @@ fn map_works_in_both_directions() {
             .success()
     );
 
-    // Forward: which chunk produced this generated line?
     let forward = lp(
         &dir,
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
@@ -5881,7 +5354,6 @@ fn map_works_in_both_directions() {
         stdout(&forward)
     );
 
-    // Reverse: which generated lines came from that chunk?
     let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
     assert!(reverse.status.success(), "{}", stderr(&reverse));
     assert!(
@@ -5921,8 +5393,6 @@ an `#include`d chapter, or from a document whose show rule styles raw blocks awa
 those still declare themselves.
 
 #file("tests/metadata.rs", ````rust
-<<metadata: the file's purpose>>
-
 <<metadata: the fixtures and helpers>>
 
 <<metadata: a_styling_show_rule_does_not_hide_a_chunk>>
@@ -5951,13 +5421,6 @@ The cases, in the order they appear:
 - `a_declaration_of_an_unknown_kind_is_an_error` — a metadata record with an unknown kind is refused instead of defaulting
 - `a_document_without_declarations_says_what_to_do` — a document with no declarations is told to import the package
 - `a_document_needs_nothing_but_itself` — a document that imports the package by name tangles in a directory holding nothing else (D21)
-
-#chunk("metadata: the file's purpose", ````rust
-//! The declaration side: what the document says its chunks are.
-//!
-//! These tests need the `typst` binary (the tool asks the document, it does not
-//! read it), so they skip cleanly when it is not on PATH.
-````)
 
 #chunk("metadata: the fixtures and helpers", ````rust
 use std::path::Path;
@@ -5990,7 +5453,6 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).to_string()
 }
 
-/// Write the package and a document that imports it.
 fn write(dir: &Path, name: &str, body: &str) {
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
     std::fs::write(
@@ -6006,10 +5468,6 @@ fn write(dir: &Path, name: &str, body: &str) {
 #chunk("metadata: a_styling_show_rule_does_not_hide_a_chunk", ````rust
 #[test]
 fn a_styling_show_rule_does_not_hide_a_chunk() {
-    // The declaration is what the tool reads, and it is emitted before the block
-    // is rendered — so even a show rule that throws the element away cannot hide
-    // a chunk. (An instrumented show rule could not survive this; a declaration
-    // does not care.)
     if !typst_available() {
         eprintln!("skipping: typst is not on PATH");
         return;
@@ -6034,8 +5492,6 @@ fn a_styling_show_rule_does_not_hide_a_chunk() {
 #chunk("metadata: a_chapter_is_tangled_without_being_listed", ````rust
 #[test]
 fn a_chapter_is_tangled_without_being_listed() {
-    // Typst merges #include'd content, so the tool does not need to be told about
-    // every file — the document already says.
     if !typst_available() {
         eprintln!("skipping: typst is not on PATH");
         return;
@@ -6058,7 +5514,6 @@ fn a_chapter_is_tangled_without_being_listed() {
         "print('from a chapter')\n"
     );
 
-    // The output line is attributed to the declaration that produced it.
     let mapped = lp(
         &path,
         &[
@@ -6104,7 +5559,6 @@ fn the_document_reports_chunks_no_parser_could_find() {
         "{report}"
     );
 
-    // The chunks built by the loop are tangled like any other.
     let tangled = lp(&path, &["tangle", "dynamic.typ", "--out", "out"]);
     assert!(tangled.status.success(), "{}", stderr(&tangled));
     assert_eq!(
@@ -6146,8 +5600,6 @@ fn a_document_that_does_not_evaluate_says_so() {
   ````rust
   #[test]
   fn a_document_outside_the_working_directory_can_be_tangled() {
-      // The wrapper document has to live where Typst's root can reach the file it
-      // includes, so it goes next to the documents rather than in the cwd.
       if !typst_available() {
           eprintln!("skipping: typst is not on PATH");
           return;
@@ -6178,7 +5630,6 @@ fn a_document_that_does_not_evaluate_says_so() {
           "print('elsewhere')\n"
       );
 
-      // And the wrapper is gone again.
       let leftovers: Vec<String> = std::fs::read_dir(documents.path())
           .expect("read_dir")
           .flatten()
@@ -6196,8 +5647,6 @@ fn a_document_that_does_not_evaluate_says_so() {
 #chunk("metadata: a_declaration_of_an_unknown_kind_is_an_error", ````rust
 #[test]
 fn a_declaration_of_an_unknown_kind_is_an_error() {
-    // Only `chunk` and `file` exist; anything else means the package and the tool
-    // disagree, and that must not be read as a fragment.
     if !typst_available() {
         eprintln!("skipping: typst is not on PATH");
         return;
@@ -6224,8 +5673,6 @@ fn a_declaration_of_an_unknown_kind_is_an_error() {
 #chunk("metadata: a_document_needs_nothing_but_itself", ````rust
 #[test]
 fn a_document_needs_nothing_but_itself() {
-    // No copy of the package next to it, no environment variable, no git: the tool carries the
-    // package and unpacks it for Typst (D21).
     if !typst_available() {
         eprintln!("skipping: typst is not on PATH");
         return;
@@ -6264,8 +5711,6 @@ fn a_document_without_declarations_says_what_to_do() {
     .expect("doc");
     let path = dir.path().to_path_buf();
 
-    // Nothing is an answer, not a failure: this command reports what is there, and what is there is
-    // nothing. Demanding chunks is the tangle's business, and the tangle says so itself.
     let output = lp(&path, &["metadata", "plain.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(
@@ -6282,8 +5727,6 @@ most cases per line of code: what is accounted for, what is not, which ignore ru
 what `--check` and `--delete` each do.
 
 #file("tests/owned.rs", ````rust
-<<owned: the file's purpose>>
-
 <<owned: the fixtures and helpers>>
 
 <<owned: a_dropped_declaration_is_an_error_until_it_is_resolved>>
@@ -6321,15 +5764,6 @@ The cases, in the order they appear:
 - `without_a_declaration_a_stray_is_still_an_error` — with no `.lpignore` at all, strays are still errors
 - `a_missing_output_directory_is_not_an_io_error` — a missing output file is drift, not an I/O failure
 - `the_unpacked_package_is_not_content` — the directory the tool unpacks its package into is never reported
-
-#chunk("owned: the file's purpose", ````rust
-//! Nothing under the output directory may go unaccounted for.
-//!
-//! A file is either produced by a declaration, declared in a `.lpignore`, or an
-//! error the user resolves — by declaring it, or by deleting it on purpose. `lp`
-//! never removes anything on its own, and it never lets a stray file pass
-//! silently.
-````)
 
 #chunk("owned: the fixtures and helpers", ````rust
 use std::path::Path;
@@ -6378,7 +5812,6 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).to_string()
 }
 
-/// Write a document in the real authoring form, plus the package it imports.
 fn write_doc(dir: &Path, name: &str, body: &str) -> String {
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
     let text = format!(
@@ -6388,15 +5821,11 @@ fn write_doc(dir: &Path, name: &str, body: &str) -> String {
     text
 }
 
-/// A project tangled into an output directory with the given declaration.
 fn tangled(declaration: &str, extra: &[(&str, &str)]) -> (TempDir, std::path::PathBuf) {
     let dir = TempDir::new().expect("temp dir");
     write_doc(dir.path(), "doc.typ", DOC);
     if !declaration.is_empty() {
         std::fs::create_dir_all(dir.path().join("out")).expect("out");
-        // The ignore file is a file like any other, so something has to account for it: here it
-        // protects itself, which is what a hand-written one does. A document may declare it
-        // instead — this repository's does — and then this line is unnecessary.
         let declaration = format!("{declaration}\n.lpignore\n");
         std::fs::write(dir.path().join("out/.lpignore"), declaration).expect("ignore file");
     }
@@ -6411,7 +5840,6 @@ fn tangled(declaration: &str, extra: &[(&str, &str)]) -> (TempDir, std::path::Pa
     (dir, path)
 }
 
-/// The same document without the `src/b.py` declaration.
 fn without_b() -> String {
     DOC.replace("\n#file(\"src/b.py\", ```py\nprint('b')\n```)\n", "")
 }
@@ -6424,7 +5852,6 @@ fn a_dropped_declaration_is_an_error_until_it_is_resolved() {
     write_doc(&dir, "doc.typ", &without_b());
     assert!(dir.join("out/src/b.py").exists());
 
-    // The leftover is an error, not something quietly removed.
     let output = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
     assert!(!output.status.success());
     let message = stderr(&output);
@@ -6439,12 +5866,10 @@ fn a_dropped_declaration_is_an_error_until_it_is_resolved() {
         "nothing is removed for you"
     );
 
-    // The report agrees, and says so with its exit code.
     let report = lp(&dir, &["unaccounted", "doc.typ", "--out", "out"]);
     assert_eq!(report.status.code(), Some(1));
     assert!(stdout(&report).contains("src/b.py"), "{}", stdout(&report));
 
-    // One remedy: declare it. Then everything is accounted for again.
     let mut declaration = std::fs::read_to_string(dir.join("out/.lpignore")).expect("ignore");
     declaration.push_str("src/b.py\n");
     std::fs::write(dir.join("out/.lpignore"), &declaration).expect("ignore");
@@ -6452,7 +5877,6 @@ fn a_dropped_declaration_is_an_error_until_it_is_resolved() {
     assert!(declared.status.success(), "{}", stderr(&declared));
     assert!(dir.join("out/src/b.py").exists(), "declared, so kept");
 
-    // The other: delete it deliberately.
     std::fs::write(dir.join("out/.lpignore"), IGNORES).expect("ignore");
     let deleted = lp(
         &dir,
@@ -6587,8 +6011,6 @@ fn a_deeper_ignore_file_can_take_a_file_back() {
 #chunk("owned: a_git_directory_is_ordinary_content", ````rust
 #[test]
 fn a_git_directory_is_ordinary_content() {
-    // Nothing is special-cased, not even a repository: built here rather than by
-    // the helper because the first tangle is supposed to fail.
     let dir = TempDir::new().expect("temp dir");
     write_doc(dir.path(), "doc.typ", DOC);
     std::fs::create_dir_all(dir.path().join("out/.git")).expect("out");
@@ -6604,7 +6026,6 @@ fn a_git_directory_is_ordinary_content() {
         stderr(&output)
     );
 
-    // The escape hatch is the declaration, like for anything else.
     let (_guard, declared) = tangled(".git/\n", &[(".git/config", "[core]\n")]);
     assert!(declared.join("out/.git/config").exists());
 }
@@ -6706,8 +6127,6 @@ other document; this one is about this one, and it is what makes editing `src/` 
 impossible.
 
 #file("tests/self.rs", ````rust
-<<self: the file's purpose>>
-
 <<self: the fixtures and helpers>>
 
 <<self: the_document_regenerates_the_sources_we_are_running>>
@@ -6717,21 +6136,12 @@ The cases, in the order they appear:
 
 - `the_document_regenerates_the_sources_we_are_running` — the binary reproduces the sources it was built from, byte for byte
 
-#chunk("self: the file's purpose", ````rust
-//! Self-reproduction: the document has to regenerate the crate it ships.
-````)
-
 #chunk("self: the fixtures and helpers", ````rust
 use std::path::Path;
 use std::process::Command;
 ````)
 
 #chunk("self: the_document_regenerates_the_sources_we_are_running", ````rust
-/// The document is the source of the files that are compiled, so the tree has to regenerate itself.
-/// The map beside this crate names the documents and the directory the book was carried into — that
-/// copy is the document, and this crate's own directory is the output directory. The same command
-/// therefore works in the repository, in a worktree of the published tree, and in a build of it,
-/// which is what makes this a fixed point rather than a path (ADR D15).
 #[test]
 fn the_document_regenerates_the_sources_we_are_running() {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -6787,7 +6197,6 @@ outside this document: it is what the person reading has, not something the docu
 #file("Cargo.toml", ````toml
 <<env: what the package is>>
 
-
 <<env: the runtime dependencies>>
 
 <<env: what only the tests need>>
@@ -6810,12 +6219,7 @@ description = "Typst-based literate programming: tangle source files out of a .t
 
 #chunk("env: the runtime dependencies", ````toml
 [dependencies]
-# D7: embedding a directory tree is `include_bytes!` at scale — one macro, no runtime dependency, and it
-# embeds in every profile.
 include_dir = "0.7"
-# D22: a PDF cannot be given a block of text, and a package cannot name the document's files, so carrying
-# the book into a PDF is this tool's work — and a PDF's structure is not something to write by hand. The
-# default features bring in date and parallelism crates this tool has no use for.
 lopdf = { version = "0.45", default-features = false }
 clap = { version = "4", features = ["derive"] }
 ignore = "0.4.33"
@@ -6881,10 +6285,16 @@ Four things here are this tool's own, and every one of them was found by a failu
   the crate instead of a path above it.
 - *`CARGO_HOME` is moved out of the source.* Crane puts it in `$PWD/.cargo-home`, and the same test asks
   whether the output directory holds anything the document does not account for. A build tool writing into
-  the directory under test makes that question unanswerable, so it writes elsewhere.
+  the directory under test makes that question unanswerable, so it writes elsewhere. It has to be set from a
+  *hook* rather than as a derivation attribute, and that is where a platform constant hides: the first
+  version wrote `/build`, which is where Linux puts its temporary build directory and a read-only,
+  non-existent one on Darwin. The six matrix entries that had never been built before are what found that —
+  on macOS only.
 - *The round trip is a check rather than a condition of the build.* Rendering the document and reading the
   book back out of both carriers is a thing to assert, not a thing to make someone pay for by installing
   `lp`.
+- *The package does not run the tests.* `doCheck = false` there and a `test` check beside it, because a
+  package that ran them as well would fail before a reader could see *which* test broke.
 
 #chunk("nix: the package", ````nix
 { inputs }:
@@ -6897,28 +6307,12 @@ Four things here are this tool's own, and every one of them was found by a failu
       ...
     }:
     let
-      # One toolchain for build, lint and test: crane takes it from nixpkgs, so there is no
-      # second source of `rustc` and no overlay to keep in step.
       craneLib = inputs.crane.mkLib pkgs;
 
-      # What a Cargo build reads, as a fileset rather than `./.`. Used for the *dependencies*
-      # below, which is where it matters: they only depend on the manifests, so editing the
-      # document does not rebuild typst.
       cargoSources = craneLib.fileset.commonCargoSources ./.;
 
-      # The crate's own src is the whole tree, and not because of taste: `tests/self.rs` reads
-      # `.lpmap.json` from beside the crate and then re-tangles the book with `--check` against
-      # the tree it is running in. That invariant is about the *tree*, so the tree has to be the
-      # input — a cargo-filtered src cannot hold it. `.rs` and `.toml` alone got as far as
-      # `the map beside the crate: No such file or directory`.
-      #
-      # `./.` is git-filtered for a flake, so `target/` is not in it, and what filtering buys —
-      # not recompiling the dependency graph for a document edit — is bought by `cargoArtifacts`.
       src = ./.;
 
-      # Dependencies only, built once and shared by every step that compiles something. This is
-      # the whole reason to reach for crane: a `typst`-sized dependency graph compiled once
-      # instead of once per lint, test and build.
       cargoArtifacts = craneLib.buildDepsOnly {
         src = lib.fileset.toSource {
           root = ./.;
@@ -6926,18 +6320,6 @@ Four things here are this tool's own, and every one of them was found by a failu
         };
       };
 
-      # Crane defaults `CARGO_HOME` to `${PWD}/.cargo-home` — *inside* the unpacked source. That is
-      # harmless for a build and fatal for `tests/self.rs`, which asks `lp tangle --check` whether
-      # the output directory holds anything the document does not account for: crane's scratch
-      # counts as five stray files (`nothing accounts for these files: .cargo-home/.global-cache`,
-      # `.package-cache`, `.package-cache-mutate`, `config.toml`, `registry/CACHEDIR.TAG`).
-      #
-      # It has to be exported from a *hook* rather than given as an attribute, and that is not
-      # pedantry: an attribute's value is a literal string, so a path written there is one
-      # platform's build root. `/build` is where Linux puts it and a read-only non-existent
-      # directory on Darwin, which the first version of this line found out in CI — on macOS only.
-      # `$TMPDIR` expands where it is set, and crane's hooks read `${CARGO_HOME:-...}`, so this
-      # runs first: `configureCargoCommonVars` is a `postPatch` hook, and `prePatch` is before it.
       cargoEnv = {
         prePatch = ''export CARGO_HOME="$TMPDIR/cargo-home"'';
       };
@@ -6947,33 +6329,20 @@ Four things here are this tool's own, and every one of them was found by a failu
         // {
           inherit src cargoArtifacts;
 
-          # Tests are their own check below. Running them here too would make the package fail
-          # before a reader could see which test broke.
           doCheck = false;
 
-          # `wrapProgram` below is the only thing this crate needs that cargo does not provide.
           nativeBuildInputs = [ pkgs.makeWrapper ];
 
-          # `lp weave` is `typst compile` with the package in scope, so the binary needs the
-          # compiler on its PATH. Nothing else about the build needs Typst: this is a wrapper,
-          # not a dependency of the crate.
           postInstall = ''
             wrapProgram $out/bin/lp --prefix PATH : ${lib.makeBinPath [ pkgs.typst ]}
           '';
         }
       );
 
-      # The round trip: render the document with the binary just built, take the book back out of
-      # both carriers, and compare it with the source it was woven from. A carrier that loses a
-      # byte fails here. A check rather than a build condition, because someone installing `lp`
-      # has no business paying for a PDF they did not ask for.
       roundtrip = pkgs.runCommand "lp-roundtrip" { nativeBuildInputs = [ pkgs.typst ]; } ''
         work=$PWD/work
         mkdir -p "$work/src" "$work/run"
 
-        # The book names these three files in `tangle-options`. Two copies: one to compare
-        # against, one to weave in — weaving unpacks the package beside the document, which is
-        # the tool's own state and not part of the book.
         for file in lp.typ README.md .gitignore; do
           cp "${./book}/$file" "$work/src/$file"
           cp "${./book}/$file" "$work/run/$file"
@@ -6988,11 +6357,6 @@ Four things here are this tool's own, and every one of them was found by a failu
         touch "$out"
       '';
 
-      # The checks that build or read something, named once so two consumers can share the set:
-      # `checks` below adds the shell, and the shell folds these in.
-      #
-      # No `cargoFmt` here. Formatting is treefmt's job, and two tools disagreeing about
-      # rustfmt's options is worse than either one alone.
       gates = {
         package = lp;
 
@@ -7001,9 +6365,6 @@ Four things here are this tool's own, and every one of them was found by a failu
           // {
             inherit src cargoArtifacts;
 
-            # Tangle asks the document for its declarations, so the tests need the compiler on
-            # PATH exactly the way the tool does at runtime. Without this every test that tangles
-            # fails with `no typst binary found` — which is how this line was found.
             nativeBuildInputs = [ pkgs.typst ];
           }
         );
@@ -7025,32 +6386,14 @@ Four things here are this tool's own, and every one of them was found by a failu
         default = lp;
       };
 
-      # The shell is a check too — a shell that cannot be built is a shell nobody uses — but it
-      # is not one of `gates`, because the shell folds those in. Listing it in both is how you
-      # get `infinite recursion encountered`: the shell would contain itself.
       checks = gates // {
         devShell = config.devShells.default;
       };
 
-      # Every tracked file that has a formatter, formatted by the same treefmt the CI runs. This
-      # is the gate that covers more than the crate: `flake.nix`, `lp.nix`, the manifests and
-      # the workflows are all tangled out of the document, so a complaint here is a complaint
-      # about the *document*, and the fix is to edit it — the same discipline the crate's
-      # indentation already lives under.
-      #
-      # Every tracked file that has a formatter — and, with the last five, every tracked file
-      # that has a *check*. This is the gate that covers more than the crate: `flake.nix`,
-      # `lp.nix`, the manifests, the workflows and the book are all tangled out of the document,
-      # so a complaint here is a complaint about the *document*, and the fix is to edit it. The
-      # same discipline the crate's indentation already lives under, widened to every language.
-      #
-      # What it does not cover, it says: treefmt logs `no formatter for path` for `.lpignore`,
-      # `.gitignore` and the demo's `expected.txt` — "not looked at", not "passed".
       treefmt = {
         projectRootFile = "flake.nix";
 
         programs = {
-          # Eight that reformat.
           nixfmt.enable = true;
           taplo.enable = true;
           rustfmt.enable = true;
@@ -7058,11 +6401,6 @@ Four things here are this tool's own, and every one of them was found by a failu
           mdformat.enable = true;
           jsonfmt.enable = true;
 
-          # These two default to opinions the document already made differently. yamlfmt drops
-          # the blank lines between jobs; shfmt wants two spaces, no space after a redirect, and
-          # no aligned trailing comments. All four are readability choices in files a person
-          # reads, so the formatter is told rather than obeyed. (`settings` is the program's own
-          # config file — yamlfmt's schema starts at `formatter`.)
           yamlfmt = {
             enable = true;
             settings.formatter.retain_line_breaks = true;
@@ -7072,10 +6410,6 @@ Four things here are this tool's own, and every one of them was found by a failu
             indent_size = 4;
           };
 
-          # Five that report or repair rather than reformat. They are here for one reason: this
-          # is the file that runs in CI, and a lint that only ever runs in a local script is a
-          # lint nobody runs. actionlint and zizmor exit non-zero on a finding, which treefmt
-          # surfaces as a failure; deadnix and statix rewrite the file, which treefmt notices.
           actionlint.enable = true;
           zizmor.enable = true;
           shellcheck.enable = true;
@@ -7083,24 +6417,17 @@ Four things here are this tool's own, and every one of them was found by a failu
           statix.enable = true;
         };
 
-        # shfmt's two: a space after redirect operators, and keep the column alignment of
-        # trailing comments.
         settings.formatter.shfmt.options = [
           "-sr"
           "-kp"
         ];
 
-        # zizmor fails on *any* finding, and this tree has three `artipacked` ones its policy
-        # accepts on purpose — the same severity floor `dev.sh` uses, and the difference between
-        # a gate and a permanent red.
         settings.formatter.zizmor.options = [
           "--min-severity"
           "high"
         ];
       };
 
-      # `craneLib.devShell` folds every gate's inputs in, so clippy and the toolchain are on PATH
-      # and the checks above are runnable by hand in the environment CI uses.
       devShells.default = craneLib.devShell {
         checks = gates;
         packages = [
@@ -7143,8 +6470,6 @@ stop being a claim and become something that ran.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    # The skeleton. `nixpkgs-lib` follows ours so the module system does not fetch a second
-    # nixpkgs — without that line flake-parts costs a whole extra dependency tree.
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
@@ -7173,8 +6498,6 @@ stop being a claim and become something that ran.
           inputs.treefmt-nix.flakeModule
         ];
 
-        # The workflow's matrix is this attribute, so the list of checks exists once — in the
-        # flake — and the YAML only says "build whatever the flake says to build".
         flake.githubActions = inputs.nix-github-actions.lib.mkGithubMatrix {
           inherit (config.flake) checks;
         };
@@ -7188,7 +6511,8 @@ stop being a claim and become something that ran.
 Three jobs. `matrix` asks the flake which checks exist, so the list of them lives in one place and adding
 one is an edit to `lp.nix`. `check` builds each of them on the runner its system calls for — the matrix
 knows that `aarch64-linux` means an arm runner and `aarch64-darwin` means a Mac, so the three systems are
-three native builds rather than one build and two guesses. `prove` runs the other direction: it unpacks
+three native builds rather than one build and two guesses. It also does not stop at the first failure,
+because one failing check should not hide the other seventeen. `prove` runs the other direction: it unpacks
 the book the binary carries, tangles it, and runs this tree's own checks in what comes out, which is what
 catches a document that no longer reproduces its tree.
 
@@ -7198,15 +6522,15 @@ repository pushes to; the token comes from a secret, because a signing key in a 
 key given away.
 
 The workflow asks for `contents: read` and nothing more, because neither job writes; it hands the matrix
-attribute in through the environment rather than into the shell; and it keeps a policy file beside it. Each
+attribute in through the environment rather than into the shell; it passes `--no-update-lock-file`, because
+the lock is part of the book the tree carries and a lock that does not match is drift to fail on rather than
+one to quietly resolve; and it keeps a policy file beside it. Each
 of those is a finding from the linter, and the linter runs here — in `treefmt`, on every build — rather than
 in a script someone remembers to call.
 
 #chunk("nix: the workflow", ````yaml
 name: check
 
-# Neither job writes anything: the read token is the whole of what these two need, and saying
-# so is what keeps the actions' `@vN` pins acceptable (see zizmor.yml).
 permissions:
   contents: read
 
@@ -7218,9 +6542,6 @@ on:
     - cron: "0 6 * * *"
 
 jobs:
-  # The list of checks lives in the flake, not here. This job asks the flake what to build and
-  # the next one builds all of it, one runner per entry — so adding a check is a change to
-  # lp.nix and needs no edit to this file.
   matrix:
     runs-on: ubuntu-24.04
     outputs:
@@ -7236,7 +6557,6 @@ jobs:
     name: ${{ matrix.name }} (${{ matrix.system }})
     needs: matrix
     strategy:
-      # One failing check should not hide the other seventeen.
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
@@ -7247,17 +6567,10 @@ jobs:
         with:
           name: linyinfeng
           signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
-      # `--no-update-lock-file`: the lock is part of the book this tree carries, so a lock that
-      # does not match is drift to fail on, not a lock to quietly resolve.
-      # The attribute goes through the environment rather than into the command line: zizmor's
-      # one remaining warning was that `${{ }}` in a `run` block expands into shell.
       - run: nix build -L --no-update-lock-file ".#$ATTR"
         env:
           ATTR: ${{ matrix.attr }}
 
-  # The checks above test the tree as committed. This one tests the other direction: unpack the
-  # book the binary carries, tangle it, and run this tree's own checks on what comes out — so a
-  # document that no longer reproduces its tree fails here, not in a reader's clone.
   prove:
     runs-on: ubuntu-24.04
     steps:
@@ -7276,16 +6589,11 @@ build, as one of treefmt's programs, so what it reads has to be part of what the
 file the local `gates` script points `zizmor` at, which is why it argues for the `@vN` pins only once.
 
 #chunk("nix: the zizmor policy", ````yaml
-# zizmor, for every workflow this repository has: main's `tangle.yml` and the one this tree carries.
-# The policy accepts moving tags for actions (`actions/checkout@v7`, `dtolnay/rust-toolchain@stable`):
-# readable, and the write token's scope is bounded by `permissions:` in the workflow itself. So that one
-# audit is off; everything else stands.
 
 rules:
   unpinned-uses:
     disable: true
 ````)
-
 
 = What this repository carries
 
@@ -7296,26 +6604,14 @@ whatever is not the crate, the package or a control file — and the lock
 files cargo and nix maintain, which no chunk has any business owning.
 
 #file(".gitignore", ````gitignore
-# The tool's own state, and what the build tools write — wherever in the tree they land.
 .lp
 target
 
 ````)
 
 #file(".lpignore", ````gitignore
-# What the tangled tree carries besides the document's output.
-#
-# Matching here means *protect* (ADR D10): every file under the output directory is either
-# produced by a #file declaration or listed here, and this lists what the document does not
-# produce. The output directory is `tangled/`, the crate the document generates.
-
-# `tangled/` is a repository of its own, so that the generated code has a history separate
-# from the document's (the bootstrap makes it one; `git init tangled`). Its metadata is not
-# content, and this is the line that says so.
 /.git
 
-# What the build tools write. The lock files are not here: they are decisions, declared in the
-# appendix.
 /target
 ````)
 
@@ -7383,7 +6679,6 @@ that goes stale — the published tree is built from a seed, and a hand-maintain
 it. Being output, it is written when it differs and compared by `--check` like everything else:
 
 ```gitignore
-# The tool's own state, and what the build tools write — wherever in the tree they land.
 .lp
 target
 
@@ -7477,6 +6772,13 @@ These are not style preferences; each one was paid for.
 - *The order is free and the language tag is data* (D18). Thought-first, progressive
   disclosure and logical consistency cannot be checked by a tool, so they are the
   writer's job: this book argues for them, and no check can do it instead.
+- *The code carries no comments.* An explanation belongs in the prose that introduces the
+  chunk — where it can be read in order, argued with, and moved when the design moves — and a
+  comment is a second voice saying the same thing in a place a reader of this book never looks.
+  This document is its own example: nothing it tangles has a comment in it, and the sentences that
+  used to be comments are one paragraph up, in the chapter that introduces the code. The one
+  banner that survives is `Cargo.lock`'s, and that one is cargo's — the document quotes the lock
+  verbatim, so what cargo writes is what the document has to carry.
 - *Dependencies are chosen from mature crates* (D7); every new one gets a line saying
   why. `typst` is a hard dependency of tangling (`LP_TYPST`, then `PATH`).
 

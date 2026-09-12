@@ -1,7 +1,3 @@
-# Ignore everything, then allow the four things this branch is: the document, the pointer, this file,
-# and the pipeline that hands each generation to the seed branch. Output, the package copy, the tree's own metadata, cargo's target, the demo's build — all of
-# it falls under the first rule, which is the point: what the tool produces is the document's
-# business, and a list there would have to be maintained here.
 *
 !/.gitignore
 !/.github/
