@@ -31,7 +31,6 @@
     "chapters/where-each-generated-line-came-from.typ",
     "chapters/who-owns-the-output-directory.typ",
     "chapters/the-ownership-rules-pinned.typ",
-    "chapters/keeping-the-files-in-step.typ",
     "chapters/the-command-line.typ",
     "chapters/dispatch.typ",
     "chapters/the-rules.typ",
@@ -94,8 +93,6 @@
 #include "chapters/who-owns-the-output-directory.typ"
 
 #include "chapters/the-ownership-rules-pinned.typ"
-
-#include "chapters/keeping-the-files-in-step.typ"
 
 #include "chapters/the-command-line.typ"
 

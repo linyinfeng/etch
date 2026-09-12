@@ -95,24 +95,6 @@ already right, what drifted, what was warned about, and what nothing accounts fo
 status is 1 when there is drift and 0 otherwise, so `--check` is usable from a script without
 parsing anything.
 
-#chunk("main: watch, and its options", ````rust
-Command::Watch {
-    docs,
-    out,
-    debounce,
-    check_cmd,
-} => {
-    let out = out_dir(out, &docs);
-    watch::run(watch::Options {
-        docs,
-        out,
-        debounce: std::time::Duration::from_millis(debounce),
-        check_cmd,
-    })?;
-    Ok(0)
-}
-````)
-
 #chunk("main: the map arm", ````rust
 Command::Map {
     file,

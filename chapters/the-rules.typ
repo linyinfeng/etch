@@ -23,11 +23,16 @@ These are not style preferences; each one was paid for.
   anything by itself.
 - *Only changed bytes are written, and a document that does not evaluate is not tangled.*
   The previous good output stays until the document is valid again.
-- *A read is not an edit, and the tool's own output is not a reason to run again.* A watcher that reacts
-to its own reading watches itself: this one ran a pass every two hundred milliseconds, forever, until
-someone counted the passes instead of watching the output. What the tool writes is the result of a pass,
-not a cause of one; what a person writes is a cause, and that is why the output directory is drained
-rather than ignored.
+- *No watcher.* A watcher has to know which files a pass reads, and this tool never parses Typst, so that set is
+  unknowable to it — everything left is a superset and a guess. The first version of that guess watched itself
+  and ran a pass every two hundred milliseconds, forever; the second borrowed git's view of the tree and was
+  right more often, which is not the same as right. So the loop belongs to somebody else's tool:
+  `watchexec -e typ -r -- lp tangle lp.typ` is the whole of what this one would have done. What the tool owes
+  that arrangement it already has: a pass writes only changed bytes, and a document that does not evaluate
+  leaves the last good output in place, so re-running the command blindly costs the run and nothing else.
+- *A read is not an edit, and what the tool writes is not a reason to run again.* These two are why the watcher
+  above was hopeless and worth stating anyway, because anything that does decide to run a pass has to keep them
+  apart: this tool reads its own inputs on every pass, and it writes its own output on the way.
 - *The order is free and the language tag is data* (D18). Thought-first, progressive
   disclosure and logical consistency cannot be checked by a tool, so they are the
   writer's job: this book argues for them, and no check can do it instead.

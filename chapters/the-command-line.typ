@@ -26,7 +26,6 @@ enum Command {
     <<main: tangle>>
     <<main: map>>
     <<main: explain>>
-    <<main: watch>>
     <<main: list>>
     <<main: metadata>>
     <<main: unaccounted>>
@@ -50,7 +49,6 @@ fn out_dir(given: Option<PathBuf>, docs: &[PathBuf]) -> PathBuf {
 fn run() -> Result<i32, LpError> {
     match Cli::parse().command {
         <<main: tangle, and what it reports>>
-        <<main: watch, and its options>>
         <<main: the map arm>>
 
         <<main: map, in reverse>>
@@ -91,7 +89,6 @@ mod map;
 mod metadata;
 mod status;
 mod tangle;
-mod watch;
 mod weave;
 
 use std::collections::BTreeSet;
@@ -203,20 +200,6 @@ Map {
 Explain {
     #[arg(long)]
     out: Option<PathBuf>,
-},
-````)
-
-#chunk("main: watch", ````rust
-#[command(about = "Tangle again whenever a document changes")]
-Watch {
-    #[arg(required = true)]
-    docs: Vec<PathBuf>,
-    #[arg(long)]
-    out: Option<PathBuf>,
-    #[arg(long, default_value_t = 200)]
-    debounce: u64,
-    #[arg(long)]
-    check_cmd: Option<String>,
 },
 ````)
 

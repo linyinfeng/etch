@@ -83,10 +83,12 @@ a seed — a hand-maintained file has no way to reach it. So the tree carries it
 which says the two things under the tree that are nobody's to delete — the git directory itself, and what a
 build leaves behind: nix's `result` symlink and cargo's directory.
 
-After that the loop is the ordinary one: edit this document, tangle, test. While writing,
+After that the loop is the ordinary one: edit this document, tangle, test. Nothing here watches the files — see
+the chapter on what this tool does not do — so the loop is the command, and a watcher of your choosing is what
+runs it:
 
 ```sh
-./tangled/target/debug/lp watch lp.typ --check-cmd 'cargo build --manifest-path tangled/Cargo.toml --message-format=short'
+watchexec -e typ -r -- ./tangled/target/debug/lp tangle lp.typ
 ```
 
 `tests/self.rs` is what keeps the loop honest: the binary this document builds has to be

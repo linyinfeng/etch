@@ -2,9 +2,10 @@
 
 = tests/lazy.rs — what a pass touches
 
-The contract of `lp watch`, tested without a watcher: a pass is a function, and what matters is
-which bytes it writes and which it leaves alone. The mtime assertions are the reason the file
-exists — cargo wakes on an mtime, not on a diff.
+The discipline of a pass, with no watcher in the picture: what matters is which bytes it writes and which it
+leaves alone. Something else re-runs this command — a person, or a watcher of their choosing — so a pass that
+rewrote everything would make every save look like a reason to rebuild. The mtime assertions are the reason the
+file exists — cargo wakes on an mtime, not on a diff.
 
 #file("tests/lazy.rs", ````rust
 <<lazy: the fixtures and helpers>>
