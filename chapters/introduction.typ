@@ -30,17 +30,29 @@ prose at all, and it cannot be persuaded by an arrangement that only exists ther
 up the arrangement; it is a reason to make the document the thing that is read, which is what a generated tree
 makes possible.
 
-== Why this tool exists
+== Why this exists, and what it does not promise
 
-Because the alternative is two sources that drift. A repository can keep a design document and an implementation
-side by side, and the two will disagree within a month — the document is not compiled, so nothing notices. The
-choice here is the other one: one source, written for a reader, from which the tree is *derived*, with a
-comparison that fails when the derivation stops being faithful. The cost is real and the chapter on when not to
-do this is the honest accounting of it: the code has to be quoted into prose, the toolchain has to exist, and
-every change goes through a regeneration.
+A program's logic — how it decomposes, why it decomposes that way, and the order in which someone should come
+to understand it — is usually not an artifact at all. It lives in the author's head, in a review thread, in a
+conversation, and nothing that is not written down can be maintained or improved. The move here is to make
+that logic the source: the code is quoted into the argument, so the argument is what gets edited, reviewed and
+diffed, and the program is a by-product of keeping it good. There is no other way in — a change to the program
+is a change to the book — and that is the whole of the forcing. Drift does not disappear. What changes is the
+kind of thing that drifts: from "the code moved and the explanation stayed" to "the argument is no longer
+true", which is a defect in the main artifact rather than in a commentary on it.
 
-`lp` is the smallest tool that can carry that claim for Typst documents, and this book is written with it rather
-than about it. The document you are reading is the program you are reading about.
+`lp` does not promise a good book. You can write terrible software and no compiler prevents it; you can write
+a terrible book, and nothing here prevents it either. What the tool provides is a convenient process — one
+source, a generated tree, provenance from a line back to the declaration that produced it, and a comparison
+that fails when the two disagree — and convenience is what decides whether a book gets kept up at all. That is
+the part agentic coding changes. An agent can find, read, rewrite, check and update a whole document in
+minutes, which is not a thing a person does, so the maintenance cost that kept literate programming a
+curiosity for forty years collapses. What an agent does not bring is the discipline; making the book the source
+is how the discipline is imposed from outside.
+
+`lp` is the smallest tool that can carry that for Typst documents, and this book is written with it rather than
+about it. The document you are reading is the program you are reading about, and the only gate in the
+repository is on the tree, not on the prose.
 
 == How to read this book
 

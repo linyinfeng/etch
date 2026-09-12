@@ -8,8 +8,10 @@ in that tree — the tests fail when the document stops reproducing its own sour
 
 The method is old and the audience is not. Knuth wrote literate programs for a person; a growing share of the
 readers of a source tree now are programs themselves, and a program reads the tree rather than the book. An
-arrangement that exists only in prose is invisible to it. That change is what the first part argues about and
-what the last part is arranged for.
+arrangement that exists only in prose is invisible to it. What changes with them is not only who reads: a
+whole book that a person cannot afford to keep coherent is something an agent can find, read, rewrite and
+check in minutes. The code here is a by-product of keeping the argument good, and the argument is what is
+maintained.
 
 The book is written for five readers in particular: someone who wants to write a literate program, someone who
 wants to use this tool, someone who has to get it running from nothing, someone who has to maintain it, and
