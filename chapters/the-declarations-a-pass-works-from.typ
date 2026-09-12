@@ -11,6 +11,23 @@ The shape of a pass is the shape of any careful build: *decide what would be wri
 changed, then judge the result*. Those are `plan`, the write loop and the ownership check, and keeping them
 apart is what makes `--check` a dry run rather than a special case of writing.
 
+```
+  one pass
+
+    the document
+        │  one query, and only evaluation can answer it
+        ▼
+    the declarations ──▶ blocks ──▶ a plan ──▶ the writes ──▶ the ownership check
+                                        │            │
+                                        │            └─ only the files whose bytes differ
+                                        └─ nothing is written before the plan says so
+
+    every line that is written is recorded as it is written ──▶ the maps
+```
+
+The chapters that follow take that picture apart one box at a time, and the order they are in is the order the
+boxes depend on each other.
+
 == Expansion is one idea, applied recursively
 
 A line that is exactly `<<name>>`, with any indentation, is replaced by the text of that
