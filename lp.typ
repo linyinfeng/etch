@@ -521,25 +521,31 @@ a feature the tool has not learned yet, which is not something to guess at.
 #chunk("metadata: what a declaration says", ````rust
 #[derive(Debug, Clone, Deserialize)]
 pub struct Decl {
-    /// `"chunk"` or `"file"`.
+    /// `"chunk"`, `"file"` or `"options"`.
     pub lp: String,
-    /// The fragment's name, or the path for a file declaration.
+    /// The fragment's name, or the path for a file declaration. Settings have none.
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub lang: Option<String>,
     #[serde(default)]
     pub text: String,
+    /// The dict of a settings declaration, carried as it was written.
+    #[serde(default)]
+    pub options: Option<serde_json::Value>,
 }
 ````)
 
 #chunk("metadata: the two kinds", ````rust
-/// What the two declaration functions mean.
+/// What the three declaration functions mean.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     /// `#chunk(name, …)`: a fragment that only exists where it is referenced.
     Chunk,
     /// `#file(path, …)`: a chunk whose name is the path it is written to.
     File,
+    /// `#tangle-options(…)`: a setting, which produces no file.
+    Options,
 }
 ````)
 
@@ -550,11 +556,12 @@ pub fn kind(&self) -> Result<Kind, LpError> {
     match self.lp.as_str() {
         "chunk" => Ok(Kind::Chunk),
         "file" => Ok(Kind::File),
+        "options" => Ok(Kind::Options),
         other => Err(LpError::plain(format!(
             "{}: unknown declaration kind {other:?}",
             self.name
         ))
-        .with_help("the package emits `lp: \"chunk\"` or `lp: \"file\"`")),
+        .with_help("the package emits `lp: \"chunk\"`, `lp: \"file\"` or `lp: \"options\"`")),
     }
 }
 ````)
@@ -919,6 +926,7 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
         texts,
         warnings,
         blocks,
+        book,
     })
 }
 
@@ -972,7 +980,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::diag::LpError;
-use crate::map::{FileMap, LpMap, MAP_FILE, Run, split};
+use crate::map::{Book, FileMap, LpMap, MAP_FILE, Run, split};
 use crate::metadata;
 ````)
 
@@ -1276,6 +1284,69 @@ pub struct Plan {
     pub texts: BTreeMap<String, String>,
     pub warnings: Vec<String>,
     pub blocks: Vec<Block>,
+    /// What the document asked for, if it asked.
+    pub book: Option<Book>,
+}
+
+/// The settings a document declares, or an error naming what is missing.
+///
+/// The keys are the package's own list; the tool checks them again because a document can be
+/// written against a newer package than the binary reading it.
+fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
+    let value = declaration
+        .options
+        .clone()
+        .unwrap_or(serde_json::Value::Null);
+    let table = value
+        .as_object()
+        .ok_or_else(|| LpError::plain("tangle-options was given something that is not a dict"))?;
+    for key in table.keys() {
+        if key != "book-directory" && key != "book-files" {
+            return Err(LpError::plain(format!("unknown tangle option {key:?}"))
+                .with_help("known options: `book-directory`, `book-files`"));
+        }
+    }
+    let directory = table
+        .get("book-directory")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| {
+            LpError::plain("tangle-options needs a `book-directory`")
+                .with_help("a string: the directory inside the output that the book is copied into")
+        })?
+        .to_string();
+    let mut files = Vec::new();
+    if let Some(value) = table.get("book-files") {
+        let list = value
+            .as_array()
+            .ok_or_else(|| LpError::plain("`book-files` is a list of globs"))?;
+        for entry in list {
+            match entry.as_str() {
+                Some(glob) => files.push(glob.to_string()),
+                None => return Err(LpError::plain("`book-files` is a list of globs")),
+            }
+        }
+    }
+    Ok(Book { directory, files })
+}
+
+/// The documents as the output directory sees them: relative to the root the given paths share,
+/// which is where the book's copy of each one lands. Absolute paths here would make a published
+/// tree depend on the machine that tangled it.
+fn book_relative(docs: &[PathBuf]) -> Vec<String> {
+    let absolute: Vec<PathBuf> = docs
+        .iter()
+        .map(|doc| doc.canonicalize().unwrap_or_else(|_| doc.clone()))
+        .collect();
+    let root = metadata::common_ancestor(&absolute);
+    absolute
+        .iter()
+        .map(|doc| {
+            doc.strip_prefix(&root)
+                .unwrap_or(doc)
+                .to_string_lossy()
+                .replace('\\', "/")
+        })
+        .collect()
 }
 ````)
 
@@ -1286,15 +1357,25 @@ itself — and turning them into blocks.
 
 #chunk("tangle: ask typst what the document declares", ````rust
 let typst = metadata::binary()?;
-let blocks: Vec<Block> = metadata::declarations(&typst, docs)?
-    .into_iter()
-    .map(|declaration| Block {
-        root: declaration.kind().expect("checked") == metadata::Kind::File,
-        name: declaration.name,
-        lang: declaration.lang,
-        text: declaration.text,
-    })
-    .collect();
+let mut blocks: Vec<Block> = Vec::new();
+let mut book: Option<Book> = None;
+for declaration in metadata::declarations(&typst, docs)? {
+    match declaration.kind()? {
+        metadata::Kind::Options => {
+            if book.is_some() {
+                return Err(LpError::plain("the document declares tangle options twice")
+                    .with_help("one `#tangle-options(…)` call, with one dict"));
+            }
+            book = Some(settings(&declaration)?);
+        }
+        kind => blocks.push(Block {
+            root: kind == metadata::Kind::File,
+            name: declaration.name,
+            lang: declaration.lang,
+            text: declaration.text,
+        }),
+    }
+}
 ````)
 
 #chunk("tangle: a document with no files", ````rust
@@ -1405,10 +1486,8 @@ pub fn produced(plan: &Plan) -> BTreeMap<String, BTreeSet<String>> {
 
 #chunk("tangle: plan, then an empty outcome", ````rust
 let plan = plan(docs)?;
-let documented = docs
-    .iter()
-    .map(|doc| doc.display().to_string())
-    .collect::<Vec<_>>();
+let documented = book_relative(docs);
+let book = plan.book.clone();
 let mut outcome = Outcome {
     warnings: plan.warnings.clone(),
     ..Outcome::default()
@@ -1497,7 +1576,12 @@ for (dir, mut map) in plan.maps {
         continue;
     }
     let dir = dir.to_string_lossy().replace('\\', "/");
-    map.set_docs(documented.clone());
+    if dir.is_empty() {
+        // The pass's own map carries what the pass was: which documents, and what the
+        // document asked for. A directory's map is about that directory.
+        map.set_docs(documented.clone());
+        map.book = book.clone();
+    }
     map.write_if_changed(&out.join(&dir))?;
     live.insert(dir);
 }
@@ -1917,7 +2001,7 @@ the format, and facts about the format belong in one place.
 
 #chunk("map: the two constants", ````rust
 pub const MAP_FILE: &str = ".lpmap.json";
-const VERSION: u32 = 5;
+const VERSION: u32 = 6;
 ````)
 
 == What a map holds
@@ -1929,10 +2013,25 @@ entry for one file, and one run of lines.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LpMap {
     pub version: u32,
-    /// Documents that produced the files listed here.
+    /// Documents that produced the files listed here, relative to the book's root. Only the
+    /// tangle's own map — the one in the output directory itself — carries them: they say
+    /// something about the whole pass, not about this directory.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub docs: Vec<String>,
+    /// The settings the document declared, in that same map.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub book: Option<Book>,
     /// Keyed by file name *within this directory*.
     pub files: BTreeMap<String, FileMap>,
+}
+
+/// What `#tangle-options(…)` asked for: where the book is carried, and which of its files match.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Book {
+    /// Directory inside the output directory that the book's files are copied into.
+    pub directory: String,
+    /// Globs, matched against the source tree the way a `.gitignore` matches.
+    pub files: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1962,6 +2061,7 @@ impl Default for LpMap {
         Self {
             version: VERSION,
             docs: Vec::new(),
+            book: None,
             files: BTreeMap::new(),
         }
     }
