@@ -13,8 +13,8 @@ document language is a Turing-complete language sitting between the writer and t
 does not terminate, or a typo in a helper, produces no output at all, and the error the writer sees is a
 document error rather than a compiler error. In a repository like this one the price continues past the
 document: the tool that reads it has to exist before the first build, which is why this repository carries a
-seed branch and a bootstrap — and why the build environment chapter has to say that the toolchain is a
-prerequisite, since a document cannot ship the tools that read it.
+seed branch and a bootstrap — and why the toolchain is a prerequisite rather than something the book can
+hand you.
 
 The second is paid by the writer, in attention. The arrangement is not checked by anything. A fragment that
 nobody references is a warning; a fragment whose explanation is now false is not even that, because no
@@ -66,5 +66,5 @@ One of the arguments against the method deserves a second look in this chapter, 
 every year. Reading code has become cheap: a model, or a colleague with a search tool, can reconstruct a surprising amount of what a
 program does without any prose at all. That is a real argument against spending the writer's time on
 explanation, and it is the reason the fourth claim of this book is stated as a claim rather than assumed.
-What it does not remove is the two things the method is actually for: the *why*, which was never in the
-code, and one source whose drift is a check failure rather than a matter of discipline.
+What it does not remove is what the ledger above pays for: the reasoning, which no reader can recover from
+code that does not contain it, and one source whose drift the build notices.

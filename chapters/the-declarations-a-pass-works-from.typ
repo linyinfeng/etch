@@ -10,6 +10,7 @@ it plans to write, writing it, and the book it carries into the tree.
 The shape of a pass is the shape of any careful build: *decide what would be written, then write only what
 changed, then judge the result*. Those are `plan`, the write loop and the ownership check, and keeping them
 apart is what makes `--check` a dry run rather than a special case of writing.
+
 == Expansion is one idea, applied recursively
 
 A line that is exactly `<<name>>`, with any indentation, is replaced by the text of that
@@ -22,10 +23,10 @@ declared — the document is expanded, not interpreted — so the pass cannot wo
 linear sweep. And the same chunk may be referenced from several places, so its text is
 assembled per reference rather than written once.
 
-Three things can be wrong, and each has its own check: a reference to a name nobody
-declared, a cycle of references, and a declaration with no body. All three report the chunk
-and the line inside it, never a source position — there are no source positions (ADR D14),
-which is why the quoted line is what tells the reader where to look.
+Three things can be wrong, and each has its own check: a reference to a name nobody declared, a cycle of
+references, and a declaration with no body. None of the three can point at a place in the document, because
+there are no source positions to point at (D14); what they can do is name the chunk and quote the line, which
+is what a reader needs in order to find it.
 
 #file("src/tangle.rs", ````rust
 <<tangle: the imports>>
@@ -178,10 +179,10 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError
 
 == A chunk, and the error that quotes it
 
-A `Block` is the record the previous chapter described, after the metadata layer has normalised
-it — plus the one thing that layer had already resolved and this one needs: whether the
-declaration is a root. The one method on it exists because errors here cannot point at a place:
-an error about a chunk line quotes that line and says which line of which chunk it was.
+A `Block` is the record the chapter before this one described, with the one thing that layer had already
+resolved and this pass needs: whether the declaration is a file rather than a fragment. The method on it is
+the error constructor, and it exists because an error here cannot point at a place — it names the chunk, and
+it quotes the line.
 
 #chunk("tangle: the imports", ````rust
 use std::collections::{BTreeMap, BTreeSet};

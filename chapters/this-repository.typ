@@ -58,12 +58,8 @@ cargo test --manifest-path tangled/Cargo.toml
 A clone is enough; there is no second remote to fetch from. `origin/tangled` is the fallback for the
 case where the clone knows the branch only by that name.
 
-These commands assume `typst` and `cargo` are on the path. This repository does not carry an
-environment of its own: a flake in it would be a tracked file that the document could not produce,
-since nix will not evaluate a flake whose files are not in git. Borrowing the tools for one command
-is a line long — `nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo test
---manifest-path tangled/Cargo.toml` — and that is the whole of the story; there is no command that
-assembles the environment for you.
+These commands assume `typst` and `cargo` are on the path, and the previous chapter is where the
+argument for that lives: the environment is what the reader has, not something this document hands over.
 
 The tangle writes to `tangled/` without being told to: when `--out` is not given it is the
 directory `tangled` next to the document, because the document is what the output belongs to. The

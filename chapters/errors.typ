@@ -2,14 +2,15 @@
 
 = How an error is reported
 
-Every failure in this program is one type, and it carries two things: what went wrong, and what to
-do about it. There are no source spans — Typst gives no source positions, and a span could only
-come from searching the source or parsing Typst again, which is not worth doing for the sake of an
-underline (ADR D14). Errors name the chunk and quote the line instead.
+Every failure in this program is one type, and it carries two things: what went wrong, and what to do about
+it. There are no source spans: Typst gives the script layer no source positions, and the only ways to get one
+would be to search the source text or to parse Typst a second time — neither of which this document is
+willing to do for the sake of an underline (D14). What an error carries instead is the chunk it came from,
+and the line it is quoting.
 
-The type is deliberately small: a message, an optional help, and the three constructors callers
-actually need. Everything that renders it lives in one place (`main.rs`), so no module has to know
-what an error looks like on a terminal.
+The type is deliberately small: a message, an optional help, and the three constructors the callers actually
+need. Rendering is not its business — everything that turns one of these into something a terminal can print
+lives in `main.rs` — so no module that reports a failure has to know what a failure looks like on a page.
 
 #file("src/diag.rs", ````rust
 <<diag: the imports>>
@@ -31,10 +32,11 @@ impl LpError {
 <<diag: what miette needs>>
 ````)
 
-== The error, and why it holds no positions
+== The error, and why it carries no position
 
-The file needs one import, and the error itself is two fields — a message and an optional
-help. The reason there is no third field for a position is the subject of this section.
+Two fields: a message and an optional help. A position is the third field a programmer expects, and its
+absence is a decision with a price — the compiler's position has to be turned back into a declaration after
+the fact, which is what the chapter on reading a diagnostic back is about.
 
 #chunk("diag: the imports", ````rust
 use std::fmt;
