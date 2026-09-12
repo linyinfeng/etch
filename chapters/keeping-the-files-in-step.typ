@@ -165,8 +165,8 @@ fn watched_dirs(doc: &Path, out: &Path) -> Result<Vec<PathBuf>, LpError> {
 
     let mut dirs = Vec::new();
     for entry in builder.build() {
-        let entry =
-            entry.map_err(|err| LpError::plain(format!("cannot scan {}: {err}", root.display())))?;
+        let entry = entry
+            .map_err(|err| LpError::plain(format!("cannot scan {}: {err}", root.display())))?;
         if !entry.file_type().is_some_and(|kind| kind.is_dir()) {
             continue;
         }
@@ -275,7 +275,12 @@ mod tests {
     fn the_watched_directories_are_the_ones_git_would_track() {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path();
-        for dir in ["chapters/deep", "tangled/target", ".git/objects", ".lp/packages"] {
+        for dir in [
+            "chapters/deep",
+            "tangled/target",
+            ".git/objects",
+            ".lp/packages",
+        ] {
             std::fs::create_dir_all(root.join(dir)).expect(dir);
         }
         std::fs::write(root.join("lp.typ"), "= Demo\n").expect("doc");
@@ -284,13 +289,18 @@ mod tests {
 
         let dirs = watched_dirs(&root.join("lp.typ"), &root.join("tangled")).expect("watched");
         let named = |want: &str| dirs.iter().any(|dir| dir.ends_with(want));
-        assert!(dirs.contains(&root.to_path_buf()), "the document's own directory");
+        assert!(
+            dirs.contains(&root.to_path_buf()),
+            "the document's own directory"
+        );
         assert!(named("chapters"), "the directory an included chapter is in");
         assert!(named("chapters/deep"), "and below it");
         assert!(!named("tangled"), "the output directory is not source");
         assert!(!named(".lp"), "nor the tool's own scratch");
         assert!(
-            !dirs.iter().any(|dir| dir.components().any(|part| part.as_os_str() == ".git")),
+            !dirs
+                .iter()
+                .any(|dir| dir.components().any(|part| part.as_os_str() == ".git")),
             "nor the repository's own metadata"
         );
     }
