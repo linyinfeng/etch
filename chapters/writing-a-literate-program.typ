@@ -13,6 +13,32 @@ what can go wrong, and the callers can appear later, once the reader knows what 
 as a program being a web rather than a tree, and this tool's `<<…>>` is that sentence turned into a
 mechanism.
 
+== The notation, in twenty lines
+
+Everything this notation does is visible in one small program: a file, one piece it is made of, and the piece
+defined under the sentence that explains it.
+
+````typst
+#file("greet.py", ```py
+<<the greeting>>
+
+print(greeting)
+```)
+
+#chunk("the greeting", ```py
+greeting = "hello"
+```)
+````
+
+Three things are worth noticing, because they are the method in miniature. The reference appears before the
+definition, and the tool does not care: the file is assembled at the end, so the text can say what a file is
+made of and then explain the pieces one at a time. The paragraph above the second piece is not a comment about
+the code — the code is not there yet; that paragraph is where the decision that produced it lives. And the
+notation is tiny: a reference is a name in angle brackets on a line of its own, and the two declarations differ
+by one word.
+
+What the rest of this chapter adds is the judgement about where the pieces should fall.
+
 == A section is what a reader takes in at once
 
 Knuth's rule of thumb from reading student programs is a dozen lines of code for one section, and it is a
@@ -67,9 +93,11 @@ to the target language and nothing else does. This document's names carry their 
 (`tangle: a chunk as declared`) because a reader of a flat list has no directory to look at.
 
 And the words in the prose are the words in the code. Using two terms for one thing is the cheapest way to
-confuse a reader who is already holding a web in mind. The page can carry the same distinction typographically —
-the variable set differently from the literal, so a reader can tell `n` from `26` at a glance — which is a small
-thing that costs nothing and is noticed without being explained.
+confuse a reader who is already holding a web in mind. A name should also carry what a reader cannot infer from
+it: a piece that loops unusually, exits early, or jumps somewhere needs that word in its name, and a piece that
+does the ordinary thing does not. The page can carry the same distinction typographically — the variable set
+differently from the literal, so a reader can tell `n` from `26` at a glance — which is a small thing that costs
+nothing and is noticed without being explained.
 
 == Prose that is not a play-by-play
 
@@ -83,6 +111,10 @@ Three small rules that make prose readable in a document that is also a program:
 because mixing `it` and `we` in one section makes the reader re-derive who is acting; do not start a
 sentence with a symbol; and when a term is introduced, use it for that thing and nothing else. The last one
 is not pedantry — the reader has no compiler for prose, and no error message when the two words drift.
+
+One more, about the data rather than the prose: a declaration says what a value can hold, and it cannot say why
+the value exists. That sentence is the writer's, it goes next to the declaration, and it is the one thing a
+type system will never grow into.
 
 == Where the seams go
 
