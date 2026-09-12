@@ -10,6 +10,8 @@
     "lp.typ",
     "README.md",
     ".gitignore",
+    "chapters/abstract.typ",
+    "chapters/introduction.typ",
     "chapters/the-tool-in-its-own-words.typ",
     "chapters/four-claims.typ",
     "chapters/writing-a-literate-program.typ",
@@ -49,6 +51,10 @@
     "chapters/appendix-what-is-pinned.typ",
   ),
 ))
+
+#include "chapters/abstract.typ"
+
+#include "chapters/introduction.typ"
 
 #include "chapters/the-tool-in-its-own-words.typ"
 
