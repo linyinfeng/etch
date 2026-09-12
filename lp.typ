@@ -5561,10 +5561,11 @@ The one thing that tree needs from you is its own `.gitignore`, because the root
 inside it. The tool's state and cargo's are not a program:
 
 ```gitignore
-# The tool's own state, and what cargo builds — wherever in the tree they land.
+# The tool's own state, and what the build tools write — wherever in the tree they land.
 .lp
 .lpmap.json
 target
+flake.lock
 
 # The example's build directory is a nested document's output; that document says what is inside.
 examples/demo/build
