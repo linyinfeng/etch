@@ -3122,7 +3122,7 @@ pub fn unaccounted(
     <<status: sorted, and stable>>
 }
 
-<<status: lp's own control files are never content>>
+<<status: what the tool writes is not content>>
 
 <<status: when a subtree is too big to list>>
 
@@ -3249,16 +3249,22 @@ let mut files: BTreeSet<String> = BTreeSet::new();
 for entry in builder.build() {
     let entry =
         entry.map_err(|err| LpError::plain(format!("cannot scan {}: {err}", out.display())))?;
-    if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+    // A directory is structure rather than content: what is under it is what gets reported. A
+    // symlink is neither — it is a name in the tree, and one nothing accounts for is a stray like
+    // any other file. Skipping non-files quietly is how a `result` left behind by a `nix build`
+    // run inside the tree stayed invisible.
+    if entry.file_type().is_some_and(|kind| kind.is_dir()) {
         continue;
     }
     let path = entry.path();
-    if is_control_file(path) {
+    if is_own_output(path) {
         continue;
     }
     let rel = relative(out, path);
-    // The directory the package is unpacked into is the tool's own scratch space, like the two
-    // control files: a document does not have to declare it, and neither does a project (D21).
+    // The directory the package is unpacked into is the tool's own scratch space, like the map: a
+    // document does not have to declare it, and neither does a project (D21). Matched anywhere in
+    // the path rather than at the root, because a book woven inside the tree unpacks one beside
+    // itself — and that directory is this tool's as much as the first one is.
     if rel
         .split('/')
         .any(|part| part == crate::metadata::PACKAGE_ROOT)
@@ -3302,19 +3308,29 @@ Ok(found
     .collect())
 ````)
 
-== Two files that are never content
+== What the tool itself writes
 
-The map and the ignore file are the two names `lp` reserves, and they are exempt from the
-report: a file that exists to explain the others is not one of them. The directory the package
-is unpacked into is exempt for the same reason — it is the tool's own scratch space, and a
-document that had to declare it would not be self-contained.
+Three names, and only two of them are the tool's. The map records which declaration produced
+each line; the directory the package is unpacked into holds two of the document's own `#file`
+declarations in the form Typst wants to read them. Both are written by a pass of this program
+under names nothing else uses, so both are accounted for by name: a map left behind in a
+directory that stopped producing anything is that pass's to delete, and the package beside a
+book is unpacked again every time the book is woven. Making a project declare its own tool's
+scratch would be asking it to describe `lp` to `lp`.
 
-#chunk("status: lp's own control files are never content", ````rust
-/// `lp`'s own control files are never content, and neither is the directory it unpacks its
-/// package into.
-fn is_control_file(path: &Path) -> bool {
-    path.file_name()
-        .is_some_and(|name| name == MAP_FILE || name == IGNORE_FILE)
+The ignore file is not one of these. It is a *decision* — which files under the output
+directory belong to somebody else — and a decision is either declared by the document, like any
+other file, or written by a person, who then says so inside it. Exempting it by name is how a
+`.lpignore` whose declaration went away stayed in the tree for good: nothing produced it,
+nothing matched it, and nothing removed it, because the report had never seen it.
+
+#chunk("status: what the tool writes is not content", ````rust
+/// The tool's own output, by name: the map it writes beside a directory it produces, and the
+/// directory it unpacks the package into. Names nobody else uses, and the second is matched
+/// anywhere rather than at the root, because weaving a book unpacks a package beside that book —
+/// same tool, same document, one directory deeper.
+fn is_own_output(path: &Path) -> bool {
+    path.file_name().is_some_and(|name| name == MAP_FILE)
 }
 ````)
 
@@ -3501,11 +3517,12 @@ for a deletion that succeeded.
 
 == The rules, pinned in the file
 
-Four unit tests, in the file they test rather than in `tests/`, because they are about one
+Five unit tests, in the file they test rather than in `tests/`, because they are about one
 function and need no binary: produced files are accounted for however deep they are,
 declared files are accounted for even in a nested directory, a subtree that overflows is
-named once at the directory that overflows, and everything under the output directory is
-ours at any depth.
+named once at the directory that overflows, everything under the output directory is ours at
+any depth — and nothing is accounted for by its name, so a `.lpignore` that neither the
+document declared nor a rule protects is a stray, while the two names the tool writes are not.
 
 #chunk("status: the rules, pinned by four cases", ````rust
 #[cfg(test)]
@@ -3539,8 +3556,12 @@ mod tests {
         write(&out.join("stray.txt"), "who put this here");
         write(&out.join("stray-dir/inside.txt"), "and this");
 
+        // The ignore file is a file like any other, so this fixture accounts for it the way the
+        // document does: by declaring it. What a hand-written one does instead is the test below.
         let produced: BTreeMap<String, BTreeSet<String>> =
-            [names("", &["produced.txt"])].into_iter().collect();
+            [names("", &["produced.txt", ".lpignore"])]
+                .into_iter()
+                .collect();
         let found = unaccounted(out, &produced).unwrap();
 
         let listed: Vec<String> = found
@@ -3570,7 +3591,9 @@ mod tests {
         write(&out.join("deep/nested/app.log"), "declared");
 
         let produced: BTreeMap<String, BTreeSet<String>> =
-            [names("", &["produced.txt"])].into_iter().collect();
+            [names("", &["produced.txt", ".lpignore"])]
+                .into_iter()
+                .collect();
         assert!(unaccounted(out, &produced).unwrap().is_empty());
     }
 
@@ -3623,6 +3646,42 @@ mod tests {
                 "src/next-to-it.rs".to_string()
             ],
             "anything under the output directory, at any depth"
+        );
+    }
+
+    #[test]
+    fn the_ignore_file_is_not_exempt_and_the_tools_own_output_is() {
+        let dir = TempDir::new().unwrap();
+        let out = dir.path();
+        // Nothing declares this and no rule matches it, so it is a file like any other. A
+        // hand-written `.lpignore` says otherwise by protecting itself, and a document says so by
+        // declaring it. Neither is not an option, which is the point.
+        write(&out.join(".lpignore"), "theirs.txt\n");
+        write(&out.join("theirs.txt"), "protected");
+        // These two are the tool's: names nothing else uses, written by a pass of this program.
+        write(
+            &out.join(".lp/packages/local/lp/0.1.0/lib.typ"),
+            "the package",
+        );
+        write(&out.join("src/.lpmap.json"), "the map");
+
+        let produced: BTreeMap<String, BTreeSet<String>> =
+            [names("", &["theirs.txt"])].into_iter().collect();
+        let found = unaccounted(out, &produced).unwrap();
+        let listed: Vec<String> = found
+            .iter()
+            .flat_map(|group| {
+                group
+                    .entries
+                    .iter()
+                    .map(|entry| crate::map::join(&group.dir, entry))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        assert_eq!(
+            listed,
+            vec![".lpignore".to_string()],
+            "the ignore file is reported; the tool's own two names are not"
         );
     }
 }
@@ -6235,7 +6294,7 @@ what `--check` and `--delete` each do.
 
 <<owned: a_deeper_ignore_file_can_take_a_file_back>>
 
-<<owned: control_files_survive_and_other_dotfiles_are_ordinary_files>>
+<<owned: the_pass_keeps_its_own_output_and_any_other_dotfile_is_a_stray>>
 
 <<owned: a_git_directory_is_ordinary_content>>
 
@@ -6255,7 +6314,7 @@ The cases, in the order they appear:
 - `declared_files_are_accounted_for` — files and directories listed in `.lpignore` are left alone
 - `the_pattern_language_is_gitignores` — `build/` and `**/*.log` behave exactly as they do in git
 - `a_deeper_ignore_file_can_take_a_file_back` — a nested ignore file decides for its own directory, deepest winning
-- `control_files_survive_and_other_dotfiles_are_ordinary_files` — the map and the ignore file are never content, and every other dotfile is
+- `the_pass_keeps_its_own_output_and_any_other_dotfile_is_a_stray` — the map is the tool's own output and the ignore file protects itself, but every other dotfile is
 - `a_git_directory_is_ordinary_content` — `.git/` is not special-cased, so it has to be declared like anything else
 - `check_reports_a_stray_without_removing_it` — `--check` lists a stray and changes nothing
 - `deleting_a_foreign_subtree_takes_one_line_and_one_command` — one compressed entry, one `--delete`, and a subtree is gone
@@ -6297,6 +6356,10 @@ const IGNORES: &str = "\
 handwritten.txt
 build/
 *.lock
+# and the rules themselves: a hand-written ignore file is a file like any other, and a report that
+# never saw it is how one survived the declaration that produced it. A document says this by
+# declaring the file instead, which is what this repository's does.
+.lpignore
 ";
 
 fn lp(dir: &Path, args: &[&str]) -> Output {
@@ -6331,6 +6394,10 @@ fn tangled(declaration: &str, extra: &[(&str, &str)]) -> (TempDir, std::path::Pa
     write_doc(dir.path(), "doc.typ", DOC);
     if !declaration.is_empty() {
         std::fs::create_dir_all(dir.path().join("out")).expect("out");
+        // The ignore file is a file like any other, so something has to account for it: here it
+        // protects itself, which is what a hand-written one does. A document may declare it
+        // instead — this repository's does — and then this line is unnecessary.
+        let declaration = format!("{declaration}\n.lpignore\n");
         std::fs::write(dir.path().join("out/.lpignore"), declaration).expect("ignore file");
     }
     for (relative, contents) in extra {
@@ -6487,10 +6554,10 @@ fn a_deeper_ignore_file_can_take_a_file_back() {
 ````)
 
 #chunk(
-  "owned: control_files_survive_and_other_dotfiles_are_ordinary_files",
+  "owned: the_pass_keeps_its_own_output_and_any_other_dotfile_is_a_stray",
   ````rust
   #[test]
-  fn control_files_survive_and_other_dotfiles_are_ordinary_files() {
+  fn the_pass_keeps_its_own_output_and_any_other_dotfile_is_a_stray() {
       let (_guard, dir) = tangled("kept.dot\n", &[("kept.dot", "x")]);
       std::fs::write(dir.join("out/stray.cache"), "not listed").expect("file");
 
@@ -6506,9 +6573,12 @@ fn a_deeper_ignore_file_can_take_a_file_back() {
       );
       assert!(
           dir.join("out/.lpmap.json").exists(),
-          "the line map is never content"
+          "the map is the tool's own output, so it is accounted for by name"
       );
-      assert!(dir.join("out/.lpignore").exists(), "nor are the rules");
+      assert!(
+          dir.join("out/.lpignore").exists(),
+          "and the ignore file is accounted for by the rule inside it"
+      );
       assert!(dir.join("out/kept.dot").exists(), "listed, so kept");
   }
   ````,
