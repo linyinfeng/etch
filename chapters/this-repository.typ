@@ -115,7 +115,7 @@ this repository rather than part of using the tool: the pipeline does it on ever
 document — it takes the previous generation as the seed, builds it, tangles this document, checks the
 tree against it, and then hands the branch the result. Nothing about the generated code is checked
 there: a program's tests are the program's business, not the document's. That business is written down
-where it lives — the flake and the workflow further on are output too, and they describe the tree they
+where it lives — the flake and the workflow are output too, and they describe the tree they
 are tangled into. What this document can state is the property that has to hold —
 the branch carries a generation that can read the document, and a generation only ever reads.
 

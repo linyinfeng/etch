@@ -101,4 +101,4 @@ the style of a literate program is not chosen, it is discovered by writing one b
 are the residue of other people's failures; they are worth knowing before the first draft and worth
 re-reading after it. What they cannot do is produce the arrangement for you. A tool guarantees the
 mechanism — a reference resolves, a file is written, drift is a failure — and nothing about the arrangement,
-which is the whole of the work and the reason the next chapter is about giving up.
+which is the whole of the work and the reason a later chapter is about giving up.
