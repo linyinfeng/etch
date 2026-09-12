@@ -58,7 +58,8 @@ Six things here are this tool's own, and every one of them was found by a failur
   already says which files those are, and a second list of names is a list that goes stale. The tool's own
   scratch is the one thing that is not the book, and it is named by the tool rather than listed from the
   book: a tree that has been used at all has `.lp` beside its document, and a copy of that directory is not
-  a copy of the book.
+  a copy of the book. The copy is made writable first, because what comes out of the store is read-only and a
+  read-only directory cannot be written to or removed from.
 - *The package does not run the tests.* `doCheck = false` there and a `test` check beside it, because a
   package that ran them as well would fail before a reader could see *which* test broke.
 - *The bootstrap is a workflow step, not a check.* `lp self prove` unpacks the book the binary carries,
@@ -116,6 +117,7 @@ leave something in it for the ownership check to complain about.
 
         for dir in src run; do
           cp -r "${./book}/." "$work/$dir/"
+          chmod -R u+w "$work/$dir"
           rm -rf "$work/$dir/.lp"
         done
 
