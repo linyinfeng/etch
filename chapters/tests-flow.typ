@@ -1,0 +1,1055 @@
+#import "@local/lp:0.1.0": chunk, file
+
+= tests/flow.rs — what tangling does
+
+The largest file, and the one that pins the mechanism: a fragment shared by two files, a name
+declared twice, indentation at the reference site, the map, the three failures, and the two
+commands that read the result back. Most of the cases share one fixture, because the point is
+what the *same* document produces in different situations.
+
+#file("tests/flow.rs", ````rust
+<<flow: the fixtures and helpers>>
+
+<<flow: tangle_writes_files_with_concat_and_indentation>>
+
+<<flow: tangle_records_which_chunk_every_line_came_from>>
+
+<<flow: indentation_follows_the_reference_site>>
+
+<<flow: a_chunk_written_indented_in_the_document_is_still_dedented>>
+
+<<flow: a_chapter_can_hold_the_fragment_another_file_references>>
+
+<<flow: maps_live_next_to_the_files_they_explain>>
+
+<<flow: an_ambiguous_file_name_is_an_error_not_a_guess>>
+
+<<flow: check_names_the_chunk_of_the_first_difference>>
+
+<<flow: the_map_follows_the_document_even_when_no_output_byte_changes>>
+
+<<flow: dangling_reference_quotes_the_line>>
+
+<<flow: cycle_is_reported>>
+
+<<flow: an_empty_chunk_is_an_error>>
+<<flow: a_declaration_without_a_language_warns>>
+
+<<flow: a_file_declaration_can_name_a_nested_path>>
+
+<<flow: unsafe_paths_are_rejected>>
+
+<<flow: weave_renders_a_document_that_imports_the_package>>
+
+<<flow: a_blank_line_in_an_indented_fragment_stays_blank>>
+
+<<flow: tangling_leaves_only_dot_lp_beside_the_document>>
+
+<<flow: a_pdf_gives_the_book_back>>
+
+<<flow: weaving_a_document_with_no_book_carries_none>>
+
+<<flow: a_page_gives_the_book_back>>
+
+<<flow: reading_weaves_what_the_binary_carries>>
+
+<<flow: the_book_comes_back_out_whole>>
+
+<<flow: the_book_is_carried_into_the_tree>>
+
+<<flow: an_unknown_tangle_option_is_refused>>
+
+<<flow: a_stale_book_copy_is_removed_and_check_refuses_it>>
+
+<<flow: a_book_name_may_not_leave_the_tree>>
+
+<<flow: a_book_without_a_directory_is_an_error>>
+
+<<flow: a_book_may_not_overwrite_an_output>>
+
+<<flow: map_names_the_chunk_a_generated_line_came_from>>
+
+<<flow: explain_rewrites_diagnostics_to_the_chunk>>
+
+<<flow: list_reports_declarations>>
+
+<<flow: a_chunk_built_by_code_is_attributed_to_itself>>
+
+<<flow: the_declaration_is_where_the_line_lives>>
+````)
+
+The cases, in the order they appear:
+
+- `tangle_writes_files_with_concat_and_indentation` — a shared fragment and a name declared twice land in one file, with the reference's indentation
+- `tangle_records_which_chunk_every_line_came_from` — the map names a chunk and a run for every output line, and records no source positions
+- `indentation_follows_the_reference_site` — the same chunk indents differently at two reference sites
+- `a_chunk_written_indented_in_the_document_is_still_dedented` — a declaration written inside a list item contributes flush-left text
+- `a_chapter_can_hold_the_fragment_another_file_references` — a fragment declared in a second document is visible to the first
+- `maps_live_next_to_the_files_they_explain` — one map per directory, not one at the top
+- `an_ambiguous_file_name_is_an_error_not_a_guess` — a bare name that two maps could explain is refused, with the candidates listed
+- `check_names_the_chunk_of_the_first_difference` — drift is reported as the first differing line and the chunk responsible for it
+- `the_map_follows_the_document_even_when_no_output_byte_changes` — moving prose rewrites the map even when no output byte moves
+- `dangling_reference_quotes_the_line` — an undefined name is an error that quotes the line and names the chunk it was in
+- `cycle_is_reported` — the error is the chain, not a bare `cycle detected`
+- `an_empty_chunk_is_an_error` — a declaration with no body is refused rather than tangled away
+- `a_declaration_without_a_language_warns` — a fence with no language tag is reported, and the pass still succeeds
+- `a_file_declaration_can_name_a_nested_path` — `src/main.rs` is created under the output directory, directories and all
+- `unsafe_paths_are_rejected` — `../escape.txt` and its relatives cannot leave the output directory
+- `map_names_the_chunk_a_generated_line_came_from` — `lp map --file --line` answers with the chunk and how far into it the line is
+- `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
+- `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
+- `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
+- `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
+- `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
+- `a_stale_book_copy_is_removed_and_check_refuses_it` — the book directory is the list: a copy it no longer names is removed by a tangle and refused by `--check`
+- `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
+- `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
+- `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
+- `weaving_a_document_with_no_book_carries_none` — a document that declares nothing still weaves: no block, and no complaint either
+- `a_pdf_gives_the_book_back` — the PDF carries the book as attached files, and `lp extract --format pdf` gets it back byte for byte
+- `tangling_leaves_only_dot_lp_beside_the_document` — everything the tool writes beside a document is under `.lp`: the package, the wrapper, all of it
+- `a_blank_line_in_an_indented_fragment_stays_blank` — an indented fragment's blank line is written blank, not as a line of spaces
+- `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
+- `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
+- `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
+- `a_chunk_built_by_code_is_attributed_to_itself` — roots declared by a loop are attributed to the declarations the loop produced
+- `the_declaration_is_where_the_line_lives` — the answer includes the `rg` command that finds the declaration
+
+#chunk("flow: the fixtures and helpers", ````rust
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+
+use tempfile::TempDir;
+
+const PKG: &str = include_str!("../typst/lp.typ");
+
+fn document(body: &str) -> String {
+    format!("#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}")
+}
+
+const DOC: &str = concat!(
+    "\
+= Demo
+
+#file(\"main.py\", ```py
+",
+    "<<imports>>\n",
+    "<<body>>\n",
+    "\
+```)
+
+#chunk(\"imports\", ```py
+import sys
+```)
+
+#chunk(\"body\", ```py
+print('one')
+```)
+
+#chunk(\"body\", ```py
+print('two')
+```)
+
+```text
+not a chunk
+```
+",
+);
+
+fn lp(dir: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_lp"))
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("run lp")
+}
+
+fn write_doc(dir: &Path, name: &str, body: &str) -> String {
+    std::fs::write(dir.join("lp.typ"), PKG).expect("package");
+    let text = document(body);
+    std::fs::write(dir.join(name), &text).expect("doc");
+    text
+}
+
+fn project(body: &str) -> (TempDir, std::path::PathBuf, String) {
+    let dir = TempDir::new().expect("temp dir");
+    let text = write_doc(dir.path(), "demo.typ", body);
+    let path = dir.path().to_path_buf();
+    (dir, path, text)
+}
+
+fn stdout(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stdout).to_string()
+}
+
+fn stderr(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stderr).to_string()
+}
+
+fn line_of(text: &str, needle: &str) -> usize {
+    text.lines()
+        .position(|line| line.contains(needle))
+        .expect("needle")
+        + 1
+}
+````)
+
+#chunk("flow: tangle_writes_files_with_concat_and_indentation", ````rust
+#[test]
+fn tangle_writes_files_with_concat_and_indentation() {
+    let (_guard, dir, _) = project(DOC);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(dir.join("out/main.py")).expect("main.py"),
+        "import sys\nprint('one')\nprint('two')\n"
+    );
+}
+````)
+
+#chunk("flow: tangle_records_which_chunk_every_line_came_from", ````rust
+#[test]
+fn tangle_records_which_chunk_every_line_came_from() {
+    let (_guard, dir, _) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let map: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("out/.lpmap.json")).expect("map"))
+            .expect("json");
+    let entry = &map["files"]["main.py"];
+    assert_eq!(
+        entry["runs"],
+        serde_json::json!([
+            { "chunk": "imports", "first": 1, "last": 1 },
+            { "chunk": "body", "first": 2, "last": 3 },
+        ])
+    );
+    assert!(entry.get("lines").is_none(), "no line numbers are recorded");
+    assert!(entry.get("sources").is_none(), "nor source files");
+}
+````)
+
+#chunk("flow: indentation_follows_the_reference_site", ````rust
+#[test]
+fn indentation_follows_the_reference_site() {
+    let body = "#file(\"main.py\", ```py\nif True:\n    <<body>>\n```)\n\n#chunk(\"body\", ```py\nprint(1)\n```)\n";
+    let (_guard, dir, _) = project(body);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("out/main.py")).expect("main.py"),
+        "if True:\n    print(1)\n"
+    );
+}
+````)
+
+#chunk(
+  "flow: a_chunk_written_indented_in_the_document_is_still_dedented",
+  ````rust
+  #[test]
+  fn a_chunk_written_indented_in_the_document_is_still_dedented() {
+      let body = "#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n\n- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n";
+      let (_guard, dir, _) = project(body);
+      let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+      assert!(output.status.success(), "{}", stderr(&output));
+      assert_eq!(
+          std::fs::read_to_string(dir.join("out/main.py")).expect("main"),
+          "if x:\n    print(1)\n    print(2)\n"
+      );
+  }
+  ````,
+)
+
+#chunk("flow: a_chapter_can_hold_the_fragment_another_file_references", ````rust
+#[test]
+fn a_chapter_can_hold_the_fragment_another_file_references() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    write_doc(
+        dir.path(),
+        "chapter.typ",
+        "= Chapter one\n\n#chunk(\"greeting\", ```py\nprint('hi')\n```)\n",
+    );
+    write_doc(
+        dir.path(),
+        "book.typ",
+        "= The program\n\n#file(\"src/main.py\", ```py\n<<greeting>>\n```)\n",
+    );
+    let path = dir.path().to_path_buf();
+
+    let output = lp(
+        &path,
+        &["tangle", "book.typ", "chapter.typ", "--out", "out"],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(path.join("out/src/main.py")).expect("main"),
+        "print('hi')\n"
+    );
+
+    let mapped = lp(
+        &path,
+        &[
+            "map",
+            "--file",
+            "src/main.py",
+            "--line",
+            "1",
+            "--out",
+            "out",
+        ],
+    );
+    assert!(
+        stdout(&mapped).starts_with("chunk ⟪greeting⟫, line 1 of it"),
+        "{}",
+        stdout(&mapped)
+    );
+
+    let no_files = lp(&path, &["tangle", "chapter.typ", "--out", "out2"]);
+    assert!(!no_files.status.success());
+    assert!(
+        stderr(&no_files).contains("no file declarations"),
+        "{}",
+        stderr(&no_files)
+    );
+}
+````)
+
+#chunk("flow: maps_live_next_to_the_files_they_explain", ````rust
+#[test]
+fn maps_live_next_to_the_files_they_explain() {
+    let body =
+        "#file(\"a.py\", ```py\nprint('a')\n```)\n\n#file(\"src/b.py\", ```py\nprint('b')\n```)\n";
+    let (_guard, dir, _) = project(body);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let root: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(dir.join("out/.lpmap.json")).expect("root map"),
+    )
+    .expect("json");
+    let nested: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(dir.join("out/src/.lpmap.json")).expect("nested map"),
+    )
+    .expect("json");
+    assert!(root["files"].get("a.py").is_some(), "{root}");
+    assert!(
+        root["files"].get("src/b.py").is_none(),
+        "the root map must not index the subtree: {root}"
+    );
+    assert!(nested["files"].get("b.py").is_some(), "{nested}");
+
+    for file in ["src/b.py", "b.py"] {
+        let output = lp(
+            &dir,
+            &["map", "--file", file, "--line", "1", "--out", "out"],
+        );
+        assert!(output.status.success(), "{file}: {}", stderr(&output));
+        assert!(
+            stdout(&output).starts_with("chunk ⟪src/b.py⟫"),
+            "{file}: {}",
+            stdout(&output)
+        );
+    }
+}
+````)
+
+#chunk("flow: an_ambiguous_file_name_is_an_error_not_a_guess", ````rust
+#[test]
+fn an_ambiguous_file_name_is_an_error_not_a_guess() {
+    let body = "#file(\"one/b.py\", ```py\nprint('a')\n```)\n\n#file(\"two/b.py\", ```py\nprint('b')\n```)\n";
+    let (_guard, dir, _) = project(body);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let output = lp(
+        &dir,
+        &["map", "--file", "b.py", "--line", "1", "--out", "out"],
+    );
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("which map?"),
+        "{}",
+        stderr(&output)
+    );
+
+    let explicit = lp(
+        &dir,
+        &["map", "--file", "two/b.py", "--line", "1", "--out", "out"],
+    );
+    assert!(explicit.status.success(), "{}", stderr(&explicit));
+}
+````)
+
+#chunk("flow: check_names_the_chunk_of_the_first_difference", ````rust
+#[test]
+fn check_names_the_chunk_of_the_first_difference() {
+    let (_guard, dir, _) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"])
+            .status
+            .success()
+    );
+
+    std::fs::write(dir.join("out/main.py"), "hand edited\n").expect("write");
+    let drift = lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"]);
+    assert!(!drift.status.success(), "drift must fail");
+    let message = stderr(&drift);
+    assert!(
+        message.contains("STALE  main.py (line 1, in chunk ⟪imports⟫)"),
+        "{message}"
+    );
+
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"])
+            .status
+            .success()
+    );
+}
+````)
+
+#chunk(
+  "flow: the_map_follows_the_document_even_when_no_output_byte_changes",
+  ````rust
+  #[test]
+  fn the_map_follows_the_document_even_when_no_output_byte_changes() {
+      let (_guard, dir, _) = project(DOC);
+      assert!(
+          lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+              .status
+              .success()
+      );
+
+      let moved = format!(
+          "{}\n{}",
+          "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule", DOC
+      );
+      std::fs::write(dir.join("demo.typ"), &moved).expect("rewrite");
+
+      let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+      assert!(output.status.success(), "{}", stderr(&output));
+      assert!(
+          !stdout(&output).contains("wrote"),
+          "outputs are unchanged: {}",
+          stdout(&output)
+      );
+
+      let forward = lp(
+          &dir,
+          &["map", "--file", "main.py", "--line", "3", "--out", "out"],
+      );
+      assert!(
+          stdout(&forward).starts_with("chunk ⟪body⟫, line 2 of it"),
+          "{}",
+          stdout(&forward)
+      );
+  }
+  ````,
+)
+
+#chunk("flow: dangling_reference_quotes_the_line", ````rust
+#[test]
+fn dangling_reference_quotes_the_line() {
+    let body = "#file(\"main.py\", ```py\n<<missing>>\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    let message = stderr(&output);
+    assert!(
+        message.contains("chunk ⟪missing⟫ is not defined"),
+        "{message}"
+    );
+    assert!(
+        message.contains("<<missing>>"),
+        "the line is quoted: {message}"
+    );
+    assert!(
+        message.contains("in chunk ⟪main.py⟫, line 1 of it"),
+        "{message}"
+    );
+}
+````)
+
+#chunk("flow: cycle_is_reported", ````rust
+#[test]
+fn cycle_is_reported() {
+    let body = "#file(\"main.py\", ```py\n<<a>>\n```)\n\n#chunk(\"a\", ```py\n<<b>>\n```)\n\n#chunk(\"b\", ```py\n<<a>>\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("cycle in chunks"),
+        "{}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: a_declaration_without_a_language_warns", ````rust
+#[test]
+fn a_declaration_without_a_language_warns() {
+    let body = "#file(\"main.py\", ```\nprint(1)\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("chunk ⟪main.py⟫ is declared without a language"),
+        "{}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: an_empty_chunk_is_an_error", ````rust
+#[test]
+fn an_empty_chunk_is_an_error() {
+    let body = "#file(\"main.py\", ```py\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("is empty"), "{}", stderr(&output));
+}
+````)
+
+#chunk("flow: a_file_declaration_can_name_a_nested_path", ````rust
+#[test]
+fn a_file_declaration_can_name_a_nested_path() {
+    let body = "#file(\"src/main.rs\", ```rust\nfn main() {}\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        std::fs::read_to_string(dir.join("out/src/main.rs")).expect("nested"),
+        "fn main() {}\n"
+    );
+}
+````)
+
+#chunk("flow: unsafe_paths_are_rejected", ````rust
+#[test]
+fn unsafe_paths_are_rejected() {
+    let body = "#file(\"../escape.txt\", ```text\nx\n```)\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("unsafe chunk name"),
+        "{}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: map_names_the_chunk_a_generated_line_came_from", ````rust
+#[test]
+fn map_names_the_chunk_a_generated_line_came_from() {
+    let (_guard, dir, _) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let output = lp(
+        &dir,
+        &["map", "--file", "main.py", "--line", "3", "--out", "out"],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output).lines().next(),
+        Some("chunk ⟪body⟫, line 2 of it")
+    );
+
+    let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
+    assert!(reverse.status.success(), "{}", stderr(&reverse));
+    assert!(
+        stdout(&reverse).contains("main.py:2"),
+        "{}",
+        stdout(&reverse)
+    );
+    assert!(
+        stdout(&reverse).contains("main.py:3"),
+        "{}",
+        stdout(&reverse)
+    );
+}
+````)
+
+#chunk("flow: explain_rewrites_diagnostics_to_the_chunk", ````rust
+#[test]
+fn explain_rewrites_diagnostics_to_the_chunk() {
+    let (_guard, dir, _) = project(DOC);
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lp"))
+        .args(["explain", "--out", "out"])
+        .current_dir(&dir)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn");
+
+    use std::io::Write;
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin")
+        .write_all(b"out/main.py:3:1: boom\n")
+        .expect("write");
+    let output = child.wait_with_output().expect("wait");
+
+    assert!(stdout(&output).contains("out/main.py:3:1: boom"));
+    let message = stderr(&output);
+    assert!(message.contains("chunk ⟪body⟫, line 2 of it"), "{message}");
+}
+````)
+
+#chunk("flow: weave_renders_a_document_that_imports_the_package", ````rust
+#[test]
+fn weave_renders_a_document_that_imports_the_package() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(
+        dir.path().join("doc.typ"),
+        "#import \"@local/lp:0.1.0\": show-rule\n#show: show-rule\n= Woven\n",
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["weave", "doc.typ", "doc.pdf"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        dir.path().join("doc.pdf").exists(),
+        "no document was written"
+    );
+}
+````)
+
+#chunk("flow: the_book_comes_back_out_whole", ````rust
+#[test]
+fn the_book_comes_back_out_whole() {
+    let dir = TempDir::new().expect("temp dir");
+    let output = lp(dir.path(), &["self", "book", "--out", "unpacked"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    let beside = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
+    for name in ["lp.typ", "README.md", ".gitignore"] {
+        let embedded = std::fs::read(dir.path().join("unpacked").join(name)).expect(name);
+        let carried = std::fs::read(beside.join(name)).expect(name);
+        assert_eq!(embedded, carried, "{name} came back different");
+    }
+}
+````)
+
+#chunk("flow: reading_weaves_what_the_binary_carries", ````rust
+#[test]
+fn reading_weaves_what_the_binary_carries() {
+    let dir = TempDir::new().expect("temp dir");
+    let output = lp(dir.path(), &["self", "read", "--format", "html"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    let path = PathBuf::from(stdout(&output).trim());
+    let size = std::fs::metadata(&path)
+        .expect("the rendering is there")
+        .len();
+    assert!(
+        size > 10_000,
+        "{} looks empty: {size} bytes",
+        path.display()
+    );
+}
+````)
+
+#chunk("flow: a_blank_line_in_an_indented_fragment_stays_blank", ````rust
+#[test]
+fn a_blank_line_in_an_indented_fragment_stays_blank() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#file(\"src/main.rs\", ```rust\nfn outer() {\n    <<inner>>\n}\n```)\n\n#chunk(\"inner\", ```rust\nlet a = 1;\n\nlet b = 2;\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let written = std::fs::read_to_string(dir.path().join("tangled/src/main.rs")).expect("file");
+
+    assert!(
+        written.contains("    let a = 1;\n\n    let b = 2;\n"),
+        "{written:?}"
+    );
+    assert!(
+        written.lines().all(|line| line == line.trim_end()),
+        "an indented fragment left trailing whitespace: {written:?}"
+    );
+}
+````)
+
+#chunk("flow: tangling_leaves_only_dot_lp_beside_the_document", ````rust
+#[test]
+fn tangling_leaves_only_dot_lp_beside_the_document() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document("#file(\"main.py\", ```py\nprint('x')\n```)\n"),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    let mut unexpected: Vec<String> = std::fs::read_dir(dir.path())
+        .expect("the source directory")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().to_string())
+        .filter(|name| !["lp.typ", "demo.typ", "tangled", ".lp"].contains(&name.as_str()))
+        .collect();
+    unexpected.sort();
+    assert!(unexpected.is_empty(), "the tool left {unexpected:?} behind");
+}
+````)
+
+#chunk("flow: a_pdf_gives_the_book_back", ````rust
+#[test]
+fn a_pdf_gives_the_book_back() {
+    let dir = TempDir::new().expect("temp dir");
+    let document = Path::new(env!("CARGO_MANIFEST_DIR")).join("book/lp.typ");
+    let woven = lp(
+        dir.path(),
+        &["weave", document.to_str().expect("path"), "page.pdf"],
+    );
+    assert!(woven.status.success(), "{}", stderr(&woven));
+
+    let taken = lp(
+        dir.path(),
+        &["extract", "--format", "pdf", "page.pdf", "--out", "back"],
+    );
+    assert!(taken.status.success(), "{}", stderr(&taken));
+
+    let carried = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
+    for name in ["lp.typ", "README.md", ".gitignore"] {
+        let back = std::fs::read(dir.path().join("back").join(name)).expect(name);
+        let beside = std::fs::read(carried.join(name)).expect(name);
+        assert_eq!(back, beside, "{name} did not survive the PDF");
+    }
+}
+````)
+
+#chunk("flow: weaving_a_document_with_no_book_carries_none", ````rust
+#[test]
+fn weaving_a_document_with_no_book_carries_none() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("plain.typ"), "= Plain\n\nJust words.\n").expect("doc");
+
+    let woven = lp(
+        dir.path(),
+        &["weave", "plain.typ", "plain.html", "--features", "html"],
+    );
+    assert!(woven.status.success(), "{}", stderr(&woven));
+    let page = std::fs::read_to_string(dir.path().join("plain.html")).expect("page");
+    assert!(
+        !page.contains("lp-source"),
+        "a document with no book got one"
+    );
+}
+````)
+
+#chunk("flow: a_page_gives_the_book_back", ````rust
+#[test]
+fn a_page_gives_the_book_back() {
+    let dir = TempDir::new().expect("temp dir");
+    let document = Path::new(env!("CARGO_MANIFEST_DIR")).join("book/lp.typ");
+    let woven = lp(
+        dir.path(),
+        &[
+            "weave",
+            document.to_str().expect("path"),
+            "page.html",
+            "--features",
+            "html",
+        ],
+    );
+    assert!(woven.status.success(), "{}", stderr(&woven));
+
+    let taken = lp(
+        dir.path(),
+        &["extract", "--format", "html", "page.html", "--out", "back"],
+    );
+    assert!(taken.status.success(), "{}", stderr(&taken));
+
+    let carried = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
+    for name in ["lp.typ", "README.md", ".gitignore"] {
+        let back = std::fs::read(dir.path().join("back").join(name)).expect(name);
+        let beside = std::fs::read(carried.join(name)).expect(name);
+        assert_eq!(back, beside, "{name} did not survive the page");
+    }
+}
+````)
+
+#chunk("flow: the_book_is_carried_into_the_tree", ````rust
+#[test]
+fn the_book_is_carried_into_the_tree() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("README.md"), "the book\n").expect("readme");
+    std::fs::create_dir(dir.path().join("chapters")).expect("dir");
+    std::fs::write(dir.path().join("chapters/one.typ"), "= One\n").expect("chapter");
+    std::fs::write(dir.path().join("ignored.txt"), "not part of it\n").expect("ignored");
+    std::fs::write(dir.path().join(".gitignore"), "ignored.txt\n").expect("gitignore");
+    std::fs::create_dir_all(dir.path().join(".lp/local/lp/0.1.0")).expect("dir");
+    std::fs::write(
+        dir.path().join(".lp/local/lp/0.1.0/lib.typ"),
+        "the tool's own state\n",
+    )
+    .expect("state");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"chapters/one.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(
+        dir.path().join("tangled/book/demo.typ").exists(),
+        "a named file is copied under its own name"
+    );
+    assert!(
+        dir.path().join("tangled/book/chapters/one.typ").exists(),
+        "a name with a directory in it keeps its shape"
+    );
+    assert!(
+        dir.path().join("tangled/book/README.md").exists(),
+        "and so does a name with no directory at all"
+    );
+    assert!(
+        !dir.path().join("tangled/book/ignored.txt").exists(),
+        "a file the list does not name is not part of the book, whatever the source's .gitignore says"
+    );
+    assert!(
+        !dir.path().join("tangled/book/.lp").exists(),
+        "and neither is the state the tool keeps for itself"
+    );
+}
+````)
+
+#chunk("flow: an_unknown_tangle_option_is_refused", ````rust
+#[test]
+fn an_unknown_tangle_option_is_refused() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"book\", nonsense: 1))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(!output.status.success(), "an unknown key is not ignored");
+    assert!(
+        stderr(&output).contains("unknown tangle option"),
+        "the package refuses it where it was written: {}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: a_stale_book_copy_is_removed_and_check_refuses_it", ````rust
+#[test]
+fn a_stale_book_copy_is_removed_and_check_refuses_it() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("README.md"), "the pointer\n").expect("book file");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    let stale = dir.path().join("tangled/book/old.txt");
+    std::fs::write(&stale, "from a generation ago\n").expect("stale");
+    let checked = lp(dir.path(), &["tangle", "demo.typ", "--check"]);
+    assert!(
+        !checked.status.success(),
+        "check refuses a tree with a stale copy"
+    );
+    assert!(
+        stderr(&checked).contains("no longer names"),
+        "and says why: {}",
+        stderr(&checked)
+    );
+
+    let again = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(again.status.success(), "{}", stderr(&again));
+    assert!(
+        !stale.exists(),
+        "a plain tangle removes what the list stopped naming"
+    );
+}
+````)
+
+#chunk("flow: a_book_name_may_not_leave_the_tree", ````rust
+#[test]
+fn a_book_name_may_not_leave_the_tree() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"book\", book-files: (\"../outside.txt\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(
+        !output.status.success(),
+        "a name outside the tree is refused"
+    );
+    assert!(
+        stderr(&output).contains("leaves the source tree"),
+        "and it says why: {}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: a_book_without_a_directory_is_an_error", ````rust
+#[test]
+fn a_book_without_a_directory_is_an_error() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-files: (\"main.py\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("book-directory"),
+        "the tool says which key is missing: {}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: a_book_may_not_overwrite_an_output", ````rust
+#[test]
+fn a_book_may_not_overwrite_an_output() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.path().join("main.py"),
+        "a source file the book would carry\n",
+    )
+    .expect("source");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        document(
+            "#tangle-options((book-directory: \"src\", book-files: (\"main.py\",)))\n\n#file(\"src/main.py\", ```py\nprint('x')\n```)\n",
+        ),
+    )
+    .expect("doc");
+
+    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(
+        !output.status.success(),
+        "two writers for one path is refused"
+    );
+    assert!(
+        stderr(&output).contains("would overwrite"),
+        "and it says which path: {}",
+        stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: list_reports_declarations", ````rust
+#[test]
+fn list_reports_declarations() {
+    let (_guard, dir, _) = project(DOC);
+    let output = lp(&dir, &["list", "demo.typ"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let listed = stdout(&output);
+    assert!(listed.contains("file  ⟪main.py⟫"), "{listed}");
+    assert!(listed.contains("frag  ⟪body⟫"), "{listed}");
+    assert!(listed.contains("outputs: <main.py>"), "{listed}");
+    assert!(
+        !listed.contains("not a chunk"),
+        "an undeclared block is not a chunk: {listed}"
+    );
+}
+````)
+
+#chunk("flow: a_chunk_built_by_code_is_attributed_to_itself", ````rust
+#[test]
+fn a_chunk_built_by_code_is_attributed_to_itself() {
+    let body = "#for i in range(2) [\n  #file(\"gen-\" + str(i) + \".py\", ```py\n  print(#i)\n  ```)\n]\n";
+    let (_guard, dir, _) = project(body);
+    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(dir.join("out/gen-0.py").exists());
+    assert!(dir.join("out/gen-1.py").exists());
+
+    let mapped = lp(
+        &dir,
+        &["map", "--file", "gen-0.py", "--line", "1", "--out", "out"],
+    );
+    assert!(
+        stdout(&mapped).starts_with("chunk ⟪gen-0.py⟫, line 1 of it"),
+        "{}",
+        stdout(&mapped)
+    );
+}
+````)
+
+#chunk("flow: the_declaration_is_where_the_line_lives", ````rust
+#[test]
+fn the_declaration_is_where_the_line_lives() {
+    let (_guard, _dir, text) = project(DOC);
+    assert!(line_of(&text, "#chunk(\"imports\"") > 0);
+    assert!(line_of(&text, "print('two')") > 0);
+}
+````)

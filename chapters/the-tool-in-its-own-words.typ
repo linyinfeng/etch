@@ -21,5 +21,5 @@ every change, and a document that has stopped reproducing its own tree fails the
 
 Three mechanical facts for whoever edits this next: a line that is exactly `<<name>>` is a reference,
 and `@<<name>>` is how to write one that is not (D17); the prose is Typst rather than Markdown, so
-emphasis is *one star*; and each chapter file carries its own `#import`, because `#include` splices
-content without sharing the includer's scope.
+emphasis is *one star*; and a chapter that declares anything imports the package itself, because
+`#include` splices content without sharing the includer's scope.

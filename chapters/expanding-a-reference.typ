@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk, file
+#import "@local/lp:0.1.0": chunk
 
 = Expanding a reference
 
