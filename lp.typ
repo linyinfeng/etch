@@ -6264,6 +6264,10 @@ whose copy of a workflow file GitHub reads.
 <<nix: the zizmor policy>>
 ````)
 
+#file("typos.toml", ````toml
+<<nix: the words typos should leave alone>>
+````)
+
 == The package, the way crane would write it
 
 `crane` builds it, and what that buys is one thing said three ways: the dependency graph is compiled once
@@ -6400,6 +6404,12 @@ Four things here are this tool's own, and every one of them was found by a failu
           typstyle.enable = true;
           mdformat.enable = true;
           jsonfmt.enable = true;
+
+          # Spelling, with a list of words rather than a list of files: see the paragraph above.
+          typos = {
+            enable = true;
+            configFile = "typos.toml";
+          };
 
           yamlfmt = {
             enable = true;
@@ -6587,6 +6597,20 @@ jobs:
 The policy file travels with the tree for the same reason the workflow does: `zizmor` now runs *in* the
 build, as one of treefmt's programs, so what it reads has to be part of what the tree is. It is the same
 file the local `gates` script points `zizmor` at, which is why it argues for the `@vN` pins only once.
+
+`typos` runs there too, and its configuration is a list of *words* rather than a list of files, which is not
+the obvious choice. Excluding a file cannot work here: the words it objects to are `flate` and `writeable`,
+both of which appear in the `Cargo.lock` this document quotes verbatim — and a quoted file is not a path any
+more, it is the document. A word list is the only mechanism that reaches a word wherever it is written, and
+the words are the crate names `flate2` and `writeable`, so the list is short. Note that `typos` flags the
+word it matched and not the token: `flate` inside `flate2`, which is why allowing `flate2` would change
+nothing.
+
+#chunk("nix: the words typos should leave alone", ````toml
+[default.extend-words]
+flate = "flate"
+writeable = "writeable"
+````)
 
 #chunk("nix: the zizmor policy", ````yaml
 
