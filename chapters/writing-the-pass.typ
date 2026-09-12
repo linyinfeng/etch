@@ -152,9 +152,9 @@ fn drift_report(root: &str, existing: Option<&str>, runs: &[Run], text: &str) ->
 
 == The two predicates, pinned
 
-Two unit tests, and they exist because everything else in this chapter depends on them: what
-counts as a reference, and what the escape does. Both are pure functions of a line, which is
-why they can be tested here rather than by tangling a document.
+Two unit tests, because these are the two predicates the whole pass rests on: what counts as a
+reference, and what the escape does. Both are pure functions of a line, which is why they can be
+pinned here rather than by tangling a document.
 
 #chunk("tangle: the two shapes, pinned", ````rust
 #[cfg(test)]

@@ -3,11 +3,10 @@
 = Keeping the files in step while the document is edited
 
 `lp watch` is what makes the document usable as a source: save, and the generated files
-follow. It is possible at all because of where the work is: a pass over this document — 8,900 lines, 38
-output files — spends about a second and a half in the one call to Typst that reads the declarations, and
-milliseconds on everything this tool does with them. The loop also exists because of a failure that is easy to
-underestimate: a tool that rebuilds the world on every keystroke teaches its user to stop saving, and that is
-the end of the loop the whole thing depends on.
+follow. It is possible at all because of where the work is: a pass spends about a second and a half in the one
+call to Typst that reads the declarations, and milliseconds on everything this tool does with them. The loop
+also exists because of a failure that is easy to underestimate: a tool that rebuilds the world on every
+keystroke teaches its user to stop saving, and that is the end of the loop the whole thing depends on.
 
 Three properties matter more than speed, and each one is visible in the file. Only real changes are
 written, so a file that did not change keeps its mtime and cargo and rust-analyzer stay asleep. A
@@ -67,8 +66,8 @@ fn check(options: &Options) {
 == What the command line passes in
 
 The watched documents, the output directory, the debounce window, and an optional command to
-run after a pass that changed something. Nothing here knows about `lp` itself; this is the
-part of the program that touches the outside world.
+run after a pass that changed something — that is the whole of what the caller decides. Nothing
+here decides what a pass does; it decides when one runs, and what to say about it.
 
 #chunk("watch: the imports", ````rust
 use std::path::{Path, PathBuf};
@@ -163,8 +162,8 @@ while events.try_recv().is_ok() {}
 ````)
 
 The drain is the part that is easy to miss: a pass writes files, the watcher sees those
-writes, and without emptying the queue first every pass would trigger one more. This is also
-where the design's honesty shows: the tool's own output is nobody's edit.
+writes, and without emptying the queue first every pass would trigger one more. The tool's own
+output is not an edit, and that is where the queue is told so.
 
 #chunk("watch: one pass, through tangle", ````rust
 let outcome = match tangle::run(&options.docs, &options.out, false) {
@@ -219,8 +218,8 @@ if !dormant {
 
 == The check command
 
-Running the check only when something was rewritten is the fusion that makes `--check-cmd`
-worth having: a compiler invoked on every save would spend the user's morning rebuilding
+Running the check only when something was rewritten is what makes `--check-cmd` worth having:
+a compiler invoked on every save would spend the user's morning rebuilding
 nothing, and a warning printed on every save is a warning nobody reads.
 
 #chunk("watch: no check command, no check", ````rust

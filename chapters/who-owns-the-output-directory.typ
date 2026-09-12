@@ -78,8 +78,8 @@ pub fn run(
 
 == Three groups, and the file's own opening
 
-The module note states the model in the file itself, which is where a reader who opens
-`src/status.rs` needs it; the rest of this chapter is why each piece is shaped that way.
+The skeleton above is the file as its reader meets it: the imports, the one constant that names the ignore
+file, and the fragments that do the work. The rest of this chapter says why each piece is shaped the way it is.
 
 #chunk("status: the imports", ````rust
 use std::collections::{BTreeMap, BTreeSet};
@@ -198,16 +198,15 @@ Ok(found
 
 == What the tool itself writes
 
-Three names, and only two of them are the tool's. The map records which declaration produced
-each line; the directory the package is unpacked into holds two of the document's own `#file`
-declarations in the form Typst wants to read them. Both are written by a pass of this program
-under names nothing else uses, so both are accounted for by name: a map left behind in a
-directory that stopped producing anything is that pass's to delete, and the package beside a
-book is unpacked again every time the book is woven. Making a project declare its own tool's
-scratch would be asking it to describe `lp` to `lp`.
+Two names, and both of them are the tool's. Every directory that receives a file also receives a map, which
+records which declaration produced each line; and a directory holding a document gets `.lp`, where the package
+is unpacked in the form Typst wants to read it. Both are written by a pass of this program under names nothing
+else uses, so both are accounted for by name rather than by a declaration: a map left behind in a directory that
+stopped producing anything is that pass's to delete, and the package beside a book is unpacked again every time
+the book is woven. Making a project declare its own tool's scratch would be asking it to describe `lp` to `lp`.
 
-The ignore file is not one of these. It is a *decision* — which files under the output
-directory belong to somebody else — and a decision is either declared by the document, like any
+The ignore file is not one of them. It is a *decision* — which files under the output directory belong
+to somebody else — and a decision is either declared by the document, like any
 other file, or written by a person, who then says so inside it. Exempting it by name is how a
 `.lpignore` whose declaration went away stayed in the tree for good: nothing produced it,
 nothing matched it, and nothing removed it, because the report had never seen it.
@@ -385,5 +384,5 @@ Ok(1)
 ````)
 
 The exit status is 1 for the listing, so a caller — a CI step, a script, an agent — can tell
-that case from a clean run without reading the text, and 0 for the two quiet outcomes and
-for a deletion that succeeded.
+that case from a clean run without reading the text. The other three ways out are 0: nothing
+declared, everything accounted for, and a deletion that succeeded.
