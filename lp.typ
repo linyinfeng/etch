@@ -20,6 +20,7 @@
     "chapters/package.typ",
     "chapters/weave.typ",
     "chapters/errors.typ",
+    "chapters/the-disk-and-the-log.typ",
     "chapters/metadata.typ",
     "chapters/the-declarations-a-pass-works-from.typ",
     "chapters/expanding-a-reference.typ",
@@ -72,6 +73,8 @@
 #include "chapters/weave.typ"
 
 #include "chapters/errors.typ"
+
+#include "chapters/the-disk-and-the-log.typ"
 
 #include "chapters/metadata.typ"
 

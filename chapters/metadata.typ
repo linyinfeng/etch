@@ -69,6 +69,7 @@ use std::process::Command;
 use serde::{Deserialize, Serialize};
 
 use crate::diag::LpError;
+use crate::disk;
 ````)
 
 #chunk("metadata: the one query", ````rust
@@ -144,11 +145,11 @@ const PACKAGE_NAMESPACE: &str = "local/lp/0.1.0";
 pub fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
     let packages = root.join(PACKAGE_ROOT).join(PACKAGE_DIR);
     let dir = packages.join(PACKAGE_NAMESPACE);
-    std::fs::create_dir_all(&dir).map_err(|err| LpError::io(&dir, err))?;
+
     for (name, text) in [("typst.toml", PACKAGE_MANIFEST), ("lib.typ", PACKAGE_ENTRY)] {
         let path = dir.join(name);
-        if std::fs::read_to_string(&path).ok().as_deref() != Some(text) {
-            std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
+        if disk::read_ok(&path)?.as_deref() != Some(text) {
+            disk::write(&path, text)?;
         }
     }
     Ok(packages)
@@ -275,7 +276,7 @@ fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
             .replace('"', "\\\"");
         text.push_str(&format!("#include \"../{quoted}\"\n"));
     }
-    std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
+    disk::write(&path, text)?;
     Ok(Self { path })
 }
 ````)
@@ -286,7 +287,7 @@ wrapper open, and on some systems a file name may contain a quote.
 #chunk("metadata: removing it, whatever happens", ````rust
 impl Drop for Wrapper {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
+        let _ = disk::remove_file(&self.path);
     }
 }
 ````)

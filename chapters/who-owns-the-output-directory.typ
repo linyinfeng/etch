@@ -89,6 +89,7 @@ use ignore::WalkBuilder;
 use serde::Serialize;
 
 use crate::diag::LpError;
+use crate::disk;
 use crate::map::{MAP_FILE, relative};
 ````)
 
@@ -291,9 +292,9 @@ pub fn delete(
             let relative = crate::map::join(&group.dir, name);
             let path = out.join(&relative);
             if whole_directory {
-                std::fs::remove_dir_all(&path).map_err(|err| LpError::io(&path, err))?;
+                disk::remove_dir_all(&path)?;
             } else {
-                std::fs::remove_file(&path).map_err(|err| LpError::io(&path, err))?;
+                disk::remove_file(&path)?;
             }
             prune_empty_dirs(path.parent().unwrap_or(out), out);
             removed.push(relative);
@@ -310,8 +311,8 @@ pub fn prune_empty_dirs(start: &Path, stop: &Path) {
         if current == stop || !current.starts_with(stop) {
             break;
         }
-        let empty = std::fs::read_dir(current).is_ok_and(|mut entries| entries.next().is_none());
-        if !empty || std::fs::remove_dir(current).is_err() {
+        let empty = disk::entries(current).is_ok_and(|entries| entries.is_empty());
+        if !empty || disk::remove_dir(current).is_err() {
             break;
         }
         dir = current.parent();

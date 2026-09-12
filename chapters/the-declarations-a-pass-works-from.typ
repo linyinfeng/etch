@@ -179,7 +179,7 @@ pub fn inspect(docs: &[PathBuf], out: &Path) -> Result<Outcome, LpError> {
     };
 
     for (root, text) in &plan.texts {
-        let (output, verdict) = look(&plan, root, text, out);
+        let (output, verdict) = look(&plan, root, text, out)?;
         match verdict {
             Disk::Same => outcome.unchanged.push(output),
             _ => outcome.changed.push(output),
@@ -230,6 +230,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use crate::diag::LpError;
+use crate::disk;
 use crate::map::{Book, FileMap, LpMap, MAP_FILE, Run, split};
 use crate::metadata;
 ````)

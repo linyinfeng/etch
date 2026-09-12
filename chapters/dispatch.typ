@@ -17,6 +17,29 @@ That is how `lp list lp.typ | head` exits: one hundred and one, with a message a
 where every filter on the machine exits quietly. So the one handler this tool has anything to do with
 is put back the way the shell expects it.
 
+The log is the other half of the surface: what the tool did, rather than what it knows. It is `INFO` by
+default and it goes to standard error, which is what makes standard output usable as data. `LP_LOG` moves
+the level — `debug` shows every read as well, `off` shows nothing — and colour is decided by whether
+standard error is a terminal, so a log in a file is a log without escape codes.
+
+#chunk("main: the log", ````rust
+let named = std::env::var("LP_LOG").unwrap_or_default();
+let level = match named.to_lowercase().as_str() {
+    "off" => tracing::Level::ERROR,
+    "error" => tracing::Level::ERROR,
+    "warn" => tracing::Level::WARN,
+    "debug" => tracing::Level::DEBUG,
+    "trace" => tracing::Level::TRACE,
+    _ => tracing::Level::INFO,
+};
+tracing_subscriber::fmt()
+    .with_max_level(level)
+    .with_target(false)
+    .with_writer(std::io::stderr)
+    .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stderr()))
+    .init();
+````)
+
 #chunk("main: a closed pipe is not a panic", ````rust
 #[cfg(unix)]
 unsafe {

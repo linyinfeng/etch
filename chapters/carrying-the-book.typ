@@ -36,6 +36,7 @@ use std::path::{Path, PathBuf};
 use lopdf::{Dictionary, Document, Object, Stream};
 
 use crate::diag::LpError;
+use crate::disk;
 use crate::map::Book;
 ````)
 
@@ -98,7 +99,7 @@ pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpErr
 fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
     let mut files = serde_json::Map::new();
     for copy in copies {
-        let bytes = std::fs::read(&copy.from).map_err(|err| LpError::io(&copy.from, err))?;
+        let bytes = disk::read_bytes(&copy.from)?;
         let text = String::from_utf8(bytes).map_err(|_| {
             LpError::plain(format!(
                 "{} is not text, so it cannot ride in a page",
@@ -118,19 +119,19 @@ fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpEr
         payload.replace('<', "\\u003c")
     );
 
-    let mut html = std::fs::read_to_string(page).map_err(|err| LpError::io(page, err))?;
+    let mut html = disk::read(page)?;
     match html.rfind("</body>") {
         Some(at) => html.insert_str(at, &block),
         None => html.push_str(&block),
     }
-    std::fs::write(page, html).map_err(|err| LpError::io(page, err))
+    disk::write(page, html)
 }
 
 fn attach_pdf(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
     let mut document = Document::load(page).map_err(pdf_err(page))?;
     let mut listed = Vec::new();
     for copy in copies {
-        let bytes = std::fs::read(&copy.from).map_err(|err| LpError::io(&copy.from, err))?;
+        let bytes = disk::read_bytes(&copy.from)?;
         let name = copy.name(directory).to_string();
 
         let mut file = Dictionary::new();
@@ -176,7 +177,7 @@ pub fn extract(page: &Path, format: &str, out: &Path) -> Result<usize, LpError> 
 }
 
 fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
-    let bytes = std::fs::read(page).map_err(|err| LpError::io(page, err))?;
+    let bytes = disk::read_bytes(page)?;
     let html = String::from_utf8(bytes).map_err(|_| {
         LpError::plain(format!(
             "{} is not text, so it is not a page",
@@ -227,10 +228,7 @@ fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
             .as_str()
             .ok_or_else(|| LpError::plain(format!("{name} is not text in this book")))?;
         let path = out.join(name);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
-        }
-        std::fs::write(&path, text).map_err(|err| LpError::io(&path, err))?;
+        disk::write(&path, text)?;
         written += 1;
     }
     Ok(written)
@@ -305,10 +303,7 @@ fn write_names(
     let mut written = 0;
     for (name, bytes) in attached {
         let path = out.join(&name);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
-        }
-        std::fs::write(&path, bytes).map_err(|err| LpError::io(&path, err))?;
+        disk::write(&path, &bytes)?;
         written += 1;
     }
     Ok(written)
@@ -332,7 +327,7 @@ pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Resul
                 "the book is the list in `tangle-options`; `lp tangle` without `--check` removes it",
             ));
         }
-        std::fs::remove_file(&path).map_err(|err| LpError::io(&path, err))?;
+        disk::remove_file(&path)?;
         removed += 1;
         if let Some(parent) = path.parent() {
             parents.push(parent.to_path_buf());
@@ -341,7 +336,7 @@ pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Resul
     parents.sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
     for parent in parents {
         if parent != root {
-            let _ = std::fs::remove_dir(&parent);
+            let _ = disk::remove_dir(&parent);
         }
     }
     Ok(removed)
@@ -351,10 +346,10 @@ fn files_under(root: &Path) -> Result<Vec<(PathBuf, String)>, LpError> {
     let mut found = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
+        let Ok(entries) = disk::entries(&dir) else {
             continue;
         };
-        for entry in entries.flatten() {
+        for entry in entries {
             let path = entry.path();
             if path
                 .components()
@@ -381,18 +376,15 @@ pub fn place(out: &Path, copies: &[Copy], check: bool) -> Result<usize, LpError>
     let mut written = 0;
     for copy in copies {
         let path = out.join(&copy.to);
-        let bytes = std::fs::read(&copy.from).map_err(|err| LpError::io(&copy.from, err))?;
-        if std::fs::read(&path).ok().as_deref() == Some(bytes.as_slice()) {
+        let bytes = disk::read_bytes(&copy.from)?;
+        if disk::read_bytes_ok(&path)?.as_deref() == Some(bytes.as_slice()) {
             continue;
         }
         if check {
             return Err(LpError::plain(format!("{} is out of date", path.display()))
                 .with_help("run `lp tangle` without `--check` to carry the book again"));
         }
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
-        }
-        std::fs::write(&path, &bytes).map_err(|err| LpError::io(&path, err))?;
+        disk::write(&path, &bytes)?;
         written += 1;
     }
     Ok(written)

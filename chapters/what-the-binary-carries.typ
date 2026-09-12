@@ -54,13 +54,13 @@ use std::process::Command;
 use include_dir::{Dir, include_dir};
 
 use crate::diag::LpError;
+use crate::disk;
 
 static BOOK: Dir = include_dir!("$CARGO_MANIFEST_DIR/book");
 ````)
 
 #chunk("self: the book, carried", ````rust
 pub fn book(out: &Path) -> Result<usize, LpError> {
-    std::fs::create_dir_all(out).map_err(|err| LpError::io(out, err))?;
     write(&BOOK, out)
 }
 
@@ -68,10 +68,7 @@ fn write(dir: &Dir, out: &Path) -> Result<usize, LpError> {
     let mut written = 0;
     for file in dir.files() {
         let path = out.join(file.path());
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
-        }
-        std::fs::write(&path, file.contents()).map_err(|err| LpError::io(&path, err))?;
+        disk::write(&path, file.contents())?;
         written += 1;
     }
     for sub in dir.dirs().filter(|sub| !scratch(sub)) {
@@ -97,9 +94,9 @@ pub fn prove(dir: &Path) -> Result<i32, LpError> {
     let files = book(dir)?;
 
     let mut documents: Vec<PathBuf> = Vec::new();
-    let entries = std::fs::read_dir(dir).map_err(|err| LpError::io(dir, err))?;
+    let entries = disk::entries(dir)?;
     for entry in entries {
-        let path = entry.map_err(|err| LpError::io(dir, err))?.path();
+        let path = entry.path();
         if path.extension().is_some_and(|kind| kind == "typ") {
             documents.push(path);
         }
@@ -137,7 +134,6 @@ pub fn read(format: &str) -> Result<PathBuf, LpError> {
     };
 
     let dir = std::env::temp_dir().join(format!("lp-self-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).map_err(|err| LpError::io(&dir, err))?;
     book(&dir)?;
 
     let document = dir.join("lp.typ");

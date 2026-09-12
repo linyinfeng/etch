@@ -33,6 +33,7 @@ enum Command {
 }
 
 fn main() {
+    <<main: the log>>
     <<main: a closed pipe is not a panic>>
     <<main: how an error is printed>>
     <<main: the exit status>>
@@ -109,6 +110,7 @@ when something is unaccounted for, and it says so in the document rather than in
 #chunk("main: the modules, and what they are called", ````rust
 mod book;
 mod diag;
+mod disk;
 mod embedded;
 mod explain;
 mod map;

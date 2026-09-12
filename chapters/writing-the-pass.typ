@@ -22,7 +22,7 @@ alone — mtime included, so build tools do not rebuild — and a difference is 
 or, in check mode, reported as drift.
 
 #chunk("tangle: write what changed", ````rust
-let (output, verdict) = look(&plan, root, text, out);
+let (output, verdict) = look(&plan, root, text, out)?;
 let dest = out.join(root);
 ````)
 
@@ -36,10 +36,7 @@ match verdict {
         chunk,
     }),
     _ => {
-        if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
-        }
-        std::fs::write(&dest, text).map_err(|err| LpError::io(&dest, err))?;
+        disk::write(&dest, text)?;
         outcome.changed.push(output);
     }
 }
@@ -108,7 +105,7 @@ for (dir, _) in LpMap::read_all(out) {
         continue;
     }
     let stale = out.join(&dir).join(MAP_FILE);
-    if std::fs::remove_file(&stale).is_ok() {
+    if disk::remove_file(&stale).is_ok() {
         crate::status::prune_empty_dirs(stale.parent().unwrap_or(out), out);
     }
 }
@@ -140,7 +137,7 @@ enum Disk {
     },
 }
 
-fn look(plan: &Plan, root: &str, text: &str, out: &Path) -> (Output, Disk) {
+fn look(plan: &Plan, root: &str, text: &str, out: &Path) -> Result<(Output, Disk), LpError> {
     let (dir, name) = split(root);
     let entry = &plan.maps[Path::new(dir)].files[name];
     let output = Output {
@@ -148,17 +145,17 @@ fn look(plan: &Plan, root: &str, text: &str, out: &Path) -> (Output, Disk) {
         lines: text.lines().count(),
         lang: entry.lang.clone(),
     };
-    let Some(on_disk) = std::fs::read_to_string(out.join(root)).ok() else {
-        return (output, Disk::Absent);
+    let Some(on_disk) = disk::read_ok(&out.join(root))? else {
+        return Ok((output, Disk::Absent));
     };
     if on_disk == text {
-        return (output, Disk::Same);
+        return Ok((output, Disk::Same));
     }
     let line = first_difference(&on_disk, text);
     let chunk = line
         .and_then(|line| entry.runs.iter().rev().find(|run| run.first <= line))
         .map(|run| run.chunk.clone());
-    (output, Disk::Differs { line, chunk })
+    Ok((output, Disk::Differs { line, chunk }))
 }
 ````)
 

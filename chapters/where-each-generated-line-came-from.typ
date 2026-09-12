@@ -84,6 +84,7 @@ use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 
 use crate::diag::LpError;
+use crate::disk;
 ````)
 
 == Two names the rest of the program shares
@@ -183,10 +184,10 @@ pub fn set_docs(&mut self, docs: impl IntoIterator<Item = String>) {
 #chunk("map: write only what changed", ````rust
 pub fn write_if_changed(&self, dir: &Path) -> Result<bool, LpError> {
     let (path, json) = self.serialize(dir)?;
-    if std::fs::read_to_string(&path).ok().as_deref() == Some(json.as_str()) {
+    if disk::read_ok(&path)?.as_deref() == Some(json.as_str()) {
         return Ok(false);
     }
-    std::fs::write(&path, json).map_err(|err| LpError::io(&path, err))?;
+    disk::write(&path, json)?;
     Ok(true)
 }
 ````)
@@ -194,7 +195,7 @@ pub fn write_if_changed(&self, dir: &Path) -> Result<bool, LpError> {
 #chunk("map: read one map", ````rust
 pub fn read(dir: &Path) -> Result<Self, LpError> {
     let path = dir.join(MAP_FILE);
-    let text = std::fs::read_to_string(&path).map_err(|err| LpError::io(&path, err))?;
+    let text = disk::read(&path)?;
     serde_json::from_str(&text)
         .map_err(|err| LpError::plain(format!("{}: {err}", path.display())))
 }
