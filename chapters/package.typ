@@ -136,13 +136,18 @@ records nothing.
 A local package is a directory with a manifest and an entry point, so the manifest is part of what this
 document produces: name, version, and the file Typst should read. Its name and version are the other half
 of the import at the top of this file — `@local/lp:0.1.0` — and the only thing tying the two together is
-that a wrong pair fails loudly, with Typst saying it cannot find the package.
+that a wrong pair fails loudly, with Typst saying it cannot find the package. The fourth line is the
+compiler the package is written against, and Typst enforces it: a package that asks for a newer compiler
+than the one reading it is refused, with the two versions in the message. That is the loud half of a
+mistake, and the reason the line is here rather than a version in prose. The number is the one this
+repository is tested with, so raising it is how a reader is told to move.
 
 #chunk("package: the manifest", ````toml
 [package]
 name = "lp"
 version = "0.1.0"
 entrypoint = "lib.typ"
+compiler = "0.15.1"
 ````)
 
 == The two declarations

@@ -39,30 +39,64 @@ the one place output can live without being a file next to the document.
 
 == Starting from nothing
 
-A fresh clone holds five things and nothing else: this document, the chapters it includes, the pointer at the
+A fresh clone of this repository holds five things and nothing else: this document, the chapters it includes, the pointer at the
 root that leads here, the `.gitignore` that says which of them git is told to keep, and the pipeline that hands
 each generation to the seed branch. Everything else is produced by tangling — except the one thing this
 document cannot produce for itself, the binary that reads it, because the package has to exist before the
 document can be evaluated at all.
 
-That is the seed, and it is not a file in the tree: it is a branch. One whole older generation — a
-crate and the package it is built with — sits at its root, ready to unpack:
+That is the seed, and it is not a file in the tree: it is a branch. This repository lives at
+`https://github.com/linyinfeng/lp`, and the whole of what a bootstrap needs from it is that one
+branch. Start from whichever of the two states you are in.
+
+*From a clone.* A clone already knows the remote, and `origin/tangled` is the branch. The first line is
+only the case where this clone has the branch under its own name too:
 
 ```sh
 tangled_ref=$(git rev-parse --verify --quiet tangled || git rev-parse --verify --quiet origin/tangled)
 mkdir -p tangled
 git archive "$tangled_ref" | tar -x -C tangled     # the previous generation, into tangled/
 git init -q tangled                                # the generated code gets its own history
+```
+
+*From these files and nothing else.* No repository, no remote, nothing that knows where the project
+lives: make one, name this remote, and ask for that branch by name. `--depth 1` is enough, because the
+seed is a snapshot rather than a history, and nothing from it is ever merged:
+
+```sh
+git init -q
+git remote add origin https://github.com/linyinfeng/lp
+git fetch --depth 1 origin tangled
+mkdir -p tangled
+git archive FETCH_HEAD | tar -x -C tangled
+git init -q tangled
+```
+
+The pipeline that publishes each generation is not needed for this and is not in front of you: the
+branch is the half that starts a reader, and a clone is enough for the half that publishes.
+
+Both roads end in the same thing: one whole older generation — a crate and the package it is built
+with — unpacked at the root of `tangled/`. Unpack it whole. One of its directories is load-bearing in
+a way its name does not show: the crate embeds its `book/` at compile time with `include_dir!`, so a
+tree with that directory pruned away does not build, and the error is a proc macro complaining about a
+missing directory rather than a sentence about a skipped step.
+
+Then build it, and let it read this document. These commands want `typst` and `cargo` on the path;
+where they come from nix, that is `nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c
+<command>`, and the chapter on the build environment is where the argument for that lives. The package
+this document is written against declares the compiler it needs, so a Typst older than that refuses the
+import with both versions in the message rather than half-evaluating the document:
+
+```sh
 cargo build --manifest-path tangled/Cargo.toml
 ./tangled/target/debug/lp tangle lp.typ            # writes to tangled/, next to the document
 cargo test --manifest-path tangled/Cargo.toml
 ```
 
-A clone is enough; there is no second remote to fetch from. `origin/tangled` is the fallback for the
-case where the clone knows the branch only by that name.
-
-These commands assume `typst` and `cargo` are on the path, and the previous chapter is where the
-argument for that lives: the environment is what the reader has, not something this document hands over.
+The first tangle is not a report on a tree that was already right. The seed is one generation behind,
+so a few files come out as `wrote` instead of `ok` — the ones this document changed since that
+generation, and the rest of the tree stays as it was. Everything is consistent when it finishes, and
+`lp tangle lp.typ --check` is what says so.
 
 The tangle writes to `tangled/` without being told to: when `--out` is not given it is the
 directory `tangled` next to the document, because the document is what the output belongs to. The
@@ -101,8 +135,10 @@ The seed only ever reads, and it is output: the same tree the tangle writes, com
 of its own branch instead of being kept in the working tree. Keeping it in step is part of building
 this repository rather than part of using the tool: the pipeline does it on every change to the
 document — it takes the previous generation as the seed, builds it, tangles this document, checks the
-tree against it, and then hands the branch the result. Nothing about the generated code is checked
-there: a program's tests are the program's business, not the document's. That business is written down
+tree against it, and then hands the branch the result. That is the same four steps a reader runs by
+hand in "Starting from nothing", with the pipeline's names for the same things; the tool the pipeline
+uses for them is the seed's, one generation behind, for the same reason a reader's is. Nothing about
+the generated code is checked there: a program's tests are the program's business, not the document's. That business is written down
 where it lives — the flake and the workflow are output too, and they describe the tree they
 are tangled into. What this document can state is the property that has to hold —
 the branch carries a generation that can read the document, and a generation only ever reads.
