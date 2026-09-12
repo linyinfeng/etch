@@ -28,12 +28,19 @@ procedure. The observation Knuth draws from teaching WEB is that an author avoid
 gets written as little and as late as the language allows, because the main step should not look like an
 error path. In a literate program that step can name its recovery and move on — `<<check the data>>` — and
 the best recovery the author can write goes where a reader will find it while the section still reads as
-one step. Nothing in that argument depends on the page being beautiful, or on
-anyone reading it at all.
+one step. Nothing in that argument depends on the page being beautiful, or on anyone reading it at all.
+
+Knuth's own accounting is the other half of that argument, and it is about cost rather than quality: the
+total time to write and debug a WEB program, he reports, is no greater than for the same program written
+conventionally — while the programs are better. The mechanism is not the tool, it is the mode the writing
+puts the author in: prose that has to be true cannot be skipped the way a comment can, so the author stays
+in the position of explaining the program to somebody, which is the position in which the mistakes get
+noticed. That is his report rather than a measurement, and this book's evidence is the same kind — one
+program, one author, and the tests it left behind.
 
 What the objections do not cover is the two things this document is built on: the *why*, which was never
 in the code, and a single source whose drift is a check failure rather than a matter of discipline. A
 stance that cannot state its opposition is not an argument.
 
-How to write one, how to read one, and when not to are the next three chapters; the tool after them is
-this argument's longest example.
+How to write one, how to read one, when not to, and where this tool departs from WEB are the next four
+chapters; the tool after them is this argument's longest example.
