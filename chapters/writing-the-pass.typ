@@ -22,35 +22,35 @@ alone — mtime included, so build tools do not rebuild — and a difference is 
 or, in check mode, reported as drift.
 
 #chunk("tangle: write what changed", ````rust
-let (dir, name) = split(root);
-let entry = &plan.maps[Path::new(dir)].files[name];
+let (output, verdict) = look(&plan, root, text, out);
 let dest = out.join(root);
-let existing = std::fs::read_to_string(&dest).ok();
-let output = Output {
-    root: root.clone(),
-    lines: text.lines().count(),
-    lang: entry.lang.clone(),
-};
 ````)
 
 #chunk("tangle: or say what drifted", ````rust
-if existing.as_deref() == Some(text.as_str()) {
-    outcome.unchanged.push(output);
-} else if check {
-    match existing.as_deref() {
-        Some(on_disk) => outcome
-            .drifted
-            .push(drift(root, on_disk, &entry.runs, text)),
-        None => outcome.missing.push(root.clone()),
+match verdict {
+    Disk::Same => outcome.unchanged.push(output),
+    Disk::Absent if check => outcome.missing.push(root.clone()),
+    Disk::Differs { line, chunk } if check => outcome.drifted.push(Drift {
+        root: root.clone(),
+        line,
+        chunk,
+    }),
+    _ => {
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
+        }
+        std::fs::write(&dest, text).map_err(|err| LpError::io(&dest, err))?;
+        outcome.changed.push(output);
     }
-} else {
-    if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent).map_err(|err| LpError::io(parent, err))?;
-    }
-    std::fs::write(&dest, text).map_err(|err| LpError::io(&dest, err))?;
-    outcome.changed.push(output);
 }
 ````)
+
+== Planning is the same look, twice
+
+The two commands ask the same question of the same plan — what is on disk beside what the document
+says — and they answer it with the same three lines. What separates them is what they do with the
+answer: a pass writes, a plan records, and neither of them decides anything the comparison has not
+already said. A second comparison would be a second answer to the same question.
 
 Then the ownership check, after the write, for the reason recorded in D20: a `.lpignore` can
 itself be something the document produces, so a fresh tree has no control file until this
@@ -69,9 +69,10 @@ if let Some(book) = &plan.book {
         println!("removed {removed} stale book file{plural}");
     }
 }
-let unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
-if !unaccounted.is_empty() {
-    let listed = unaccounted
+outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
+if !outcome.unaccounted.is_empty() {
+    let listed = outcome
+        .unaccounted
         .iter()
         .flat_map(|group| {
             let label = if group.dir.is_empty() {
@@ -128,8 +129,7 @@ chunk produced the line on the *document's* side. Anything more is a diff, and a
 what the reader needs — the reader needs the name of the thing to edit.
 
 #chunk("tangle: where two texts first differ", ````rust
-fn first_difference(old: Option<&str>, new: &str) -> Option<usize> {
-    let old = old?;
+fn first_difference(old: &str, new: &str) -> Option<usize> {
     let old_lines: Vec<&str> = old.lines().collect();
     let new_lines: Vec<&str> = new.lines().collect();
     (0..old_lines.len().max(new_lines.len()))
@@ -138,17 +138,35 @@ fn first_difference(old: Option<&str>, new: &str) -> Option<usize> {
 }
 ````)
 
-#chunk("tangle: the drift report", ````rust
-fn drift(root: &str, on_disk: &str, runs: &[Run], text: &str) -> Drift {
-    let line = first_difference(Some(on_disk), text);
-    let chunk = line
-        .and_then(|line| runs.iter().rev().find(|run| run.first <= line))
-        .map(|run| run.chunk.clone());
-    Drift {
+#chunk("tangle: what the disk says", ````rust
+enum Disk {
+    Same,
+    Absent,
+    Differs {
+        line: Option<usize>,
+        chunk: Option<String>,
+    },
+}
+
+fn look(plan: &Plan, root: &str, text: &str, out: &Path) -> (Output, Disk) {
+    let (dir, name) = split(root);
+    let entry = &plan.maps[Path::new(dir)].files[name];
+    let output = Output {
         root: root.to_string(),
-        line,
-        chunk,
+        lines: text.lines().count(),
+        lang: entry.lang.clone(),
+    };
+    let Some(on_disk) = std::fs::read_to_string(out.join(root)).ok() else {
+        return (output, Disk::Absent);
+    };
+    if on_disk == text {
+        return (output, Disk::Same);
     }
+    let line = first_difference(&on_disk, text);
+    let chunk = line
+        .and_then(|line| entry.runs.iter().rev().find(|run| run.first <= line))
+        .map(|run| run.chunk.clone());
+    (output, Disk::Differs { line, chunk })
 }
 ````)
 

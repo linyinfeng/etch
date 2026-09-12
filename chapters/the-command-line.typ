@@ -24,6 +24,7 @@ enum Command {
     <<main: extract>>
     <<main: self>>
     <<main: tangle>>
+    <<main: plan>>
     <<main: map>>
     <<main: explain>>
     <<main: list>>
@@ -50,6 +51,7 @@ fn out_dir(given: Option<PathBuf>, docs: &[PathBuf]) -> PathBuf {
 fn run() -> Result<i32, LpError> {
     match Cli::parse().command {
         <<main: tangle, and what it reports>>
+        <<main: plan, which decides nothing>>
         <<main: the map arm>>
 
         <<main: map, in reverse>>
@@ -85,8 +87,8 @@ file are `lp --help`. Each command gets its own fragment, because each one is a 
 does.
 
 One of those promises is to a reader that is a program. The commands that answer questions rather than
-writing files — `list`, `metadata`, `map` and `unaccounted` — take `--json`, and a program that asks for it
-gets one JSON document instead of the table or the sentence. The two are not two implementations: the same
+writing files — `list`, `metadata`, `map`, `unaccounted` and `plan` — take `--json`, and a program that asks
+for it gets one JSON document instead of the table or the sentence. The two are not two implementations: the same
 values are built once and rendered twice, because a second spelling of the same fact is a second fact that
 can go its own way. Every document starts with the same two fields — `version`, which is `1`, and `command`,
 which is the command's name — so a consumer can tell at a glance what it is reading. What the fields carry is
@@ -206,6 +208,23 @@ Tangle {
 clap's to enforce, in the declarations below: one required group names the two flags that pick a direction,
 `requires` says that a file comes with a line, and a conflict says that a line beside a chunk name means
 nothing. None of the three can be derived from the others, so all three are written out.
+#chunk("main: plan", ````rust
+#[command(about = "Print what a pass would do, without writing anything")]
+Plan {
+    #[arg(required = true)]
+    #[arg(help = "Documents to plan for, e.g. book/lp.typ")]
+    docs: Vec<PathBuf>,
+    #[arg(long)]
+    #[arg(help = "Print one JSON document instead of the readout")]
+    json: bool,
+    #[arg(long)]
+    #[arg(
+        help = "Directory the root chunk names resolve into (default: tangled/ next to the documents, or in the working directory for commands that take none)"
+    )]
+    out: Option<PathBuf>,
+},
+````)
+
 #chunk("main: map", ````rust
 #[command(about = "Name the chunk a generated line came from, or the lines a chunk produced")]
 #[command(group(ArgGroup::new("what").required(true).multiple(false).args(["file", "typ"])))]

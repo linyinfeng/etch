@@ -129,6 +129,52 @@ already right, what drifted, what was warned about, and what nothing accounts fo
 status is 1 when there is drift and 0 otherwise, so `--check` is usable from a script without
 parsing anything.
 
+#chunk("main: plan, which decides nothing", ````rust
+Command::Plan { docs, json, out } => {
+    let out = out_dir(out, &docs);
+    let outcome = tangle::inspect(&docs, &out)?;
+
+    if json {
+        machine(
+            "plan",
+            json!({
+                "documents": docs.iter().map(|doc| doc.display().to_string()).collect::<Vec<_>>(),
+                "changed": outcome.changed,
+                "unchanged": outcome.unchanged,
+                "unreferenced": outcome.unreferenced,
+                "wordless": outcome.wordless,
+                "unaccounted": outcome.unaccounted,
+            }),
+        )?;
+        return Ok(0);
+    }
+
+    for output in &outcome.changed {
+        println!(
+            "would write  {}  ({} lines, {})",
+            output.root,
+            output.lines,
+            output.lang.as_deref().unwrap_or("-")
+        );
+    }
+    for output in &outcome.unchanged {
+        println!("nothing to do  {}", output.root);
+    }
+    for name in &outcome.unreferenced {
+        eprintln!("warning: chunk ⟪{name}⟫ is never referenced");
+    }
+    for name in &outcome.wordless {
+        eprintln!("warning: chunk ⟪{name}⟫ is declared without a language");
+    }
+    for group in &outcome.unaccounted {
+        for entry in &group.entries {
+            eprintln!("unaccounted  {}", map::join(&group.dir, entry));
+        }
+    }
+    Ok(0)
+}
+````)
+
 #chunk("main: the map arm", ````rust
 Command::Map {
     file,

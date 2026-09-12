@@ -170,6 +170,26 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
 
 <<tangle: what the documents produce, per directory>>
 
+pub fn inspect(docs: &[PathBuf], out: &Path) -> Result<Outcome, LpError> {
+    let plan = plan(docs)?;
+    let mut outcome = Outcome {
+        unreferenced: plan.unreferenced.clone(),
+        wordless: plan.wordless.clone(),
+        ..Outcome::default()
+    };
+
+    for (root, text) in &plan.texts {
+        let (output, verdict) = look(&plan, root, text, out);
+        match verdict {
+            Disk::Same => outcome.unchanged.push(output),
+            _ => outcome.changed.push(output),
+        }
+    }
+
+    outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
+    Ok(outcome)
+}
+
 pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError> {
     <<tangle: plan, then an empty outcome>>
 
@@ -191,7 +211,7 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError
 
 <<tangle: where two texts first differ>>
 
-<<tangle: the drift report>>
+<<tangle: what the disk says>>
 
 <<tangle: the two shapes, pinned>>
 ````)
@@ -206,6 +226,8 @@ it quotes the line.
 #chunk("tangle: the imports", ````rust
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+
+use serde::Serialize;
 
 use crate::diag::LpError;
 use crate::map::{Book, FileMap, LpMap, MAP_FILE, Run, split};

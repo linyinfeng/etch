@@ -73,6 +73,8 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: map_names_the_chunk_a_generated_line_came_from>>
 
+<<flow: plan_says_what_a_pass_would_do>>
+
 <<flow: map_takes_one_direction>>
 
 <<flow: explain_rewrites_diagnostics_to_the_chunk>>
@@ -111,6 +113,7 @@ The cases, in the order they appear:
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
 - `the_reading_commands_speak_json_when_asked` — `list`, `metadata` and `map` hand a program one JSON document, with the data behind the readout
+- `plan_says_what_a_pass_would_do` — `lp plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
@@ -626,6 +629,60 @@ fn map_names_the_chunk_a_generated_line_came_from() {
         "{}",
         stdout(&reverse)
     );
+}
+````)
+
+#chunk("flow: plan_says_what_a_pass_would_do", ````rust
+#[test]
+fn plan_says_what_a_pass_would_do() {
+    let (_guard, dir, _) = project(DOC);
+
+    let fresh = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
+    assert!(fresh.status.success(), "{}", stderr(&fresh));
+    assert!(
+        stdout(&fresh)
+            .lines()
+            .all(|line| line.starts_with("would write  ")),
+        "{}",
+        stdout(&fresh)
+    );
+    assert!(!dir.join("out").exists(), "a plan writes nothing");
+
+    assert!(
+        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+            .status
+            .success()
+    );
+    let settled = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
+    assert!(settled.status.success(), "{}", stderr(&settled));
+    assert!(
+        stdout(&settled)
+            .lines()
+            .all(|line| line.starts_with("nothing to do  ")),
+        "{}",
+        stdout(&settled)
+    );
+
+    std::fs::write(dir.join("out/main.py"), "print('drifted')\n").expect("drift");
+    let drifted = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
+    assert!(
+        drifted.status.success(),
+        "a plan does not fail on bad news: {}",
+        stderr(&drifted)
+    );
+    assert!(
+        stdout(&drifted).contains("would write  main.py"),
+        "{}",
+        stdout(&drifted)
+    );
+
+    std::fs::write(dir.join("out/leftover.py"), "stale\n").expect("stray");
+    let reported = lp(&dir, &["plan", "demo.typ", "--out", "out", "--json"]);
+    assert!(reported.status.success(), "{}", stderr(&reported));
+    let json: serde_json::Value = serde_json::from_str(&stdout(&reported)).expect("one document");
+    assert_eq!(json["version"], 1);
+    assert_eq!(json["command"], "plan");
+    assert_eq!(json["unaccounted"][0]["entries"][0], "leftover.py");
 }
 ````)
 

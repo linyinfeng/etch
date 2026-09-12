@@ -8,8 +8,23 @@ allowed to. The separation is what lets `--check` be a plan plus a comparison, w
 implementation of anything. The answer is buckets rather than sentences: what a program has to act on is a
 field, and only the sentence built from it is prose.
 
+== Two readers of one plan, and the command that asks
+
+A pass and a plan are the same look at the same document, and what separates them is what they do with the
+answer. `lp tangle` writes. `lp tangle --check` is a gate: it stops at the first thing that must not pass —
+drift, a book copy out of date, a file under the output directory that nothing accounts for — and what it
+prints is the evidence for a verdict, which is why it can stop early. `lp plan` is the question: what a
+pass would write, what it would leave alone, which fragments nobody references, which files are nobody's,
+all at once — and it exits zero, because finding something wrong is not the same as failing. That is the
+difference between the command a script gates on and the command a reader asks, or a program that is about
+to act.
+
+None of the three has a comparison of its own. `run` and `inspect` walk the same plan with the same `look`
+and differ only in what they record — one writes the files, the other writes the report — because a second
+comparison would be a second answer to the same question, and the first thing to drift.
+
 #chunk("tangle: what a pass reports", ````rust
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Output {
     pub root: String,
     pub lines: usize,
@@ -24,6 +39,7 @@ pub struct Outcome {
     pub unchanged: Vec<Output>,
     pub drifted: Vec<Drift>,
     pub missing: Vec<String>,
+    pub unaccounted: Vec<crate::status::Unaccounted>,
     pub unreferenced: BTreeSet<String>,
     pub wordless: BTreeSet<String>,
 }
