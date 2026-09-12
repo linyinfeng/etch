@@ -20,6 +20,16 @@ jobs:
         with:
           fetch-depth: 0 # the seed lives on another branch
 
+      # Asked first, so a missing token costs a second instead of a build.
+      - name: the token that publishes the generation
+        env:
+          TOKEN: ${{ secrets.TANGLED_TOKEN }}
+        run: |
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::set secrets.TANGLED_TOKEN — a token with repo and workflow scopes; a repository token cannot publish a workflow file, nor trigger the branch's own pipeline"
+            exit 1
+          fi
+
       # Tangling asks the document for its declarations; weaving renders it.
       - uses: typst-community/setup-typst@v5
 
