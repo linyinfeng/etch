@@ -55,7 +55,10 @@ Six things here are this tool's own, and every one of them was found by a failur
 - *The round trip is a check rather than a condition of the build.* Rendering the document and reading the
   book back out of both carriers is a thing to assert, not a thing to make someone pay for by installing
   `lp`. The check copies the whole book directory rather than the files it remembers, because the document
-  already says which files those are, and a second list of names is a list that goes stale.
+  already says which files those are, and a second list of names is a list that goes stale. The tool's own
+  scratch is the one thing that is not the book, and it is named by the tool rather than listed from the
+  book: a tree that has been used at all has `.lp` beside its document, and a copy of that directory is not
+  a copy of the book.
 - *The package does not run the tests.* `doCheck = false` there and a `test` check beside it, because a
   package that ran them as well would fail before a reader could see *which* test broke.
 - *The bootstrap is a workflow step, not a check.* `lp self prove` unpacks the book the binary carries,
@@ -111,8 +114,10 @@ leave something in it for the ownership check to complain about.
         work=$PWD/work
         mkdir -p "$work/src" "$work/run"
 
-        cp -r "${./book}/." "$work/src/"
-        cp -r "${./book}/." "$work/run/"
+        for dir in src run; do
+          cp -r "${./book}/." "$work/$dir/"
+          rm -rf "$work/$dir/.lp"
+        done
 
         ( cd "$work/run" && ${lp}/bin/lp weave lp.typ ../lp.pdf && ${lp}/bin/lp weave lp.typ ../lp.html --features html )
 
