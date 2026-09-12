@@ -1737,6 +1737,16 @@ tree, and they respect its own `.gitignore` files: what the source calls ignored
 The copy is output like everything else: written only when its bytes differ, part of what `--check`
 compares, and accounted for by the ownership check rather than reported as a stray.
 
+#file("src/embedded.rs", ````rust
+<<self: the module note>>
+
+<<self: the imports>>
+
+<<self: the book, carried>>
+
+<<self: reading it>>
+````)
+
 #file("src/book.rs", ````rust
 <<book: the module note>>
 
@@ -1865,6 +1875,98 @@ pub fn place(out: &Path, copies: &[Copy], check: bool) -> Result<usize, LpError>
         written += 1;
     }
     Ok(written)
+}
+````)
+
+== What the binary carries
+
+A tool that can only work inside its own repository is not finished. This one carries three things: the
+program (it is the program), the package it declares chunks with, and — through the settings further on —
+the book that produced the tree it was built from. `include_dir!` puts that directory in the binary at
+compile time, so `lp self` needs nothing beside it.
+
+*Three subcommands, three things it can do with what it carries:*
+
+- `lp self book --out <dir>` writes the book out, entire: the document, the pointer, the ignore rules.
+- `lp self read --format (pdf|html)` weaves the document *it carries* into a temporary directory and hands
+  the result to the desktop. Weaving reuses `lp weave`, because there is one way to render a document and
+  it should not be written twice; opening is best effort — a machine with no desktop still gets the file
+  and its path.
+- `lp self prove <dir>` (next) unpacks that book, tangles it, and runs its own checks.
+
+`include_dir` is the one dependency this adds, and the line D7 asks for: embedding a directory tree is
+`include_bytes!` at scale — one macro, no runtime dependency, and `Dir::extract` writes the tree back out
+in a single call. It also embeds in *every* profile, which matters more than it sounds: a crate that reads
+from the file system in debug builds would make the test below pass without embedding anything.
+
+#chunk("self: the module note", ````rust
+//! The book, carried inside this binary.
+//!
+//! `include_dir!` embeds the directory beside this crate at compile time. That directory is the book:
+//! this document, the pointer next to it, and the tree's own ignore rules. It is what makes `lp self`
+//! self-contained — the binary carries its own source of truth, and needs nothing else to hand it over.
+````)
+
+#chunk("self: the imports", ````rust
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use include_dir::{Dir, include_dir};
+
+use crate::diag::LpError;
+
+/// The book, embedded: the document, the pointer, and the ignore rules.
+static BOOK: Dir = include_dir!("$CARGO_MANIFEST_DIR/book");
+````)
+
+#chunk("self: the book, carried", ````rust
+/// Write the book out, entire, and say how many files that was.
+pub fn book(out: &Path) -> Result<usize, LpError> {
+    std::fs::create_dir_all(out).map_err(|err| LpError::io(out, err))?;
+    BOOK.extract(out).map_err(|err| {
+        LpError::plain(format!(
+            "cannot write the book into {}: {err}",
+            out.display()
+        ))
+    })?;
+    Ok(BOOK.files().count())
+}
+````)
+
+#chunk("self: reading it", ````rust
+/// Weave the document this binary carries and hand the result to the desktop.
+///
+/// The rendering goes to a directory of its own under the system temporary directory and stays there:
+/// the opener returns long before anyone has looked at it, and a viewer that is still starting up cannot
+/// be asked to hold a temporary file open.
+pub fn read(format: &str) -> Result<PathBuf, LpError> {
+    let (name, flags): (&str, &[&str]) = match format {
+        "pdf" => ("lp.pdf", &[]),
+        "html" => ("lp.html", &["--features", "html"]),
+        other => {
+            return Err(LpError::plain(format!("unknown format {other:?}"))
+                .with_help("`lp self read --format pdf`, or `--format html`"));
+        }
+    };
+
+    let dir = std::env::temp_dir().join(format!("lp-self-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).map_err(|err| LpError::io(&dir, err))?;
+    book(&dir)?;
+
+    let document = dir.join("lp.typ");
+    let output = dir.join(name);
+    let flags: Vec<String> = flags.iter().map(|flag| flag.to_string()).collect();
+    let status = crate::weave::run(&document, Some(&output), &flags)?;
+    if status != 0 {
+        return Err(LpError::plain(format!(
+            "weaving {} failed with status {status}",
+            document.display()
+        )));
+    }
+
+    // Best effort: no desktop, no `xdg-open`, and the file is still there with its path printed.
+    let _ = Command::new("xdg-open").arg(&output).spawn();
+    Ok(output)
 }
 ````)
 
@@ -3364,6 +3466,8 @@ reader finds out what the tool can do without reading the tool.
 == The shape of the file
 
 #file("src/main.rs", ````rust
+<<main: self, what it can do>>
+
 <<main: the modules, and what they are called>>
 
 <<main: the surface, as clap sees it>>
@@ -3371,6 +3475,7 @@ reader finds out what the tool can do without reading the tool.
 #[derive(Subcommand)]
 enum Command {
     <<main: weave>>
+    <<main: self>>
     <<main: tangle>>
     <<main: map>>
     <<main: explain>>
@@ -3436,6 +3541,7 @@ promise about what the tool does.
 #chunk("main: the modules, and what they are called", ````rust
 mod book;
 mod diag;
+mod embedded;
 mod explain;
 mod map;
 mod metadata;
@@ -3459,6 +3565,33 @@ use diag::LpError;
 struct Cli {
     #[command(subcommand)]
     command: Command,
+}
+````)
+
+#chunk("main: self", ````rust
+/// Read, unpack or prove the book this binary carries
+#[command(name = "self")]
+Itself {
+    #[command(subcommand)]
+    method: SelfMethod,
+},
+````)
+
+#chunk("main: self, what it can do", ````rust
+#[derive(Subcommand)]
+enum SelfMethod {
+    /// Write the book out, entire
+    Book {
+        /// Directory to write it into
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Weave the document this binary carries, then open it
+    Read {
+        /// Which rendering to make
+        #[arg(long, default_value = "pdf")]
+        format: String,
+    },
 }
 ````)
 
@@ -3599,6 +3732,18 @@ module gets a new function.
 
 #chunk("main: tangle, and what it reports", ````rust
 Command::Weave { doc, output, extra } => weave::run(&doc, output.as_deref(), &extra),
+Command::Itself { method } => match method {
+    SelfMethod::Book { out } => {
+        let files = embedded::book(&out)?;
+        println!("wrote {files} files of the book to {}", out.display());
+        Ok(0)
+    }
+    SelfMethod::Read { format } => {
+        let path = embedded::read(&format)?;
+        println!("{}", path.display());
+        Ok(0)
+    }
+},
 Command::Tangle { docs, out, check } => {
     let out = out_dir(out, &docs);
     let outcome = tangle::run(&docs, &out, check)?;
@@ -3883,6 +4028,8 @@ what the *same* document produces in different situations.
 
 <<flow: weave_renders_a_document_that_imports_the_package>>
 
+<<flow: the_book_comes_back_out_whole>>
+
 <<flow: the_book_is_carried_into_the_tree>>
 
 <<flow: an_unknown_tangle_option_is_refused>>
@@ -3924,6 +4071,7 @@ The cases, in the order they appear:
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, in its own shape, minus what the source calls ignored
+- `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
 - `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
 - `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
@@ -4478,6 +4626,23 @@ fn weave_renders_a_document_that_imports_the_package() {
         dir.path().join("doc.pdf").exists(),
         "no document was written"
     );
+}
+````)
+
+#chunk("flow: the_book_comes_back_out_whole", ````rust
+#[test]
+fn the_book_comes_back_out_whole() {
+    let dir = TempDir::new().expect("temp dir");
+    let output = lp(dir.path(), &["self", "book", "--out", "unpacked"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    // Byte for byte, against the book beside the crate: this is the embedding itself, and it can fail.
+    let beside = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
+    for name in ["lp.typ", "README.md", ".gitignore"] {
+        let embedded = std::fs::read(dir.path().join("unpacked").join(name)).expect(name);
+        let carried = std::fs::read(beside.join(name)).expect(name);
+        assert_eq!(embedded, carried, "{name} came back different");
+    }
 }
 ````)
 
@@ -5803,6 +5968,9 @@ description = "Typst-based literate programming: tangle source files out of a .t
 
 #chunk("env: the runtime dependencies", ````toml
 [dependencies]
+# D7: embedding a directory tree is `include_bytes!` at scale — one macro, no runtime dependency, and it
+# embeds in every profile.
+include_dir = "0.7"
 clap = { version = "4", features = ["derive"] }
 ignore = "0.4.33"
 miette = { version = "7", features = ["fancy"] }
@@ -6866,6 +7034,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "include_dir"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "923d117408f1e49d914f1a379a309cffe4f18c05cf4e3d12e613a15fc81bd0dd"
+dependencies = [
+ "include_dir_macros",
+]
+
+[[package]]
+name = "include_dir_macros"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cab85a7ed0bd5f0e76d93846e0147172bed2e2d3f859bcc33a8d9699cad1a75"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
 name = "inotify"
 version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6953,6 +7140,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "ignore",
+ "include_dir",
  "miette",
  "notify",
  "notify-debouncer-full",
