@@ -5338,6 +5338,137 @@ thiserror = "2"
 tempfile = "3"
 ````)
 
+= The program's own pipeline
+
+Everything above is about this repository: one document, its tree, and the seed that makes the first
+build possible. The program that comes out is a program, though, and it has a pipeline of its own —
+written where it belongs, which is in the program rather than in the repository that produces it.
+
+So these three files are output too. They are declared here, tangled with everything else, and carried
+onto the seed branch, which is where they take effect: the branch that holds a generation is the branch
+whose copy of a workflow file GitHub reads.
+
+#file("lp.nix", ````nix
+<<nix: the package>>
+````)
+
+#file("flake.nix", ````nix
+<<nix: the flake>>
+````)
+
+#file(".github/workflows/check.yml", ````yaml
+<<nix: the workflow>>
+````)
+
+== The package, the way nixpkgs would write it
+
+`rustPlatform.buildRustPackage` with the lock file, which is the shape every Rust package in nixpkgs has.
+Two things are this tool's own:
+
+- *Typst is a runtime dependency.* Tangling asks the document for its declarations, so the binary has to
+  find `typst` when it runs — and a package that works only when the user happens to have the right
+  thing on their `PATH` is not a package. The wrapper puts it there.
+- *One test belongs to the document, not to the program.* `the_document_regenerates_the_sources_we_are_running`
+  asserts that `lp.typ` at the repository root regenerates this tree; in a build of the tree there is no
+  repository root above it, and the assertion would be asking the wrong question. It is skipped here, and
+  it keeps running in the repository that has a document.
+
+#chunk("nix: the package", ````nix
+{ lib, rustPlatform, typst, makeWrapper }:
+
+rustPlatform.buildRustPackage rec {
+  pname = "lp";
+  version = "0.1.0";
+
+  src = ./.;
+  cargoLock.lockFile = ./Cargo.lock;
+
+  nativeBuildInputs = [ makeWrapper ];
+  nativeCheckInputs = [ typst ];
+
+  # This one test checks the document that produced this tree, not the program in it.
+  cargoTestFlags = [ "--" "--skip" "the_document_regenerates_the_sources_we_are_running" ];
+
+  postInstall = ''
+    wrapProgram $out/bin/lp --prefix PATH : ${lib.makeBinPath [ typst ]}
+  '';
+
+  meta = {
+    description = "Literate programming: tangling sources out of a Typst document";
+    mainProgram = "lp";
+  };
+}
+````)
+
+== The flake, and the systems it is for
+
+Three systems, named once. `checks` holds the two things worth saying about this flake: that the package
+builds, and that the development shell can be constructed — a shell that cannot be built is a shell
+nobody uses. `nix flake check` builds both for the machine it runs on and evaluates the rest, so a typo
+in the Darwin branch of anything is caught on Linux.
+
+#chunk("nix: the flake", ````nix
+{
+  description = "lp: literate programming for Typst documents";
+
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+  outputs = { nixpkgs, ... }:
+    let
+      systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
+      each = nixpkgs.lib.genAttrs systems;
+      lp = system: (import nixpkgs { inherit system; }).callPackage ./lp.nix { };
+      shell = system: (import nixpkgs { inherit system; }).mkShell {
+        inputsFrom = [ (lp system) ];
+      };
+    in {
+      packages = each (system: {
+        default = lp system;
+        lp = lp system;
+      });
+
+      devShells = each (system: { default = shell system; });
+
+      checks = each (system: {
+        package = lp system;
+        devShell = shell system;
+      });
+    };
+}
+````)
+
+== The workflow
+
+Four steps: check the generation out, get Nix, get the cache, and run the check. The cache is where a
+pipeline like this earns its keep — a Rust build with Nix is several hundred derivations, and the second
+run should download them instead of building them.
+
+The cache name is the Cachix cache this repository pushes to; the token comes from a secret, because a
+signing key in a workflow file is a signing key given away.
+
+#chunk("nix: the workflow", ````yaml
+name: check
+
+on:
+  push:
+    branches: [tangled]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v16
+        with:
+          name: lp
+          authToken: ${{ secrets.CACHIX_SIGNING_KEY }}
+      - run: nix flake check --print-build-logs
+````)
+
 = What this repository carries
 
 `lp` treats its output directory as its own and refuses to guess: every file under it
@@ -5462,7 +5593,9 @@ of its own branch instead of being kept in the working tree. Keeping it in step 
 this repository rather than part of using the tool: the pipeline does it on every change to the
 document — it takes the previous generation as the seed, builds it, tangles this document, checks the
 tree against it, and then hands the branch the result. Nothing about the generated code is checked
-there: a program's tests are the program's business, not the document's. What this document can state is the property that has to hold —
+there: a program's tests are the program's business, not the document's. That business is written down
+where it lives — the flake and the workflow further on are output too, and they describe the tree they
+are tangled into. What this document can state is the property that has to hold —
 the branch carries a generation that can read the document, and a generation only ever reads.
 
 So it is output in the strict sense: never edited, never checked out, never worked in. A worktree of
