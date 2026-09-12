@@ -26,6 +26,8 @@ the thing to attack; the expansion is not.
 
 <<watch: what is not an edit>>
 
+<<watch: the directories git knows>>
+
 pub fn run(options: Options) -> Result<(), LpError> {
     <<watch: one debouncer, one channel>>
 
@@ -64,7 +66,7 @@ fn check(options: &Options) {
 
 <<watch: the last resort>>
 
-<<watch: what is not an edit, pinned>>
+<<watch: the rules, pinned>>
 ````)
 
 == What the command line passes in
@@ -78,6 +80,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+use ignore::WalkBuilder;
 use notify_debouncer_full::notify::RecursiveMode;
 use notify_debouncer_full::notify::event::EventKind;
 use notify_debouncer_full::{DebounceEventResult, new_debouncer};
@@ -98,7 +101,10 @@ pub struct Options {
 == Starting up, and what to watch
 
 Three fragments: the debouncer and its channel, the directories to watch, and the line that says
-what is being watched.
+what is being watched. The directories are the one place where the watcher has to guess, and the guess is
+made from the file the project already keeps for this: the watched set is the tree *git would track* —
+which is to say the source, as the project itself defines it, rather than a list this tool would have to
+maintain.
 
 #chunk("watch: one debouncer, one channel", ````rust
 let (tx, rx) = mpsc::channel();
@@ -121,18 +127,15 @@ let mut debouncer = new_debouncer(
 #chunk("watch: the directories, not the files", ````rust
 let mut watched: Vec<PathBuf> = Vec::new();
 for doc in &options.docs {
-    let dir = doc
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(Path::new("."))
-        .to_path_buf();
-    if watched.contains(&dir) {
-        continue;
+    for dir in watched_dirs(doc, &options.out)? {
+        if watched.contains(&dir) {
+            continue;
+        }
+        debouncer
+            .watch(&dir, RecursiveMode::NonRecursive)
+            .map_err(|err| LpError::plain(format!("cannot watch {}: {err}", dir.display())))?;
+        watched.push(dir);
     }
-    debouncer
-        .watch(&dir, RecursiveMode::NonRecursive)
-        .map_err(|err| LpError::plain(format!("cannot watch {}: {err}", dir.display())))?;
-    watched.push(dir);
 }
 ````)
 
@@ -140,6 +143,53 @@ The directories are watched rather than the files, and that is not a detail: edi
 writing a temporary file and renaming it over the target, which silently kills a watch on the
 file itself. Watching the directory is also why the first pass matters — the loop has to be
 correct *before* the first event arrives, since the document may already be out of step.
+
+#chunk("watch: the directories git knows", ````rust
+fn watched_dirs(doc: &Path, out: &Path) -> Result<Vec<PathBuf>, LpError> {
+    let root = doc
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let out = std::path::absolute(out).unwrap_or_else(|_| out.to_path_buf());
+
+    let mut builder = WalkBuilder::new(root);
+    builder
+        .standard_filters(false)
+        .hidden(false)
+        .parents(true)
+        .require_git(false)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .filter_entry(|entry| entry.file_name() != ".git" && !own_scratch(entry.path()));
+
+    let mut dirs = Vec::new();
+    for entry in builder.build() {
+        let entry =
+            entry.map_err(|err| LpError::plain(format!("cannot scan {}: {err}", root.display())))?;
+        if !entry.file_type().is_some_and(|kind| kind.is_dir()) {
+            continue;
+        }
+        if std::path::absolute(entry.path()).is_ok_and(|full| full.starts_with(&out)) {
+            continue;
+        }
+        dirs.push(entry.path().to_path_buf());
+    }
+    Ok(dirs)
+}
+````)
+
+The traversal is the crate git itself uses, with hidden entries kept — a directory whose name starts with
+a dot can be a source here, and in this repository one is: the pipeline is declared in `.github` — and the
+gitignore rules on, because that is the project saying what its own source is. Git's own directory is
+left out as part of the same rule — the tree git tracks does not include the place git stores itself.
+Two things are then taken out by the tool's own rules rather than by the project's: its scratch, and the
+directory it writes its output to. The price of following git is the assumption behind it: a file git does
+not track is treated as something no pass reads, and a document that reads one anyway — a data file kept out
+of the repository for its size, say — falls outside what the watcher can promise. One ceiling is worth
+naming: a directory created while the watcher is running is not watched
+until it is restarted. The pass that creates it still runs — its parent is watched — so the first content
+under it is picked up; edits after that are not, until the next start.
 
 #chunk("watch: say what is being watched", ````rust
 eprintln!(
@@ -192,12 +242,13 @@ fn an_edit(kind: &EventKind) -> bool {
 The name has to match a path component and not a suffix, which is the difference between the tool's
 scratch and a file that happens to end in the same two letters.
 
-#chunk("watch: what is not an edit, pinned", ````rust
+#chunk("watch: the rules, pinned", ````rust
 #[cfg(test)]
 mod tests {
-    use super::{an_edit, own_scratch};
+    use super::{an_edit, own_scratch, watched_dirs};
     use notify_debouncer_full::notify::event::{AccessKind, CreateKind, EventKind, ModifyKind};
     use std::path::Path;
+    use tempfile::TempDir;
 
     #[test]
     fn the_tools_own_scratch_is_not_an_edit() {
@@ -218,6 +269,30 @@ mod tests {
         assert!(an_edit(&EventKind::Create(CreateKind::Any)));
         assert!(an_edit(&EventKind::Modify(ModifyKind::Any)));
         assert!(an_edit(&EventKind::Any));
+    }
+
+    #[test]
+    fn the_watched_directories_are_the_ones_git_would_track() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        for dir in ["chapters/deep", "tangled/target", ".git/objects", ".lp/packages"] {
+            std::fs::create_dir_all(root.join(dir)).expect(dir);
+        }
+        std::fs::write(root.join("lp.typ"), "= Demo\n").expect("doc");
+        std::fs::write(root.join("chapters/one.typ"), "= One\n").expect("chapter");
+        std::fs::write(root.join(".gitignore"), "tangled\n").expect("ignore");
+
+        let dirs = watched_dirs(&root.join("lp.typ"), &root.join("tangled")).expect("watched");
+        let named = |want: &str| dirs.iter().any(|dir| dir.ends_with(want));
+        assert!(dirs.contains(&root.to_path_buf()), "the document's own directory");
+        assert!(named("chapters"), "the directory an included chapter is in");
+        assert!(named("chapters/deep"), "and below it");
+        assert!(!named("tangled"), "the output directory is not source");
+        assert!(!named(".lp"), "nor the tool's own scratch");
+        assert!(
+            !dirs.iter().any(|dir| dir.components().any(|part| part.as_os_str() == ".git")),
+            "nor the repository's own metadata"
+        );
     }
 }
 ````)
