@@ -1794,6 +1794,16 @@ pub struct Copy {
     pub to: String,
 }
 
+impl Copy {
+    /// The book's own name for this file. Where the tree puts it is a placement; the name is the file's,
+    /// and it is also the path an attachment reads, which is why one name serves both carriers.
+    pub fn name<'a>(&'a self, directory: &str) -> &'a str {
+        self.to
+            .strip_prefix(&format!("{}/", directory.trim_end_matches('/')))
+            .unwrap_or(&self.to)
+    }
+}
+
 /// Resolve the settings against the source tree. Nothing is written here — the plan can be checked
 /// before anything moves.
 pub fn plan(settings: &Book, anchor: &Path, docs: &[PathBuf]) -> Result<Vec<Copy>, LpError> {
@@ -1873,9 +1883,6 @@ const SOURCE_ID: &str = "lp-source";
 /// Put the book into a rendered page. The page stays a page: nothing here is executed, and a browser
 /// that ignores the block has lost nothing.
 pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
-    // The page carries the book under the book's own names, not where the tree happens to put it: what
-    // comes back out is the book, and a directory inside the output tree is a placement, not a name.
-    let prefix = format!("{}/", directory.trim_end_matches('/'));
     let mut files = serde_json::Map::new();
     for copy in copies {
         let bytes = std::fs::read(&copy.from).map_err(|err| LpError::io(&copy.from, err))?;
@@ -1886,8 +1893,10 @@ pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpErr
             ))
             .with_help("the book is carried as JSON strings; binary files would need an encoding")
         })?;
-        let name = copy.to.strip_prefix(&prefix).unwrap_or(&copy.to);
-        files.insert(name.to_string(), serde_json::Value::String(text));
+        files.insert(
+            copy.name(directory).to_string(),
+            serde_json::Value::String(text),
+        );
     }
     let payload = serde_json::json!({ "version": 1, "files": files }).to_string();
 
@@ -2167,9 +2176,19 @@ What marks the block is the whole opening tag, not the text of the id. This docu
 prose — here, in this paragraph — and the first version, which searched for the id as a substring, found
 this sentence instead and failed on it. A marker has to be something a page cannot mention by accident.
 
-Only HTML, and the format is never guessed. `extract` demands `--format` because a wrong guess would
-produce silence rather than an error, and only an `.html` output gets a book, because a PDF is not a
-container for a JSON block.
+The carrying is the tool's work and not the package's, which took a wrong turn to learn. A package looks
+like the right home: the document already imports one, and it is where a rendering's rules live. But it
+cannot do the job. Typst has no `glob`, so a package cannot work out which files `book-files` names; its
+HTML export has no way to place an element with attributes, and the marker for the block is an attribute;
+and it escapes content, which is exactly what must not happen inside a `<script>`. What a package *can* do
+is attach a file to a PDF that Typst itself is writing — which is a fair argument for putting the
+attachments there, until you notice what it costs: the names have to reach the package before the compile,
+through an input the tool quietly passes, which is one more evaluation of the document and one more piece
+of machinery to explain. So both carriers live in the tool, on the file the compiler has just written.
+
+Neither format is guessed. `extract` demands `--format` because a wrong guess would produce silence rather
+than an error, and the block exists only in HTML: a PDF is not a container for a block of JSON, and putting
+the book into a PDF is a different mechanism that the tool does not have yet.
 
 The package is the copy embedded in this binary, unpacked fresh, so weaving needs no tangle before it:
 the document is the source of both. And the document stays a normal Typst file — an editor rendering it
@@ -2251,11 +2270,15 @@ pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, L
     Ok(status.code().unwrap_or(1))
 }
 
-/// A rendering of a literate document carries the source it was woven from, so the page can be handed to
+/// A rendering of a literate document carries the source it was woven from, so the file can be handed to
 /// someone and give the book back — the same promise this binary makes about itself.
 ///
-/// Only `.html`: Typst decides the format from the output name, and a PDF is not a container for a JSON
-/// block. Refusing to guess is the same rule that makes `extract` demand an explicit `--format`.
+/// The tool does this rather than the package, and that took a wrong turn to learn. A package looks like
+/// the right home — the document already imports one, and it is where rendering rules live — but it cannot
+/// do the job: Typst has no `glob`, so a package cannot work out which files `book-files` names; its HTML
+/// export has no way to place an element with attributes, and the marker for the block is an attribute; and
+/// it escapes content, which is exactly what must not happen inside a `<script>`. Weaving writes the file,
+/// and what to do with it afterwards is the tool's, because the tool is the only one that can.
 fn carry_the_book(anchor: &Path, output: Option<&Path>) -> Result<(), LpError> {
     let Some(page) = output.filter(|out| out.extension().is_some_and(|ext| ext == "html")) else {
         return Ok(());
