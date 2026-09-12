@@ -6,7 +6,9 @@ without the others. Each one can be argued for, paid for, and given up on its ow
 1. *The document is the source.* The code is tangled out of it, so there is no second copy that can
   disagree with the prose.
 2. *The order belongs to the reader.* Names are resolved while tangling, not while reading, so the text
-  can be arranged in the order the design is understood rather than the order the machine runs it.
+  can be arranged in the order the design is understood rather than the order the machine runs it. The words
+  to keep for this claim are Knuth's: a program should be comprehensible "because its concepts have been
+  introduced in an order that is best for human understanding" (*Literate Programming*, 1984).
 3. *A program is written as literature.* Prose is not a comment on the code; it is where the thinking
   lives, and the code is the evidence that the thinking is real.
 4. *The woven document is worth having on its own.* Here that is `lp weave lp.typ lp.pdf`: the same

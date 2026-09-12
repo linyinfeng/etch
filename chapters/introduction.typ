@@ -46,8 +46,9 @@ true", which is a defect in the main artifact rather than in a commentary on it.
 `lp` does not promise a good book. You can write terrible software and no compiler prevents it; you can write
 a terrible book, and nothing here prevents it either. What the tool provides is a convenient process — one
 source, a generated tree, provenance from a line back to the declaration that produced it, and a comparison
-that fails when the two disagree — and convenience is what decides whether a book gets kept up at all. That is
-the part agentic coding changes. An agent can find, read, rewrite, check and update a whole document in
+that fails when the two disagree — and convenience is what decides whether a book gets kept up at all. That
+is the one thing here that is not Knuth's, whose reader is a human being, and it is what agentic coding
+changes. An agent can find, read, rewrite, check and update a whole document in
 minutes, which is not a thing a person does, so the maintenance cost that kept literate programming a
 curiosity for forty years collapses. What an agent does not bring is the discipline; making the book the source
 is how the discipline is imposed from outside.
