@@ -1,20 +1,20 @@
 = Abstract
 
-`lp` is a literate programming tool for Typst documents. One document is both the book and the only source of
-the program it describes: it declares fragments of code and the files they make up, and `lp tangle` expands
-those declarations into a working source tree. This document is that kind of document. The tool it describes
-is the tool that generated the tree you are reading it in, and every claim it makes about itself is checkable
-in that tree — the tests fail when the document stops reproducing its own sources.
+This book is a program, and the program is this book. It is literate in Knuth's sense — an essay in which the
+code is quoted in the order the argument needs rather than the order a compiler needs — and it is also the
+source of `lp`, the tool that tangles it into a Rust crate, a flake, a command line and the tests that check
+them. The tree is generated from the argument, so the argument is what gets edited, reviewed and diffed.
 
-The method is old and the audience is not. Knuth wrote literate programs for a person; a growing share of the
-readers of a source tree now are programs themselves, and a program reads the tree rather than the book. An
-arrangement that exists only in prose is invisible to it. What changes with them is not only who reads: a
-whole book that a person cannot afford to keep coherent is something an agent can find, read, rewrite and
-check in minutes. The code here is a by-product of keeping the argument good, and the argument is what is
-maintained.
+Two things make that worth doing now rather than in 1984. The first is that the argument becomes an artifact:
+it is the thing that is maintained, and the code is a by-product of keeping it good. There is no second
+document to fall out of date, because there is no second document — the only way to change the program is to
+change the book. The second is that a machine can now find, read, rewrite, check and update a whole book in
+minutes, which is not a thing a person does. The cost that kept literate programming a curiosity for forty
+years collapses, and what an agent does not bring is the discipline that making the book the source imposes
+from outside.
 
-The book is written for five readers in particular: someone who wants to write a literate program, someone who
-wants to use this tool, someone who has to get it running from nothing, someone who has to maintain it, and
-someone who wants to read a working specification of it. Two more are welcome — a reader that is a program,
-and a reader who is deciding whether the method is worth it at all. The chapter after this one says which
-chapters are theirs.
+What this book does not promise is an improvement. Nothing here checks the prose, the order of its argument, or
+whether the argument is any good: those cannot be checked by a machine today, so they are not attempted, and
+they are the maintainer's responsibility, human or machine. What is offered is a position and its
+demonstration — the argument first, the code as its by-product, and a convenient process for turning one into
+the other — and one program's evidence that the position is livable.

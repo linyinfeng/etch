@@ -12,6 +12,7 @@
     ".gitignore",
     "chapters/abstract.typ",
     "chapters/introduction.typ",
+    "chapters/quick-start.typ",
     "chapters/the-tool-in-its-own-words.typ",
     "chapters/four-claims.typ",
     "chapters/writing-a-literate-program.typ",
@@ -55,6 +56,8 @@
 #include "chapters/abstract.typ"
 
 #include "chapters/introduction.typ"
+
+#include "chapters/quick-start.typ"
 
 #include "chapters/the-tool-in-its-own-words.typ"
 
