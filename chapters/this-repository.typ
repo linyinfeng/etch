@@ -2,11 +2,16 @@
 
 = This repository, and its seed
 
-`lp` treats its output directory as its own and refuses to guess: every file under it
-is produced by a declaration or listed in the `.lpignore` of its directory. Here the
-output directory is the repository root, so what this document does *not* produce is
-whatever is not the crate, the package or a control file — and the lock
-files cargo and nix maintain, which no chunk has any business owning.
+`lp` treats its output directory as its own and refuses to guess: every file in the tree it writes is
+produced by a declaration or listed in the `.lpignore` of its directory. That tree is `tangled/`, one
+directory next to the document. Everything else in the repository is a source file, and there are five kinds
+of them: this document, its chapters, the pointer at the root, the `.gitignore` that tells git what to track
+at all, and the pipeline that turns each generation into the seed.
+
+Two of those files exist for the tree rather than for a reader, and this chapter declares them because the
+tree has to carry them: the ignore rules the generated repository needs, and the protect list that says which
+of its files are nobody's to delete. They are output like everything else, and the section below says why
+they cannot be maintained by hand instead.
 
 #file(".gitignore", ````gitignore
 .lp
@@ -22,25 +27,21 @@ target
 
 == What git is asked to ignore
 
-Everything under `tangled/` is generated, so the whole directory is ignored: the crate, the
-package, the protect list and the maps. What is tracked at the root is the document,
-the pointer, the pipeline, and this file. `README.md` is that pointer, and there is one of it: a second name for
-the same text is a second name that can drift, which is the whole reason this file's text is a
-pointer. The `.gitignore` is written as the list itself — ignore everything, then allow these — so it
-cannot fall out of step with what the repository is. The seed is not tracked in the working tree
-either: it is the
-`tangled` branch of this same repository, which is the one place output can live without being a file next to the
-document.
+Everything under `tangled/` is generated, so the whole directory is ignored: the crate, the package, the
+protect list and the maps. What git does track is the document and its chapters, the pointer, the pipeline,
+and this file. `README.md` is that pointer, and there is one of it: a second name for the same text is a second
+name that can drift, which is the whole reason its text is a pointer. This `.gitignore` is written as the list
+itself — ignore everything, then allow these — so it cannot fall out of step with what the repository is. The
+seed is not tracked in the working tree either: it is the `tangled` branch of this same repository, which is
+the one place output can live without being a file next to the document.
 
 == Starting from nothing
 
-A fresh clone holds four things and nothing else: this document, the pointer at the root that leads
-here, the `.gitignore`, which says exactly that — ignore everything, allow these — and the pipeline
-that hands each generation to the seed branch. The seed is a branch as well, and there is nothing
-else: everything beyond these is produced.
-Everything else is produced
-by tangling — except the one thing this document cannot produce for itself, the binary that reads
-it, because the package has to exist before the document can be evaluated at all.
+A fresh clone holds five things and nothing else: this document, the chapters it includes, the pointer at the
+root that leads here, the `.gitignore` that says which of them git is told to keep, and the pipeline that hands
+each generation to the seed branch. Everything else is produced by tangling — except the one thing this
+document cannot produce for itself, the binary that reads it, because the package has to exist before the
+document can be evaluated at all.
 
 That is the seed, and it is not a file in the tree: it is a branch. One whole older generation — a
 crate and the package it is built with — sits at its root, ready to unpack:
@@ -74,20 +75,11 @@ whole program, so a diff across it says what the program did before and does now
 far as the recommendation goes. Nothing here commits, and nothing here should: when a generation is
 worth keeping is the writer's call, not the tool's.
 
-The tree declares its own ignore rules rather than leaving them to a reader: they say what the tool keeps
-and what the build tools write, and a file that only changes when someone remembers to change it is a file
-that goes stale — the published tree is built from a seed, and a hand-maintained file has no way to reach
-it. Being output, it is written when it differs and compared by `--check` like everything else:
-
-```gitignore
-.lp
-target
-
-```
-
-Write it, declare it in the protect list above next to `/.git` — they are the same kind of file,
-settings of the inner repository rather than content of this document — and the tangle leaves it
-alone.
+A file that only changes when someone remembers to change it goes stale, and the published tree is built from
+a seed — a hand-maintained file has no way to reach it. So the tree carries its own two settings instead: the
+`.gitignore` above, which says what the tool keeps and what the build writes, and the `.lpignore` beside it,
+which says the two things under the tree that are nobody's to delete — the git directory itself, and the build
+directory.
 
 After that the loop is the ordinary one: edit this document, tangle, test. While writing,
 
@@ -98,10 +90,6 @@ After that the loop is the ordinary one: edit this document, tangle, test. While
 `tests/self.rs` is what keeps the loop honest: the binary this document builds has to be
 able to reproduce the sources it was built from, so hand-editing `src/` or `tests/` fails
 a test instead of quietly working.
-
-One thing that trips people up once: this prose is Typst, not Markdown. Emphasis is one
-star (`*like this*`); a doubled star is a warning, not bold. Inside a fence it does not
-matter — that text is whatever its language says it is.
 
 == Keeping the seed in step
 
@@ -124,8 +112,8 @@ whole tree.
 
 The branch carries what the tree's own repository commits: the declared files, `Cargo.lock`, and
 the tree's own `.gitignore`. The lock file is the one file in the seed that no declaration produces
-— a pinned resolution is a decision, not a derivation — and the `.gitignore` is a setting of the
-inner repository, protected next to `.git` for that reason. Everything else the tangle writes stays
+— a pinned resolution is a decision, not a derivation — and the `.gitignore` is there because the inner
+repository needs it, not because a reader does. Everything else the tangle writes stays
 out, and each for a reason worth being able to say:
 
 - `.lpmap.json`, in every directory that received a file. The tool classifies it as a *control

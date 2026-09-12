@@ -3,22 +3,22 @@
 = Keeping the files in step while the document is edited
 
 `lp watch` is what makes the document usable as a source: save, and the generated files
-follow. It is possible at all because of a property of the design that has been measured —
-expanding a two-thousand-line document takes about a millisecond — and it exists because of a
-failure that is easy to underestimate: a tool that rebuilds the world on every keystroke
-teaches its user to stop saving, and that is the end of the loop the whole thing depends on.
+follow. It is possible at all because of where the work is: a pass over this document — 8,900 lines, 38
+output files — spends about a second and a half in the one call to Typst that reads the declarations, and
+milliseconds on everything this tool does with them. The loop also exists because of a failure that is easy to
+underestimate: a tool that rebuilds the world on every keystroke teaches its user to stop saving, and that is
+the end of the loop the whole thing depends on.
 
-Three properties matter more than speed, and they are the three the file states in its own
-note. Only real changes are written, so a file that did not change keeps its mtime and cargo
-and rust-analyzer stay asleep. A half-written document is not tangled: a syntax error is
-printed and the pass is skipped, which leaves the last good output in place while the editor
-is mid-keystroke. And editor events are coalesced — a debouncer plus draining the events our
-own writes produced — so a burst of edits is one pass.
+Three properties matter more than speed, and each one is visible in the file. Only real changes are
+written, so a file that did not change keeps its mtime and cargo and rust-analyzer stay asleep. A
+half-written document is not tangled: a syntax error is printed and the pass is skipped, which leaves the last
+good output in place while the editor is mid-keystroke. And editor events are coalesced — a debouncer plus
+draining the events our own writes produced — so a burst of edits is one pass.
 
-The cost is recorded in the file rather than hidden: every pass re-reads and re-evaluates the
-whole document and re-expands every root. That is a deliberate ceiling, with the measurement
-next to it, and the note says what would have to change if a book-sized document ever makes it
-hurt.
+The cost is not hidden: every pass prints what it rewrote and how long it took. The design behind that
+number is a deliberate ceiling — the whole document is re-read, re-evaluated and re-expanded every time — so
+the part that grows with the book is the one call to Typst. If a document ever makes that hurt, that call is
+the thing to attack; the expansion is not.
 
 #file("src/watch.rs", ````rust
 <<watch: the imports>>

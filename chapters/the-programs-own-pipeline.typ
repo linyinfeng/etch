@@ -2,13 +2,13 @@
 
 = The program's own pipeline
 
-Everything above is about this repository: one document, its tree, and the seed that makes the first
-build possible. The program that comes out is a program, though, and it has a pipeline of its own —
-written where it belongs, which is in the program rather than in the repository that produces it.
+Everything above has been about the repository: this document, the tree it writes, and what the tests pin
+about both. The program that comes out is a program, though, and it has a pipeline of its own — written where
+it belongs, which is in the program rather than in the repository that produces it.
 
-So these four files are output too. They are declared here, tangled with everything else, and carried
-onto the seed branch, which is where they take effect: the branch that holds a generation is the branch
-whose copy of a workflow file GitHub reads.
+So these files are output too. They are declared here, tangled with everything else, and carried onto the
+seed branch, which is where they take effect: the branch that holds a generation is the branch whose copy of
+a workflow file GitHub reads.
 
 #file("lp.nix", ````nix
 <<nix: the package>>

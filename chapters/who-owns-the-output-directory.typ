@@ -325,8 +325,8 @@ without asking.
 
 == The report a person or a script reads
 
-Four exits, one of them an error. Two of the four are a run that found nothing to complain
-about, and saying so is not noise: the sentence is what makes silence from `--check`
+Four ways out, three of them 0. Two are a run that found nothing to complain about — nothing declared, or
+everything accounted for — and saying so is not noise: that sentence is what makes silence from `--check`
 meaningful, and the count of produced files is what makes it checkable at a glance.
 
 #chunk("status: nothing was declared", ````rust
