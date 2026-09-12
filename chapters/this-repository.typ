@@ -173,17 +173,20 @@ written file ends with exactly one newline. And the book has to be written too �
 options, and the crate embeds that directory at compile time, so a tree without it does not build.
 
 *Then let the tool grade the bootstrapper.* Build the tree, and run the binary that your own expansion just
-produced over the document it came from:
+produced over the document it came from — or ask it first, since a plan writes nothing:
 
 ```sh
 nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo build --manifest-path tangled/Cargo.toml
+nix shell nixpkgs#typst -c ./tangled/target/debug/lp plan book/lp.typ --out .
 nix shell nixpkgs#typst -c ./tangled/target/debug/lp tangle book/lp.typ --out .
 ```
 
-Every file should come back `ok`. A `wrote` means the expansion rules were not quite this document's — and
-the tool has just named the file, the line and the declaration to look at. That pass also writes the maps
-beside the generated files, which the tree's own tests read; `cargo test` after it is the whole suite, and
-the test that re-tangles this document into the tree it is running in is the same agreement, restated.
+The plan says what that pass would do — on a tree nobody has built yet, every file `would write` — and the
+tangle then says what it did: every file `ok` means your expansion and this document agree. A `wrote` means
+they do not — and the tool has just named the file, the line and the declaration to look at. That pass also
+writes the maps beside the generated files, which the tree's own tests read; `cargo test` after it is the
+whole suite, and the test that re-tangles this document into the tree it is running in is the same agreement,
+restated.
 
 == Keeping the seed in step
 
