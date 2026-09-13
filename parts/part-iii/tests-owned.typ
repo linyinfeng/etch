@@ -11,6 +11,8 @@ what `--check` and `--delete` each do.
 
 <<owned: a_dropped_declaration_is_an_error_until_it_is_resolved>>
 
+<<owned: a_refused_pass_writes_nothing>>
+
 <<owned: declared_files_are_accounted_for>>
 
 <<owned: the_pattern_language_is_gitignores>>
@@ -36,6 +38,7 @@ what `--check` and `--delete` each do.
 The cases, in the order they appear:
 
 - `a_dropped_declaration_is_an_error_until_it_is_resolved` — deleting a root strands its file as an unaccounted error, with `--delete` as the way out
+- `a_refused_pass_writes_nothing` — a pass that refuses a stray has not written a byte of the document s content
 - `declared_files_are_accounted_for` — files and directories listed in `.lpignore` are left alone
 - `the_pattern_language_is_gitignores` — `build/` and `**/*.log` behave exactly as they do in git
 - `a_deeper_ignore_file_can_take_a_file_back` — a nested ignore file decides for its own directory, deepest winning
@@ -430,5 +433,25 @@ fn a_missing_output_directory_is_not_an_io_error() {
         stderr(&output)
     );
     assert!(!path.join("out").exists(), "--check writes nothing at all");
+}
+````)
+
+A refused pass has to refuse before it writes, and that is not the same as writing and then
+apologising: the file the pass would have changed is the one that tells the two apart.
+
+#chunk("owned: a_refused_pass_writes_nothing", ````rust
+#[test]
+fn a_refused_pass_writes_nothing() {
+    let (_guard, dir) = tangled(IGNORES, &[]);
+    std::fs::write(dir.join("out/stray.txt"), "nobody's\n").expect("stray");
+
+    write_doc(&dir, "doc.typ", &DOC.replace("print('b')", "print('B')"));
+    let refused = lp(&dir, &["tangle", "doc.typ", "--out", "out"]);
+    assert!(!refused.status.success(), "{}", stderr(&refused));
+    assert_eq!(
+        std::fs::read_to_string(dir.join("out/src/b.py")).expect("the output"),
+        "print('b')\n",
+        "a refused pass leaves every file as it was"
+    );
 }
 ````)

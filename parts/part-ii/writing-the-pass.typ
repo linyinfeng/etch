@@ -49,16 +49,38 @@ says — and they answer it with the same three lines. What separates them is wh
 answer: a pass writes, a plan records, and neither of them decides anything the comparison has not
 already said. A second comparison would be a second answer to the same question.
 
-Then the ownership check, after the write, for the reason recorded in D20: a `.lpignore` can
-itself be something the document produces, so a fresh tree has no control file until this
-pass writes one, and checking first would refuse to bootstrap.
+Then the ownership check, before anything the document says is written, for the reason recorded in D20 and the
+consequence of it. The reason: a `.lpignore` can itself be something the document produces, so a fresh tree has
+no control file until this pass writes one, and a check that ran before *that* would refuse to bootstrap. The
+consequence: the control files are the one thing written first, and only when the pass is not a check. Once
+they are there, the check runs against the disk as this pass would leave it, and one part of the tree is left
+out of it: the book directory belongs to the pass, so whatever is under it is the sweep's to remove or keep
+rather than a stray to report — and a file that was never a copy at all is still removed by that same sweep,
+which is what makes a stale copy a thing a check can name. Everything else under the output is judged before a
+byte of the document's content is written.
+
+#chunk("tangle: the control files a check has to see", ````rust
+if !check {
+    for (root, text) in &plan.texts {
+        if root.rsplit('/').next() != Some(crate::status::IGNORE_FILE) {
+            continue;
+        }
+        let dest = out.join(root);
+        if disk::read_ok(&dest)?.as_deref() != Some(text.as_str()) {
+            disk::write(&dest, text)?;
+        }
+    }
+}
+````)
 
 #chunk("tangle: everything must be accounted for", ````rust
-if let Some(book) = &plan.book {
-    outcome.carried = crate::book::place(out, &plan.book_copies, check)?;
-    outcome.removed = crate::book::sweep(out, &book.directory, &plan.book_copies, check)?;
-}
 outcome.unaccounted = crate::status::unaccounted(out, &produced(&plan))?;
+if let Some(book) = &plan.book {
+    let below = format!("{}/", book.directory);
+    outcome
+        .unaccounted
+        .retain(|group| group.dir != book.directory && !group.dir.starts_with(&below));
+}
 if !outcome.unaccounted.is_empty() {
     let listed = outcome
         .unaccounted
@@ -79,6 +101,13 @@ if !outcome.unaccounted.is_empty() {
     return Err(LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
         "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
     ));
+}
+````)
+
+#chunk("tangle: carrying the book, once nothing is unaccounted for", ````rust
+if let Some(book) = &plan.book {
+    outcome.carried = crate::book::place(out, &plan.book_copies, check)?;
+    outcome.removed = crate::book::sweep(out, &book.directory, &plan.book_copies, check)?;
 }
 ````)
 

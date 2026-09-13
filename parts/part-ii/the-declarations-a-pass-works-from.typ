@@ -193,13 +193,16 @@ pub fn inspect(docs: &[PathBuf], out: &Path) -> Result<Outcome, LpError> {
 pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError> {
     <<tangle: plan, then an empty outcome>>
 
+    <<tangle: the control files a check has to see>>
+    <<tangle: everything must be accounted for>>
+
     for (root, text) in &plan.texts {
         <<tangle: write what changed>>
 
         <<tangle: or say what drifted>>
     }
 
-    <<tangle: everything must be accounted for>>
+    <<tangle: carrying the book, once nothing is unaccounted for>>
 
     if !check {
         <<tangle: the maps, and the ones that stopped applying>>
