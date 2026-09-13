@@ -38,9 +38,9 @@ Six things here are this tool's own, and every one of them was found by a failur
   so both the binary and the tests that tangle have to find `typst` — the wrapper for the first, an input
   for the second. A package that works only when the user happens to have the right thing on their `PATH`
   is not a package.
-- *`src` is the whole tree.* Not cargo's idea of a source: `src/metadata.rs` reads the package with
-  `include_str!`, `src/embedded.rs` reads the book with `include_dir!`, and
-  `the_document_regenerates_the_sources_we_are_running` re-tangles the book against the tree it is running
+- *`src` is the whole tree.* Not cargo's idea of a source: `src/embedded.rs` reads the book with
+  `include_dir!`, and `the_document_regenerates_the_sources_we_are_running` re-tangles the book against the
+  tree it is running
   in. That last one is why the filtering below is applied to the *dependencies* and not to the crate: the
   test is an assertion about the tree, so the tree has to be the input. It runs in a build of the tree as
   much as in the repository, which is what D15 made true when it rewrote the test to read the map beside
