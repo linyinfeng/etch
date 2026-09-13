@@ -1472,22 +1472,23 @@ fn a_chapter_a_document_includes_travels_with_it() {
 #[test]
 fn a_document_that_reads_outside_itself_cannot_be_carried() {
     let parent = TempDir::new().expect("temp dir");
-    let dir = parent.path().join("inside");
+    let dir = parent.path().join("docs");
     std::fs::create_dir_all(&dir).expect("dir");
-    std::fs::write(parent.path().join("outside.typ"), "= Outside\n").expect("chapter");
+    std::fs::write(parent.path().join("shared.typ"), "= Shared\n").expect("chapter");
     std::fs::write(dir.join("lp.typ"), PKG).expect("package");
     std::fs::write(
         dir.join("demo.typ"),
-        "#import \"lp.typ\": chunk, file, tangle-options\n#tangle-options((book-directory: \"book\"))\n#include \"../outside.typ\"\n#file(\"main.py\", ```py\nprint(1)\n```)\n",
+        "#import \"lp.typ\": chunk, file, tangle-options\n#tangle-options((book-directory: \"book\"))\n#include \"../shared.typ\"\n#file(\"main.py\", ```py\nprint(1)\n```)\n",
     )
     .expect("doc");
 
-    let output = lp(&dir, &["tangle", "demo.typ"]);
+    let output = lp(parent.path(), &["tangle", "docs/demo.typ"]);
     assert!(
         !output.status.success(),
         "a book cannot leave its directory"
     );
     let message = stderr(&output);
-    assert!(message.contains("outside.typ"), "{message}");
+    assert!(message.contains("which is outside"), "{message}");
+    assert!(message.contains("shared.typ"), "{message}");
 }
 ````)
