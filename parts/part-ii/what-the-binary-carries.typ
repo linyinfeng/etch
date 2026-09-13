@@ -20,7 +20,8 @@ nothing beside it.
 
 *Three subcommands, three things it can do with what it carries:*
 
-- `lp self book --out <dir>` writes the book out, entire: the document, the pointer, the ignore rules.
+- `lp self book --out <dir>` writes the book out, entire: the document and its chapters, the package they
+  import, the pointer, and the ignore rules.
 - `lp self read --format (pdf|html)` weaves the document *it carries* into a temporary directory and hands
   the result to the desktop. Weaving reuses `lp weave`, because there is one way to render a document and
   it should not be written twice; opening is best effort — a machine with no desktop still gets the file
