@@ -2,17 +2,16 @@
 
 Five minutes from nothing to a tree that passes its own tests. What this does *not* explain is why it is worth
 doing — that is the introduction — and it is not the only way to begin: *This repository, and its seed* has
-four roads: two of them start from the seed, one needs this document on disk and the seed not at all, and one needs nothing but the rendering you are reading now.
-
+four roads: two of them start from the seed, one needs this document on disk and the seed not at all, and one
+needs nothing but the rendering you are reading now.
 Everything below assumes `nix` with flakes and a terminal. Rust and Typst come from the flake; nothing else has
 to be installed for this.
 
-The first step is the one thing the document cannot produce for itself: a binary that can read it. A seed is
-the shortest road to one — it is the previous generation, and it is a branch — but this rendering carries the
-document's own source, so the step can also be taken from the thing in your hands. The road below takes it that
-way, from this document alone. The seed is how the pipeline keeps this repository maintained — every generation is built from the one
-before it, so the seed is what the automation reads — and a reader may fetch it too; *This repository, and
-its seed* names the branch.
+The first step is the one thing the document cannot produce for itself: a binary that can read it, and this
+rendering carries everything that step needs: its own source, and its fragments. No repository, no seed — the
+road below takes the step from the document alone. A seed is the other job: it is what the pipeline reads to
+keep this repository maintained, generation after generation, and *This repository, and its seed* is where
+that is told.
 
 ```sh
 mkdir -p tangled/book
