@@ -15,8 +15,9 @@ tool did, because there is no other way to do one.
 The levels are not decoration either. A real change to the outside world is `INFO`, because it is the thing
 an operator wants to see after the fact: this file was written, that file was removed, this page was
 rendered. A read is `DEBUG`, because reads are how the tool decides what to change, and a pass reads every
-file it is about to leave alone. `INFO` by default, then, means a quiet command is a command that changed
-nothing.
+file it is about to leave alone. `INFO` by default, then, means the log is the record of what touched the disk — including the scratch a
+question needs: `.etch` is written and emptied on every run, so a quiet log is not the same as an untouched
+disk.
 
 #file("src/disk.rs", ````rust
 <<disk: the imports>>

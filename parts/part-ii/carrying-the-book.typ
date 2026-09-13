@@ -13,7 +13,7 @@ The book is two things put together. The first is what the document *reads*: ask
 that lays out nothing and it writes down every file it opened — the document itself, every chapter it includes,
 the package it imports — and that set is the book's body, derived rather than kept. The second is what the
 options name: files a reader needs that Typst never reads, like `README.md` and `.gitignore`, which is why the
-option is called `extra-book-files` and why this document names two files instead of forty-one.
+option is called `extra-book-files` and why this document names two files instead of forty-two.
 
 A document that reads something outside its own directory cannot be carried at all, and that is an error this
 rule produces before anything is written: a book is everything the document reads, so a document whose reading
@@ -201,10 +201,11 @@ fn attach_pdf(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), EtchE
         .catalog_mut()
         .map_err(pdf_err(page))?
         .set("Names", Object::Dictionary(names));
+    let mut bytes = Vec::new();
     document
-        .save(page)
-        .map(|_| ())
-        .map_err(|err| EtchError::io(page, err))
+        .save_to(&mut bytes)
+        .map_err(|err| EtchError::io(page, err))?;
+    disk::write(page, bytes)
 }
 
 pub fn extract(page: &Path, format: &str, out: &Path) -> Result<usize, EtchError> {

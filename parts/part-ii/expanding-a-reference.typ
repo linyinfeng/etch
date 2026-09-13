@@ -77,8 +77,8 @@ fn push(&mut self, chunk: &str, indent: &str, line: &str) {
 
 == Expanding a root, and the three ways it can fail
 
-Three fragments: the entry point, the cycle check that turns a loop into a named chain, and the
-inner loop that does the substitution.
+Four fragments: the entry point, the cycle check that turns a loop into a named chain, the error an
+empty chunk gets, and the inner loop that does the substitution.
 
 #chunk("tangle: expanding a root", ````rust
 pub fn expand(set: &ChunkSet, root: &str) -> Result<Tangled, EtchError> {

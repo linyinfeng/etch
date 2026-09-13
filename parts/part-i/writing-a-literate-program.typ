@@ -124,7 +124,8 @@ fills it. Mixing the two conventions is not a style difference — it is the kin
 review and then does not compile, and Knuth reports seeing it produce bugs that are hard to attribute.
 
 This document's version of that rule is narrower, because a fragment is spliced into a line of its own: a
-fragment contains no blank lines, and no closing `}` of the frame it is spliced into. Both rules exist for
+fragment carries no closing `}` of the frame it is spliced into, and a blank line inside an indented
+fragment stays blank rather than carrying the reference's indentation. Both rules exist for
 the same reason as the original — the seam has to be in one place, and the reader has to be able to see
 where a fragment begins and ends.
 

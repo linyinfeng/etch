@@ -30,7 +30,7 @@ Every line of this file is a name; the details come in the sections after it.
 pub fn run(out: &Path, input: &str) -> Result<usize, EtchError> {
     <<the diagnostic pattern>>
 
-    let maps = EtchMap::read_all(out);
+    let maps = EtchMap::read_all(out)?;
     let mut mapped = 0;
 
     for line in input.lines() {
@@ -90,9 +90,9 @@ let pattern = Regex::new(r"^(?P<file>[^\s:]+\.\w+):(?P<line>\d+):(?P<col>\d+):\s
 
 Three chances to give up quietly: the line is not a diagnostic, no map knows that file, or
 the map does not cover that line. When the line *can* be placed, note which stream carries
-which half: the input is echoed unchanged on stdout, so the filter can sit in the middle of
-a pipeline, and the note goes to stderr, where nothing will mistake it for compiler
-output.
+which half: the input is echoed unchanged on stdout, so the filter can sit in the middle of a pipeline,
+and the note follows the line it annotates on that same stream — the stream is the filter's product, not a
+report about it, and the note is marked with a character no compiler prints.
 
 #chunk("one line, annotated", ````rust
 let Some(caps) = pattern.captures(line) else {
