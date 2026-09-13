@@ -10,8 +10,9 @@ to be installed for this.
 The first step is the one thing the document cannot produce for itself: a binary that can read it. A seed is
 the shortest road to one — it is the previous generation, and it is a branch — but this rendering carries the
 document's own source, so the step can also be taken from the thing in your hands. The road below takes it that
-way, from this document alone; *This repository, and its seed* names the branch for anyone who would rather
-fetch a generation that is already built.
+way, from this document alone. The seed is how the pipeline keeps this repository maintained — every generation is built from the one
+before it, so the seed is what the automation reads — and a reader may fetch it too; *This repository, and
+its seed* names the branch.
 
 ```sh
 mkdir -p tangled/book
