@@ -21,7 +21,7 @@
 
 #text(size: 1.25em)[A literate literate programming program.] \
 #text(size: 1em)[Yinfeng] \
-#text(size: 0.9em, fill: luma(110))[#stamp.display("[year]-[month]-[day]")]
+#text(size: 0.9em, fill: luma(110))[#stamp.display("[year]-[month]-[day]")] \
 #text(size: 0.9em, fill: luma(110))[#link(
   "https://linyinfeng.github.io/etch/",
 )[Web]] \
