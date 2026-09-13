@@ -48,5 +48,5 @@ Two things are worth knowing before editing:
 - `lp map --file src/main.rs --line 42` answers "which declaration produced this line", and `lp explain` rewrites
   a compiler's diagnostics into those names, so both directions back to the book exist.
 
-Where to go from here: the introduction has a table that says which chapters are for which reader. If you are
+Where to go from here: the introduction has a list that says which chapters are for which reader. If you are
 changing the tool itself, *The rules* is the contract, and *tests/self.rs* is the invariant that will catch you.
