@@ -42,6 +42,20 @@ pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError
     Ok(declarations)
 }
 
+pub fn inputs(typst: &Path, docs: &[PathBuf]) -> Result<Vec<PathBuf>, LpError> {
+    <<metadata: absolute documents, and where we are>>
+
+    <<metadata: where the wrapper goes>>
+    <<metadata: the wrapper that lays out nothing>>
+    <<metadata: ask typst what it read>>
+
+    <<metadata: when the document does not evaluate, either>>
+
+    <<metadata: the list Typst writes>>
+}
+
+<<metadata: what the list looks like>>
+
 <<metadata: the wrapper document>>
 
 impl Wrapper {
@@ -74,6 +88,84 @@ use crate::disk;
 
 #chunk("metadata: the one query", ````rust
 const QUERY: &str = "query(<lp-decl>).map(declaration => declaration.value)";
+````)
+
+== The second question, which is about files rather than values
+
+A pass has to know what the document reads, because a book is what a document reads: without that list the book
+is a hand-kept inventory that goes stale the first time a chapter is added. Typst knows, and says so when it is
+asked to compile rather than to evaluate — so the second question is the same document, asked to lay out
+nothing, with the answer written to a file.
+
+#chunk("metadata: the wrapper that lays out nothing", ````rust
+let wrapper = Wrapper::write(&common_ancestor(&docs), &docs, true)?;
+let list = common_ancestor(&docs)
+    .join(PACKAGE_ROOT)
+    .join(format!("deps-{}.json", std::process::id()));
+let laid_out = common_ancestor(&docs)
+    .join(PACKAGE_ROOT)
+    .join(format!("quiet-{}.pdf", std::process::id()));
+````)
+
+#chunk("metadata: ask typst what it read", ````rust
+let output = Command::new(typst)
+    .arg("compile")
+    .arg("--deps")
+    .arg(&list)
+    .arg("--root")
+    .arg(&root)
+    .arg(&wrapper.path)
+    .arg(&laid_out)
+    .current_dir(&cwd)
+    .output();
+drop(wrapper);
+let _ = disk::remove_file(&laid_out);
+````)
+
+#chunk("metadata: when the document does not evaluate, either", ````rust
+let output =
+    output.map_err(|err| LpError::plain(format!("cannot run {}: {err}", typst.display())))?;
+if !output.status.success() {
+    let _ = disk::remove_file(&list);
+    let message = String::from_utf8_lossy(&output.stderr);
+    return Err(LpError::plain(format!(
+        "the document did not evaluate, so there is no telling what it reads:\n{}",
+        message.trim_end()
+    )));
+}
+````)
+
+#chunk("metadata: the list Typst writes", ````rust
+let text = disk::read(&list)?;
+let _ = disk::remove_file(&list);
+let report: Deps = serde_json::from_str(&text).map_err(|err| {
+    LpError::plain(format!("cannot read the list Typst wrote: {err}")).with_help(text.clone())
+})?;
+Ok(report
+    .inputs
+    .iter()
+    .map(|input| {
+        let beside_the_root = root.join(input);
+        let candidate = if beside_the_root.exists() {
+            beside_the_root
+        } else {
+            cwd.join(input)
+        };
+        std::fs::canonicalize(&candidate).unwrap_or(candidate)
+    })
+    .filter(|path| {
+        !path
+            .components()
+            .any(|part| part.as_os_str() == crate::metadata::PACKAGE_ROOT)
+    })
+    .collect())
+````)
+
+#chunk("metadata: what the list looks like", ````rust
+#[derive(Deserialize)]
+struct Deps {
+    inputs: Vec<String>,
+}
 ````)
 
 == What a declaration says, and the two kinds it can be
@@ -185,7 +277,7 @@ documents, including them relatively, with the root computed as the deepest dire
 everything involved.
 
 #chunk("metadata: ask typst, and let the wrapper go", ````rust
-let wrapper = Wrapper::write(&common_ancestor(&docs), &docs)?;
+let wrapper = Wrapper::write(&common_ancestor(&docs), &docs, false)?;
 let output = Command::new(typst)
     .arg("eval")
     .arg(QUERY)
@@ -242,11 +334,14 @@ struct Wrapper {
 ````)
 
 #chunk("metadata: writing the wrapper", ````rust
-fn write(root: &Path, docs: &[PathBuf]) -> Result<Self, LpError> {
+fn write(root: &Path, docs: &[PathBuf], quiet: bool) -> Result<Self, LpError> {
     let path = root
         .join(PACKAGE_ROOT)
         .join(format!("entry-{}.typ", std::process::id()));
     let mut text = String::new();
+    if quiet {
+        text.push_str("#show: it => none\n");
+    }
     for doc in docs {
         let relative = doc.strip_prefix(root).unwrap_or(doc);
         let quoted = relative

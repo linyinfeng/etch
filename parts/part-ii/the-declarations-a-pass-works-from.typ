@@ -106,9 +106,16 @@ fn expand_chunk(
 
 pub(crate) fn declared_book(docs: &[PathBuf]) -> Result<Option<Book>, LpError> {
     let typst = metadata::binary()?;
+    let absolute: Vec<PathBuf> = docs
+        .iter()
+        .map(|doc| doc.canonicalize().unwrap_or_else(|_| doc.clone()))
+        .collect();
+    let anchor = metadata::common_ancestor(&absolute);
     for declaration in metadata::declarations(&typst, docs)? {
         if declaration.kind()? == metadata::Kind::Options {
-            return Ok(Some(settings(&declaration)?));
+            let mut book = settings(&declaration)?;
+            crate::book::settle(&mut book, &typst, docs, &anchor)?;
+            return Ok(Some(book));
         }
     }
     Ok(None)
@@ -135,12 +142,16 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
     }
 
     let mut book_copies = Vec::new();
+    let absolute: Vec<PathBuf> = docs
+        .iter()
+        .map(|doc| doc.canonicalize().unwrap_or_else(|_| doc.clone()))
+        .collect();
+    let anchor = metadata::common_ancestor(&absolute);
+    if let Some(book) = &mut book {
+        crate::book::settle(book, &typst, docs, &anchor)?;
+    }
     if let Some(settings) = &book {
-        let absolute: Vec<PathBuf> = docs
-            .iter()
-            .map(|doc| doc.canonicalize().unwrap_or_else(|_| doc.clone()))
-            .collect();
-        book_copies = crate::book::plan(settings, &metadata::common_ancestor(&absolute))?;
+        book_copies = crate::book::plan(settings, &anchor)?;
         for copy in &book_copies {
             let (dir, name) = split(&copy.to);
             if maps
@@ -149,7 +160,7 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
             {
                 return Err(
                     LpError::plain(format!("the book would overwrite {}", copy.to)).with_help(
-                        "a declaration writes that path; change `book-directory` or `book-files`",
+                        "a declaration writes that path; change `book-directory` or `extra-book-files`",
                     ),
                 );
             }

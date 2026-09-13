@@ -119,6 +119,8 @@ pub struct LpMap {
 pub struct Book {
     pub directory: String,
     pub files: Vec<String>,
+    #[serde(default, skip_serializing)]
+    pub extra: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

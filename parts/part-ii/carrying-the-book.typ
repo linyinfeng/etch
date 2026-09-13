@@ -6,7 +6,7 @@ A tree that cannot be read on its own is a build artifact; a tree that carries t
 produced it is a program with its source of truth beside it. So a document may ask for the copy:
 
 ```typst
-#tangle-options((book-directory: "book", book-files: ("lp.typ", "parts/part-i/four-claims.typ", …)))
+#tangle-options((book-directory: "book", extra-book-files: ("lp.typ", "parts/part-i/four-claims.typ", …)))
 ```
 
 Each name is a file, relative to the document, and each one is copied into the output directory under
@@ -55,12 +55,47 @@ impl Copy {
     }
 }
 
+pub fn settle(
+    book: &mut Book,
+    typst: &Path,
+    docs: &[PathBuf],
+    anchor: &Path,
+) -> Result<(), LpError> {
+    let inputs = crate::metadata::inputs(typst, docs)?;
+    book.files = files(book, anchor, &inputs)?;
+    Ok(())
+}
+
+fn files(book: &Book, anchor: &Path, inputs: &[PathBuf]) -> Result<Vec<String>, LpError> {
+    let mut files: Vec<String> = book.extra.clone();
+    for input in inputs {
+        let relative = input.strip_prefix(anchor).map_err(|_| {
+            LpError::plain(format!(
+                "the document reads {}, which is outside {}",
+                input.display(),
+                anchor.display()
+            ))
+            .with_help(
+                "a book is everything the document reads, so a book travels only if everything the document reads travels with it",
+            )
+        })?;
+        let name = relative.to_string_lossy().replace('\\', "/");
+        if name.starts_with(&format!("{}/", crate::metadata::PACKAGE_ROOT)) {
+            continue;
+        }
+        files.push(name);
+    }
+    files.sort();
+    files.dedup();
+    Ok(files)
+}
+
 pub fn plan(settings: &Book, anchor: &Path) -> Result<Vec<Copy>, LpError> {
     let mut copies = Vec::new();
     for name in &settings.files {
         let from = anchor.join(name);
         if !from.is_file() {
-            return Err(LpError::plain(format!("book-files: {name} is not a file"))
+            return Err(LpError::plain(format!("extra-book-files: {name} is not a file"))
                 .with_help("names are relative to the document, and the book is a list of them"));
         }
         copies.push(Copy {

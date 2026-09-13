@@ -69,7 +69,7 @@
 }
 
 #let tangle-options(options) = {
-  let known = ("book-directory", "book-files")
+  let known = ("book-directory", "extra-book-files")
   for key in options.keys() {
     if not known.contains(key) {
       panic(

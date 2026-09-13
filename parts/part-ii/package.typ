@@ -186,7 +186,7 @@ are written, which is the only place the mistake is still fresh.
 
 #chunk("package: options", ````typst
 #let tangle-options(options) = {
-  let known = ("book-directory", "book-files")
+  let known = ("book-directory", "extra-book-files")
   for key in options.keys() {
     if not known.contains(key) {
       panic(

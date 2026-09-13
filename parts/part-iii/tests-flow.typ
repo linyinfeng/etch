@@ -123,7 +123,7 @@ The cases, in the order they appear:
 - `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay in the log
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
-- `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
+- `a_book_name_may_not_leave_the_tree` — a name in `extra-book-files` that climbs out of the source tree is refused
 - `a_stale_book_copy_is_removed_and_check_refuses_it` — the book directory is the list: a copy it no longer names is removed by a tangle and refused by `--check`
 - `a_moved_book_copy_leaves_no_empty_directory` — a copy that moves to a different directory takes its old one with it, empty or not
 - `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
@@ -702,7 +702,7 @@ fn tangle_speaks_json_about_what_it_wrote() {
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
-            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint(1)\n```)\n",
+            "#tangle-options((book-directory: \"book\", extra-book-files: (\"demo.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint(1)\n```)\n",
         ),
     )
     .expect("doc");
@@ -1177,7 +1177,7 @@ fn the_book_is_carried_into_the_tree() {
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
-            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"chapters/one.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+            "#tangle-options((book-directory: \"book\", extra-book-files: (\"demo.typ\", \"chapters/one.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
         ),
     )
     .expect("doc");
@@ -1239,7 +1239,7 @@ fn a_moved_book_copy_leaves_no_empty_directory() {
     std::fs::write(dir.path().join("one/x.txt"), "the book\n").expect("chapter");
     let source = |listed: &str| {
         format!(
-            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"{listed}\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n"
+            "#tangle-options((book-directory: \"book\", extra-book-files: (\"demo.typ\", \"{listed}\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n"
         )
     };
     std::fs::write(dir.path().join("demo.typ"), document(&source("one/x.txt"))).expect("doc");
@@ -1270,7 +1270,7 @@ fn a_stale_book_copy_is_removed_and_check_refuses_it() {
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
-            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+            "#tangle-options((book-directory: \"book\", extra-book-files: (\"demo.typ\", \"README.md\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
         ),
     )
     .expect("doc");
@@ -1307,7 +1307,7 @@ fn a_book_name_may_not_leave_the_tree() {
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
-            "#tangle-options((book-directory: \"book\", book-files: (\"../outside.txt\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+            "#tangle-options((book-directory: \"book\", extra-book-files: (\"../outside.txt\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
         ),
     )
     .expect("doc");
@@ -1333,7 +1333,7 @@ fn a_book_without_a_directory_is_an_error() {
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
-            "#tangle-options((book-files: (\"main.py\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
+            "#tangle-options((extra-book-files: (\"main.py\",)))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n",
         ),
     )
     .expect("doc");
@@ -1361,7 +1361,7 @@ fn a_book_may_not_overwrite_an_output() {
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
-            "#tangle-options((book-directory: \"src\", book-files: (\"main.py\",)))\n\n#file(\"src/main.py\", ```py\nprint('x')\n```)\n",
+            "#tangle-options((book-directory: \"src\", extra-book-files: (\"main.py\",)))\n\n#file(\"src/main.py\", ```py\nprint('x')\n```)\n",
         ),
     )
     .expect("doc");

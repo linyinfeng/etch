@@ -75,9 +75,9 @@ fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
         .as_object()
         .ok_or_else(|| LpError::plain("tangle-options was given something that is not a dict"))?;
     for key in table.keys() {
-        if key != "book-directory" && key != "book-files" {
+        if key != "book-directory" && key != "extra-book-files" {
             return Err(LpError::plain(format!("unknown tangle option {key:?}"))
-                .with_help("known options: `book-directory`, `book-files`"));
+                .with_help("known options: `book-directory`, `extra-book-files`"));
         }
     }
     let directory = table
@@ -89,25 +89,28 @@ fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
         })?
         .to_string();
     let mut files = Vec::new();
-    if let Some(value) = table.get("book-files") {
+    if let Some(value) = table.get("extra-book-files") {
         let list = value
             .as_array()
-            .ok_or_else(|| LpError::plain("`book-files` is a list of file names"))?;
+            .ok_or_else(|| LpError::plain("`extra-book-files` is a list of file names"))?;
         for entry in list {
             let name = entry
                 .as_str()
-                .ok_or_else(|| LpError::plain("`book-files` is a list of file names"))?;
+                .ok_or_else(|| LpError::plain("`extra-book-files` is a list of file names"))?;
             if name.starts_with('/') || name.split('/').any(|part| part == "..") {
-                return Err(
-                    LpError::plain(format!("book-files: {name} leaves the source tree")).with_help(
-                        "names are relative to the document, and a book stays inside it",
-                    ),
-                );
+                return Err(LpError::plain(format!(
+                    "extra-book-files: {name} leaves the source tree"
+                ))
+                .with_help("names are relative to the document, and a book stays inside it"));
             }
             files.push(name.to_string());
         }
     }
-    Ok(Book { directory, files })
+    Ok(Book {
+        directory,
+        files: Vec::new(),
+        extra: files,
+    })
 }
 
 fn book_relative(docs: &[PathBuf]) -> Vec<String> {
