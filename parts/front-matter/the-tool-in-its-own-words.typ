@@ -1,9 +1,9 @@
 = The tool, in its own words
 
 This is the whole of `lp`: the program and the package it is written with. There is no second source —
-the crate and the package in this repository are the output of tangling this file, and
-`lp weave lp.typ lp.pdf` renders what you are reading — which is `typst compile` with the package this
-tool unpacks already in scope.
+the crate is tangled out of this document, the package is one of the files it declares, and
+`lp weave lp.typ lp.pdf` renders what you are reading: `typst compile` with a root that covers the document,
+and the book attached to the page it renders.
 
 It is a literate program, and that is not a remark about its formatting. The document is where the
 thinking lives; the code is quoted into it as the evidence that makes the thinking checkable.
