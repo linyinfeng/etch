@@ -50,6 +50,11 @@ jobs:
           ./tangled/target/debug/lp tangle lp.typ
           ./tangled/target/debug/lp tangle lp.typ --check
 
+      # The seed is one generation behind, so it is not the tool this document describes — anything that
+      # reads this tool's output has to be the generation that was just written.
+      - name: build the generation the document describes
+        run: cargo build --manifest-path tangled/Cargo.toml
+
       - name: weave the document
         run: |
           set -euo pipefail
