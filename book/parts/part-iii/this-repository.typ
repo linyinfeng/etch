@@ -195,12 +195,12 @@ generated files, which the tree's own tests read; `cargo test` after it is the w
 re-tangles this document into the tree it is running in is the same agreement, restated.
 
 
-== From the published rendering
+=== From the published rendering
 
 There is a fourth road, for a reader who has nothing but the book as it was published. Both renderings carry
 the whole source of this document: the HTML page has it in a `<script type="application/json"
 id="etch-source">` block, and the PDF carries it as embedded files, one per file of this document — 46 of them,
-the same set, so `pdfdetach -saveall` and a few lines of `jq` are two ways to the same directory, and either way
+the same set, so `pdfdetach -saveall` and a short script over the page are two ways to the same directory, and either way
 it lands where the crate expects it: `book/`.
 
 What neither rendering carries as a file is the tree — the crate and the package — because the tree is what the
