@@ -1,6 +1,6 @@
 = Where this differs from WEB
 
-This book is a literate program in the tradition WEB started, and it departs from WEB in seven places
+This book is a literate program in the tradition WEB started, and it departs from WEB in eight places
 worth naming. The point of naming them is that a reader who finds a difference cannot tell a decision
 from an oversight, and two of these are oversights — gaps this tool has not closed, not features it
 declined.
