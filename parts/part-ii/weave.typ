@@ -25,11 +25,9 @@ lp weave report.typ report.pdf --input who=me   # ... with Typst's own flags
 
 == What the tool has to say, and what it does not
 
-Two facts, and both are things the tool already knows from tangling:
-
-- the package path, because it unpacked the package itself;
-- a root that covers the document *and* the working directory, because Typst refuses to read outside its
-  root and an import that resolves through a relative path has to stay inside it.
+One fact, and it is one the tool already knows from tangling: a root that covers the document *and* the
+working directory, because Typst refuses to read outside its root and an import that resolves through a
+relative path has to stay inside it.
 
 Everything else is Typst's, and is passed on as it came. That is why the arguments are trailing: after the
 document and the output, nothing is ours to interpret. Typst's experimental exports arrive the same way:
@@ -124,16 +122,9 @@ attached files by the PDF library that wrote them. `lp extract --format html|pdf
 the book into `<dir>` under the book's own names, the same names `lp self book` writes, because where a
 *tree* puts a book is a placement, not a property of the book.
 
-== The editor, in one variable
+== The editor needs no variable
 
-The package is the copy embedded in this binary, unpacked fresh, so weaving needs no tangle before it: the
-document is the source of both. And the document stays a normal Typst file — an editor rendering it without
-the tool sets `TYPST_PACKAGE_PATH` itself, to the same path this command passes: `.lp/packages` under the
-documents' directory.
-
-That path is the whole editor story, and it works because nothing about it is ours to invent: the layout
-below is `namespace/name/version`, which is what every Typst package looks like, and the namespace is
-`local`, which is the one Typst recommends for a package that is not published. A language server that
-follows Typst's conventions therefore needs that one variable and no configuration of its own. An editor
-willing to touch the machine instead can link the same directory into Typst's data directory, and then no
-project needs the variable at all.
+The package is a file the document imports by the path it sits at, so an editor that renders the document
+resolves it the way Typst resolves any relative import — the same file this command reads, with no package
+path to set and nothing to unpack first. The document stays a normal Typst file, and the tool adds a root to
+the compile rather than a dependency to the project.
