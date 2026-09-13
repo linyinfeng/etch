@@ -2,10 +2,11 @@
 
 = What the binary carries
 
-A tool that can only work inside its own repository is not finished. This one carries three things: the
-program (it is the program), the package it declares chunks with, and — through the settings the document
-carries — the book that produced the tree it was built from. `include_dir!` puts that directory in the binary
-at compile time, so `lp self` needs nothing beside it.
+A tool that can only work inside its own repository is not finished. This one carries two things: the
+program (it is the program), and — through the settings the document carries — the book that produced the
+tree it was built from. The package the document is written with is part of that book, as one of the files
+the document declares. `include_dir!` puts the book in the binary at compile time, so `lp self` needs
+nothing beside it.
 
 #file("src/embedded.rs", ````rust
 <<self: the imports>>
