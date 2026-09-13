@@ -8,7 +8,7 @@ the accounting line, a subtree that overflows named once at the directory that o
 name at all — a `.lpignore` that neither the document declared nor a rule protects is still a stray, while the
 two names the tool writes are not.
 
-#chunk("status: the rules, pinned by four cases", ````rust
+#chunk("status: the rules, pinned by five cases", ````rust
 #[cfg(test)]
 mod tests {
     use super::unaccounted;

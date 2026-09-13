@@ -59,7 +59,7 @@ pub fn unaccounted(
 
 <<status: cleaning up directories that emptied>>
 
-<<status: the rules, pinned by four cases>>
+<<status: the rules, pinned by five cases>>
 ````)
 
 == Three groups, and the file's own opening
