@@ -14,6 +14,21 @@ mkdir -p tangled/book
 nix shell nixpkgs#poppler-utils -c pdfdetach -saveall -o tangled/book etch.pdf
 ```
 
+The page carries the same files in the `etch-source` block it was weaved with, so a reader holding the page
+rather than the PDF takes them out of that instead:
+
+```sh
+nix shell nixpkgs#python3 -c python3 - <<'EOF'
+import json, pathlib, re
+page = pathlib.Path("etch.html").read_text()
+block = re.search(r'<script type="application/json" id="etch-source"[^>]*>(.*?)</script>', page, re.S)
+for path, text in json.loads(block.group(1))["files"].items():
+    out = pathlib.Path("tangled/book", path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text)
+EOF
+```
+
 That is the book itself, file for file, because the rendering carries it. The tree is the rest, and the
 rendering does not carry it as a file: it carries the fragments, each captioned with the path it is written to,
 so the tree can be read back out of the same document by hand or by a script. Every file declaration is a
