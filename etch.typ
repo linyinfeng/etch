@@ -22,10 +22,12 @@
 #text(size: 1.25em)[A literate literate programming program.] \
 #text(size: 1em)[Yinfeng] \
 #text(size: 0.9em, fill: luma(110))[#stamp.display("[year]-[month]-[day]")]
-#text(
-  size: 0.9em,
-  fill: luma(110),
-)[#link("https://linyinfeng.github.io/etch/")[Read it as a page] · #link("https://linyinfeng.github.io/etch/etch.pdf")[as a PDF]]
+#text(size: 0.9em, fill: luma(110))[#link(
+  "https://linyinfeng.github.io/etch/",
+)[Web]] \
+#text(size: 0.9em, fill: luma(110))[#link(
+  "https://linyinfeng.github.io/etch/etch.pdf",
+)[PDF]]
 
 // Where the tangled tree keeps this book, so that a tree can be read — and re-tangled — without the
 // repository it came from. The tree's own `.gitignore` travels with it: the book is the whole of what
