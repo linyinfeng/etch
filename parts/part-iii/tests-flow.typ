@@ -117,31 +117,32 @@ The cases, in the order they appear:
 - `a_declaration_without_a_language_warns` — a fence with no language tag is reported, and the pass still succeeds
 - `a_file_declaration_can_name_a_nested_path` — `src/main.rs` is created under the output directory, directories and all
 - `unsafe_paths_are_rejected` — `../escape.txt` and its relatives cannot leave the output directory
-- `map_names_the_chunk_a_generated_line_came_from` — `lp map --file --line` answers with the chunk and how far into it the line is
-- `map_takes_one_direction` — an empty `lp map`, and a `--line` beside `--typ`, are refused by the surface (exit 2) rather than by the arm
-- `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
-- `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
-- `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
-- `the_demo_tangles_and_runs` — the small example this book declares tangles from its own document, runs, and prints what it promised
-- `plan_says_what_a_pass_would_do` — `lp plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
-- `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay in the log
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose package is a file beside it, imported by path
+- `a_blank_line_in_an_indented_fragment_stays_blank` — an indented fragment's blank line is written blank, not as a line of spaces
+- `tangling_leaves_only_dot_lp_beside_the_document` — everything the tool writes beside a document is under `.lp`: the package, the wrapper, all of it
+- `a_pdf_gives_the_book_back` — the PDF carries the book as attached files, and `lp extract --format pdf` gets it back byte for byte
+- `weaving_a_document_with_no_book_carries_none` — a document that declares nothing still weaves: no block, and no complaint either
+- `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
+- `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
+- `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_chapter_a_document_includes_travels_with_it` — a chapter added to the include list travels into the book with no change to the settings
 - `a_document_that_reads_outside_itself_cannot_be_carried` — a document whose reading reaches past its own directory is refused, and the file it reached for is named
-- `a_book_name_may_not_leave_the_tree` — a name in `extra-book-files` that climbs out of the source tree is refused
-- `a_stale_book_copy_is_removed_and_check_refuses_it` — the book directory is the list: a copy it no longer names is removed by a tangle and refused by `--check`
-- `a_moved_book_copy_leaves_no_empty_directory` — a copy that moves to a different directory takes its old one with it, empty or not
-- `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
-- `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
-- `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
-- `weaving_a_document_with_no_book_carries_none` — a document that declares nothing still weaves: no block, and no complaint either
-- `a_pdf_gives_the_book_back` — the PDF carries the book as attached files, and `lp extract --format pdf` gets it back byte for byte
-- `tangling_leaves_only_dot_lp_beside_the_document` — everything the tool writes beside a document is under `.lp`: the package, the wrapper, all of it
-- `a_blank_line_in_an_indented_fragment_stays_blank` — an indented fragment's blank line is written blank, not as a line of spaces
 - `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
+- `a_moved_book_copy_leaves_no_empty_directory` — a copy that moves to a different directory takes its old one with it, empty or not
+- `a_stale_book_copy_is_removed_and_check_refuses_it` — the book directory is the list: a copy it no longer names is removed by a tangle and refused by `--check`
+- `a_book_name_may_not_leave_the_tree` — a name in `extra-book-files` that climbs out of the source tree is refused
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
 - `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
+- `map_names_the_chunk_a_generated_line_came_from` — `lp map --file --line` answers with the chunk and how far into it the line is
+- `the_demo_tangles_and_runs` — the small example this book declares tangles from its own document, runs, and prints what it promised
+- `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay in the log
+- `plan_says_what_a_pass_would_do` — `lp plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
+- `map_takes_one_direction` — an empty `lp map`, and a `--line` beside `--typ`, are refused by the surface (exit 2) rather than by the arm
+- `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
+- `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
+- `the_reading_commands_speak_json` — the commands that answer a question hand back one JSON document each: the declarations, the whole text of a chunk, an exact line and a nearest one
+- `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
 - `a_chunk_built_by_code_is_attributed_to_itself` — roots declared by a loop are attributed to the declarations the loop produced
 - `the_declaration_is_where_the_line_lives` — the answer includes the `rg` command that finds the declaration
 
