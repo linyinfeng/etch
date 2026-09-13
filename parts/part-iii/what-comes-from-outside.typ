@@ -57,7 +57,7 @@ other: an action that moves in one place has to be moved in the other by someone
 *The packages this document imports.* There are none from outside, and that is a decision rather than an
 accident: the only import is the document's own package, by the path it sits at, because a package fetched
 from a registry by name and version would be a copy nobody in this repository can see or pin. Nothing to
-update, which is the point of the chapter on publishing.
+update, which is the point of importing it by path rather than by name.
 
 == What the seed has to do with it
 
