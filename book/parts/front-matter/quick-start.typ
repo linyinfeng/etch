@@ -7,16 +7,23 @@ four roads: two of them start from the seed, one needs this document on disk and
 Everything below assumes `nix` with flakes and a terminal. Rust and Typst come from the flake; nothing else has
 to be installed for this.
 
-The first step is the one thing the document cannot produce for itself: a binary that can read it. The seed is
-the previous generation, and it is a branch, so it is fetched rather than built:
+The first step is the one thing the document cannot produce for itself: a binary that can read it. A seed is
+the shortest road to one — it is the previous generation, and it is a branch — but this rendering carries the
+document's own source, so the step can also be taken from the thing in your hands. The road below takes it that
+way, from this document alone; *This repository, and its seed* names the branch for anyone who would rather
+fetch a generation that is already built.
 
 ```sh
-git init -q
-git remote add origin https://github.com/linyinfeng/etch
-git fetch --depth 1 origin tangled
-mkdir -p tangled
-git archive FETCH_HEAD | tar -x -C tangled
-git init -q tangled
+mkdir -p tangled/book
+nix shell nixpkgs#poppler-utils -c pdfdetach -saveall -o tangled/book etch.pdf
+```
+
+That is the book itself, file for file, because the rendering carries it. The tree is the rest, and the
+rendering does not carry it as a file: it carries the fragments, each captioned with the path it is written to,
+and *This repository, and its seed* has the road that reads them back into a tree. With a tree on disk, build
+it and everything below is the same:
+
+```sh
 nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo build --manifest-path tangled/Cargo.toml
 ```
 
