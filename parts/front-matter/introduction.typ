@@ -100,5 +100,8 @@ is in the order a compiler wants. So the useful question is not where to start b
 - *A reader that is a program.* *The reader that is not a person* is the argument, *This repository* has the
   road that needs no seed, and *The command line, and what each command is for* plus *The disk, and the log* are
   the two contracts it works against: standard output is data, standard error is the log.
+- *An agent that has to change this book.* *The reader that is not a person* again — a machine reads the
+  arrangement, and a machine writer owes the same arrangement a true account of itself — then *Editing this
+  book* in the repository chapter for where a change goes, and *The rules* for what must stay true.
 - *Someone deciding whether to use this at all.* *When not to* first, then *Where this differs from WEB* and the
   four claims. The book would rather lose a reader early than have one who resents the cost later.
