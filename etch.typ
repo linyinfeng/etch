@@ -15,12 +15,13 @@
   date: stamp,
 )
 
-#align(center)[
-  #text(size: 2em, weight: "bold")[Etch] \
-  #text(size: 1.25em)[A literate literate programming program.] \
-  #text(size: 1em)[Lin Yinfeng \<lin.yifeng\@outlook.com\>] \
-  #text(size: 0.9em, fill: luma(110))[#stamp.display("[year]-[month]-[day]")]
-]
+#show title: set text(size: 2em, weight: "bold")
+
+#title()
+
+#text(size: 1.25em)[A literate literate programming program.] \
+#text(size: 1em)[Lin Yinfeng \<lin.yifeng\@outlook.com\>] \
+#text(size: 0.9em, fill: luma(110))[#stamp.display("[year]-[month]-[day]")]
 
 // Where the tangled tree keeps this book, so that a tree can be read — and re-tangled — without the
 // repository it came from. The tree's own `.gitignore` travels with it: the book is the whole of what
