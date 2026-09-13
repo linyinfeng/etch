@@ -55,11 +55,10 @@ Six things here are this tool's own, and every one of them was found by a failur
 - *The round trip is a check rather than a condition of the build.* Rendering the document and reading the
   book back out of both carriers is a thing to assert, not a thing to make someone pay for by installing
   `lp`. The check copies the whole book directory rather than the files it remembers, because the document
-  already says which files those are, and a second list of names is a list that goes stale. The tool's own
-  scratch is the one thing that is not the book, and it is named by the tool rather than listed from the
-  book: a tree that has been used at all has `.lp` beside its document, and a copy of that directory is not
-  a copy of the book. The copy is made writable first, because what comes out of the store is read-only and a
-  read-only directory cannot be written to or removed from.
+  already says which files those are, and a second list of names is a list that goes stale. The copy is made
+  writable first, because what comes out of the store is read-only and a read-only directory cannot be written
+  to, and it is made twice: one copy is the yardstick the extracted book is compared against, the other is
+  where the rendering happens.
 - *The package does not run the tests.* `doCheck = false` there and a `test` check beside it, because a
   package that ran them as well would fail before a reader could see *which* test broke.
 - *The bootstrap is a workflow step, not a check.* `lp self prove` unpacks the book the binary carries,
@@ -111,24 +110,33 @@ leave something in it for the ownership check to complain about.
         }
       );
 
-      roundtrip = pkgs.runCommand "lp-roundtrip" { nativeBuildInputs = [ pkgs.typst ]; } ''
-        work=$PWD/work
-        mkdir -p "$work/src" "$work/run"
+      roundtrip =
+        pkgs.runCommand "lp-roundtrip"
+          {
+            nativeBuildInputs = [
+              pkgs.typst
+              lp
+            ];
+          }
+          ''
+            work=$PWD/work
+            mkdir -p "$work"
 
-        for dir in src run; do
-          cp -r "${./book}/." "$work/$dir/"
-          chmod -R u+w "$work/$dir"
-          rm -rf "$work/$dir/.lp"
-        done
+            cp -r "${./book}" "$work/carried"
+            cp -r "${./book}" "$work/woven"
+            chmod -R u+w "$work/carried" "$work/woven"
 
-        ( cd "$work/run" && ${lp}/bin/lp weave lp.typ ../lp.pdf && ${lp}/bin/lp weave lp.typ ../lp.html --features html )
+            pushd "$work/woven" >/dev/null
+            lp weave lp.typ "$work/lp.pdf"
+            lp weave lp.typ "$work/lp.html" --features html
+            popd >/dev/null
 
-        for format in pdf html; do
-          ${lp}/bin/lp extract --format "$format" "$work/lp.$format" --out "$work/back-$format"
-          diff -r "$work/src" "$work/back-$format"
-        done
-        touch "$out"
-      '';
+            for format in pdf html; do
+              lp extract --format "$format" "$work/lp.$format" --out "$work/back-$format"
+              diff -r "$work/carried" "$work/back-$format"
+            done
+            touch "$out"
+          '';
 
       gates = {
         package = lp;
