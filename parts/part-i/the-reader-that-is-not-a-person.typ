@@ -60,6 +60,26 @@ demand. The prose that is worth writing is the part a reader cannot reconstruct:
 alternative, the invariant, the thing that was surprising. Written this way the document is not documentation;
 it is the part of the program that was never in the code.
 
+== What a machine writer owes
+
+A reader that is a program is also a writer that is a program, and the writing half has one advantage and two
+failure modes worth naming before anyone relies on it.
+
+The advantage is retrieval, and it starts where the task does — a bug, a request, a failing test. The name is
+the search key and the chapter is the unit, so the writer lands in the section that argues for the thing it is
+about to change and changes the argument with it. Read as an index, the arrangement is a map of where a change
+belongs; that is the method backwards, and it is what a writer has that a reader of the tree alone does not.
+
+The first failure mode is prose about code that is not there any more. It is the most comfortable thing in the
+world to write, no check finds it, and it is the defect an audit of this book turned up most often: of
+thirty-six claims that had gone false, nine described something that was no longer there — a function, a file,
+a whole chapter — while the sentences describing it stayed, and most of the rest were counts and lists.
+
+The second is the number. A count in prose is a promise nothing keeps — chapters, lines, files — and the check
+that holds the code and the document together says nothing at all about a sentence. Both failure modes have the
+same repair, and it is the writer's: measure what you write, and read what you changed. The reason that is not
+a tool is the same reason this chapter exists.
+
 == Where this is already happening
 
 The idea is in the air, and it is worth knowing that the pieces exist. There is an environment built for
