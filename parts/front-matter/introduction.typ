@@ -79,7 +79,8 @@ the design walk: what a declaration is, what a pass does with it, how the result
 choice is the one it is. *This repository* is the evidence: the tests, the build, the seed, and the lock files
 the document carries verbatim.
 
-*Quick start* is five minutes long and gets you from nothing to a tree that passes its own tests. Nothing else
+*Bootstrap* is where the binary comes from when you have nothing but this book, and *The loop* is
+what to do with it. Nothing else
 has to be read in order: a chapter is a unit, and it can be moved without moving its code, because nothing here
 is in the order a compiler wants. So the useful question is not where to start but what you came for:
 
@@ -89,8 +90,8 @@ is in the order a compiler wants. So the useful question is not where to start b
 - *Someone who wants to use the tool.* *The command line, and what each command is for*, then *The package: what
   a declaration is* and *Expanding a reference*, with *Where each generated line came from* and *Reading a
   diagnostic back to the declaration* for the two questions above.
-- *Someone who has to get it running from nothing.* *Quick start* first; then *This repository, and its seed*
-  for the three roads, *The build environment* for what the commands expect, and *What comes from outside, and
+- *Someone who has to get it running from nothing.* *Bootstrap* first; then *This repository, and its seed*
+  for the four roads, *The build environment* for what the commands expect, and *What comes from outside, and
   how it moves* for when the outside moves.
 - *Someone who has to maintain it.* *How the tests are written* and the five `tests/*.rs` chapters are the
   contract; *The program's own pipeline* and *This repository* are the machinery around it; *What comes from
