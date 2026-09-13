@@ -1,5 +1,10 @@
 = The example, which is this document
 
+This part is the evidence. The gate comes first — how the tests are written, and the five of them that check
+tangling, laziness, the declaration stream, ownership and self-reproduction — then the repository the tree comes
+from, the build it is built in, the pipeline that publishes each generation, and what to do when the outside
+world moves.
+
 A literate program is worth what its subject is worth. Forty lines can show the syntax — a reference
 resolves, indentation survives, a compiler's complaint comes back with a chunk name — and can show none of
 the decisions that make the practice worth the trouble: what belongs in one fragment, where the seams go,

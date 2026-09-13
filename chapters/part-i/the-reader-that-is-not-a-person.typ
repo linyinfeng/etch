@@ -78,8 +78,8 @@ document that is the source is checked: the tree either matches it or the build 
 does with an unchecked explanation is a question this method does not have to answer, because it does not
 produce one.
 
-The tool in the next part is built under exactly that constraint, and the constraint is why the tool is the
-example: it is a program whose only source is the book that describes it.
+The tool, in the part after this one, is built under exactly that constraint, and the constraint is why it is
+the example: it is a program whose only source is the book that describes it.
 
 One road through the repository chapter is where that stops being a claim and becomes something a reader can
 do: it needs no seed and no network, because a reader that is a program can install the package out of the

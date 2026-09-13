@@ -15,11 +15,11 @@
     "chapters/front/quick-start.typ",
     "chapters/front/the-tool-in-its-own-words.typ",
     "chapters/part-i/four-claims.typ",
+    "chapters/part-i/the-reader-that-is-not-a-person.typ",
     "chapters/part-i/writing-a-literate-program.typ",
     "chapters/part-i/reading-a-literate-program.typ",
     "chapters/part-i/when-not-to.typ",
     "chapters/part-i/differences-from-web.typ",
-    "chapters/part-i/the-reader-that-is-not-a-person.typ",
     "chapters/part-ii/package.typ",
     "chapters/part-ii/weave.typ",
     "chapters/part-ii/errors.typ",
@@ -45,9 +45,9 @@
     "chapters/part-iii/tests-metadata.typ",
     "chapters/part-iii/tests-owned.typ",
     "chapters/part-iii/tests-self.typ",
+    "chapters/part-iii/this-repository.typ",
     "chapters/part-iii/the-build-environment.typ",
     "chapters/part-iii/the-programs-own-pipeline.typ",
-    "chapters/part-iii/this-repository.typ",
     "chapters/part-iii/what-comes-from-outside.typ",
     "chapters/part-iii/appendix-what-is-pinned.typ",
   ),
@@ -65,6 +65,8 @@
 
 #include "chapters/part-i/four-claims.typ"
 
+#include "chapters/part-i/the-reader-that-is-not-a-person.typ"
+
 #include "chapters/part-i/writing-a-literate-program.typ"
 
 #include "chapters/part-i/reading-a-literate-program.typ"
@@ -72,8 +74,6 @@
 #include "chapters/part-i/when-not-to.typ"
 
 #include "chapters/part-i/differences-from-web.typ"
-
-#include "chapters/part-i/the-reader-that-is-not-a-person.typ"
 
 = Part II — The tool
 
@@ -129,11 +129,11 @@
 
 #include "chapters/part-iii/tests-self.typ"
 
+#include "chapters/part-iii/this-repository.typ"
+
 #include "chapters/part-iii/the-build-environment.typ"
 
 #include "chapters/part-iii/the-programs-own-pipeline.typ"
-
-#include "chapters/part-iii/this-repository.typ"
 
 #include "chapters/part-iii/what-comes-from-outside.typ"
 
