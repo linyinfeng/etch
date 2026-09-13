@@ -186,7 +186,7 @@ enum SelfMethod {
 ````)
 
 #chunk("main: weave", ````rust
-#[command(about = "Render a document with the package this tool carries")]
+#[command(about = "Render a document with Typst")]
 Weave {
     doc: PathBuf,
     output: Option<PathBuf>,
