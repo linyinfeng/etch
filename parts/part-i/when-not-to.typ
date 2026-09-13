@@ -78,7 +78,7 @@ is its own source" testable instead of rhetorical.
 
 The tree has a CI of its own, because it is a program: six named checks, one of which is the round trip — render
 the book, read it back out of a PDF and out of a page, compare every file. The repository's CI is a different
-job: tangle, refuse drift, publish the generation. Two pipelines for one book, and the split is not a choice:
+job: tangle, refuse drift, publish the generation and the page it renders. Two pipelines for one book, and the split is not a choice:
 the tree's checks have to run in the tree, and the tree does not exist until the tangle has run.
 
 And the toolchain is a prerequisite rather than something the book can carry. Everyone who edits it installs
