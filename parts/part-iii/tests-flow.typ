@@ -125,7 +125,7 @@ The cases, in the order they appear:
 - `the_demo_tangles_and_runs` — the small example this book declares tangles from its own document, runs, and prints what it promised
 - `plan_says_what_a_pass_would_do` — `lp plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
 - `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay in the log
-- `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
+- `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose package is a file beside it, imported by path
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_chapter_a_document_includes_travels_with_it` — a chapter added to the include list travels into the book with no change to the settings
 - `a_document_that_reads_outside_itself_cannot_be_carried` — a document whose reading reaches past its own directory is refused, and the file it reached for is named
