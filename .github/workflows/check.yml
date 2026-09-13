@@ -1,0 +1,52 @@
+name: check
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [tangled]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+jobs:
+  matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - id: set-matrix
+        name: ask the flake which checks exist
+        run: echo "matrix=$(nix eval --json '.#githubActions.matrix')" >> "$GITHUB_OUTPUT"
+
+  check:
+    name: ${{ matrix.name }} (${{ matrix.system }})
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v17
+        with:
+          name: linyinfeng
+          signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
+      - run: nix build -L --no-update-lock-file ".#$ATTR"
+        env:
+          ATTR: ${{ matrix.attr }}
+
+  prove:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v17
+        with:
+          name: linyinfeng
+          signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
+      - run: nix develop --command nix run .#etch -- self prove /tmp/proved

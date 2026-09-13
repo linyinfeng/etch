@@ -1,0 +1,750 @@
+{
+  "version": 6,
+  "files": {
+    "flow.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "flow: the fixtures and helpers",
+          "first": 1,
+          "last": 97
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 98,
+          "last": 98
+        },
+        {
+          "chunk": "flow: tangle_writes_files_with_concat_and_indentation",
+          "first": 99,
+          "last": 108
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 109,
+          "last": 109
+        },
+        {
+          "chunk": "flow: tangle_records_which_chunk_every_line_came_from",
+          "first": 110,
+          "last": 132
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 133,
+          "last": 133
+        },
+        {
+          "chunk": "flow: indentation_follows_the_reference_site",
+          "first": 134,
+          "last": 147
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 148,
+          "last": 148
+        },
+        {
+          "chunk": "flow: a_chunk_written_indented_in_the_document_is_still_dedented",
+          "first": 149,
+          "last": 159
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 160,
+          "last": 160
+        },
+        {
+          "chunk": "flow: a_chapter_can_hold_the_fragment_another_file_references",
+          "first": 161,
+          "last": 212
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 213,
+          "last": 213
+        },
+        {
+          "chunk": "flow: maps_live_next_to_the_files_they_explain",
+          "first": 214,
+          "last": 252
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 253,
+          "last": 253
+        },
+        {
+          "chunk": "flow: an_ambiguous_file_name_is_an_error_not_a_guess",
+          "first": 254,
+          "last": 280
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 281,
+          "last": 281
+        },
+        {
+          "chunk": "flow: check_names_the_chunk_of_the_first_difference",
+          "first": 282,
+          "last": 315
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 316,
+          "last": 316
+        },
+        {
+          "chunk": "flow: the_map_follows_the_document_even_when_no_output_byte_changes",
+          "first": 317,
+          "last": 351
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 352,
+          "last": 352
+        },
+        {
+          "chunk": "flow: dangling_reference_quotes_the_line",
+          "first": 353,
+          "last": 372
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 373,
+          "last": 373
+        },
+        {
+          "chunk": "flow: cycle_is_reported",
+          "first": 374,
+          "last": 385
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 386,
+          "last": 386
+        },
+        {
+          "chunk": "flow: an_empty_chunk_is_an_error",
+          "first": 387,
+          "last": 394
+        },
+        {
+          "chunk": "flow: a_declaration_without_a_language_warns",
+          "first": 395,
+          "last": 406
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 407,
+          "last": 407
+        },
+        {
+          "chunk": "flow: a_file_declaration_can_name_a_nested_path",
+          "first": 408,
+          "last": 418
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 419,
+          "last": 419
+        },
+        {
+          "chunk": "flow: unsafe_paths_are_rejected",
+          "first": 420,
+          "last": 431
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 432,
+          "last": 432
+        },
+        {
+          "chunk": "flow: weave_renders_a_document_that_imports_the_package",
+          "first": 433,
+          "last": 449
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 450,
+          "last": 450
+        },
+        {
+          "chunk": "flow: a_blank_line_in_an_indented_fragment_stays_blank",
+          "first": 451,
+          "last": 475
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 476,
+          "last": 476
+        },
+        {
+          "chunk": "flow: tangling_leaves_only_dot_etch_beside_the_document",
+          "first": 477,
+          "last": 498
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 499,
+          "last": 499
+        },
+        {
+          "chunk": "flow: a_pdf_gives_the_book_back",
+          "first": 500,
+          "last": 522
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 523,
+          "last": 523
+        },
+        {
+          "chunk": "flow: weaving_a_document_with_no_book_carries_none",
+          "first": 524,
+          "last": 539
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 540,
+          "last": 540
+        },
+        {
+          "chunk": "flow: a_page_gives_the_book_back",
+          "first": 541,
+          "last": 569
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 570,
+          "last": 570
+        },
+        {
+          "chunk": "flow: reading_weaves_what_the_binary_carries",
+          "first": 571,
+          "last": 586
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 587,
+          "last": 587
+        },
+        {
+          "chunk": "flow: the_book_comes_back_out_whole",
+          "first": 588,
+          "last": 614
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 615,
+          "last": 615
+        },
+        {
+          "chunk": "flow: the_book_is_carried_into_the_tree",
+          "first": 616,
+          "last": 661
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 662,
+          "last": 662
+        },
+        {
+          "chunk": "flow: a_chapter_a_document_includes_travels_with_it",
+          "first": 663,
+          "last": 690
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 691,
+          "last": 691
+        },
+        {
+          "chunk": "flow: a_document_that_reads_outside_itself_cannot_be_carried",
+          "first": 692,
+          "last": 713
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 714,
+          "last": 714
+        },
+        {
+          "chunk": "flow: an_unknown_tangle_option_is_refused",
+          "first": 715,
+          "last": 734
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 735,
+          "last": 735
+        },
+        {
+          "chunk": "flow: a_moved_book_copy_leaves_no_empty_directory",
+          "first": 736,
+          "last": 763
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 764,
+          "last": 764
+        },
+        {
+          "chunk": "flow: a_stale_book_copy_is_removed_and_check_refuses_it",
+          "first": 765,
+          "last": 799
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 800,
+          "last": 800
+        },
+        {
+          "chunk": "flow: a_book_name_may_not_leave_the_tree",
+          "first": 801,
+          "last": 823
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 824,
+          "last": 824
+        },
+        {
+          "chunk": "flow: a_book_without_a_directory_is_an_error",
+          "first": 825,
+          "last": 844
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 845,
+          "last": 845
+        },
+        {
+          "chunk": "flow: a_book_may_not_overwrite_an_output",
+          "first": 846,
+          "last": 873
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 874,
+          "last": 874
+        },
+        {
+          "chunk": "flow: map_names_the_chunk_a_generated_line_came_from",
+          "first": 875,
+          "last": 907
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 908,
+          "last": 908
+        },
+        {
+          "chunk": "flow: the_demo_tangles_and_runs",
+          "first": 909,
+          "last": 954
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 955,
+          "last": 955
+        },
+        {
+          "chunk": "flow: tangle_speaks_json_about_what_it_wrote",
+          "first": 956,
+          "last": 989
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 990,
+          "last": 990
+        },
+        {
+          "chunk": "flow: plan_says_what_a_pass_would_do",
+          "first": 991,
+          "last": 1044
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 1045,
+          "last": 1045
+        },
+        {
+          "chunk": "flow: map_takes_one_direction",
+          "first": 1046,
+          "last": 1075
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 1076,
+          "last": 1076
+        },
+        {
+          "chunk": "flow: explain_rewrites_diagnostics_to_the_chunk",
+          "first": 1077,
+          "last": 1107
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 1108,
+          "last": 1108
+        },
+        {
+          "chunk": "flow: list_reports_declarations",
+          "first": 1109,
+          "last": 1122
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 1123,
+          "last": 1123
+        },
+        {
+          "chunk": "flow: the_reading_commands_speak_json",
+          "first": 1124,
+          "last": 1194
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 1195,
+          "last": 1195
+        },
+        {
+          "chunk": "flow: a_closed_pipe_is_not_a_panic",
+          "first": 1196,
+          "last": 1223
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 1224,
+          "last": 1224
+        },
+        {
+          "chunk": "flow: a_chunk_built_by_code_is_attributed_to_itself",
+          "first": 1225,
+          "last": 1243
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 1244,
+          "last": 1244
+        },
+        {
+          "chunk": "flow: the_declaration_is_where_the_line_lives",
+          "first": 1245,
+          "last": 1250
+        }
+      ]
+    },
+    "lazy.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "lazy: the fixtures and helpers",
+          "first": 1,
+          "last": 75
+        },
+        {
+          "chunk": "tests/lazy.rs",
+          "first": 76,
+          "last": 76
+        },
+        {
+          "chunk": "lazy: a_pass_does_not_touch_files_that_did_not_change",
+          "first": 77,
+          "last": 108
+        },
+        {
+          "chunk": "tests/lazy.rs",
+          "first": 109,
+          "last": 109
+        },
+        {
+          "chunk": "lazy: only_the_affected_output_is_rewritten",
+          "first": 110,
+          "last": 138
+        },
+        {
+          "chunk": "tests/lazy.rs",
+          "first": 139,
+          "last": 139
+        },
+        {
+          "chunk": "lazy: a_half_written_document_is_not_tangled",
+          "first": 140,
+          "last": 167
+        },
+        {
+          "chunk": "tests/lazy.rs",
+          "first": 168,
+          "last": 168
+        },
+        {
+          "chunk": "lazy: map_works_in_both_directions",
+          "first": 169,
+          "last": 196
+        },
+        {
+          "chunk": "tests/lazy.rs",
+          "first": 197,
+          "last": 197
+        },
+        {
+          "chunk": "lazy: unused_fragment_warns_without_failing",
+          "first": 198,
+          "last": 214
+        }
+      ]
+    },
+    "metadata.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "metadata: the fixtures and helpers",
+          "first": 1,
+          "last": 41
+        },
+        {
+          "chunk": "tests/metadata.rs",
+          "first": 42,
+          "last": 42
+        },
+        {
+          "chunk": "metadata: a_styling_show_rule_does_not_hide_a_chunk",
+          "first": 43,
+          "last": 63
+        },
+        {
+          "chunk": "tests/metadata.rs",
+          "first": 64,
+          "last": 64
+        },
+        {
+          "chunk": "metadata: a_chapter_is_tangled_without_being_listed",
+          "first": 65,
+          "last": 106
+        },
+        {
+          "chunk": "tests/metadata.rs",
+          "first": 107,
+          "last": 107
+        },
+        {
+          "chunk": "metadata: the_document_reports_chunks_no_parser_could_find",
+          "first": 108,
+          "last": 138
+        },
+        {
+          "chunk": "tests/metadata.rs",
+          "first": 139,
+          "last": 139
+        },
+        {
+          "chunk": "metadata: a_document_that_does_not_evaluate_says_so",
+          "first": 140,
+          "last": 163
+        },
+        {
+          "chunk": "tests/metadata.rs",
+          "first": 164,
+          "last": 164
+        },
+        {
+          "chunk": "metadata: a_document_outside_the_working_directory_can_be_tangled",
+          "first": 165,
+          "last": 209
+        },
+        {
+          "chunk": "tests/metadata.rs",
+          "first": 210,
+          "last": 210
+        },
+        {
+          "chunk": "metadata: a_declaration_of_an_unknown_kind_is_an_error",
+          "first": 211,
+          "last": 233
+        },
+        {
+          "chunk": "tests/metadata.rs",
+          "first": 234,
+          "last": 234
+        },
+        {
+          "chunk": "metadata: a_document_without_declarations_says_what_to_do",
+          "first": 235,
+          "last": 259
+        },
+        {
+          "chunk": "metadata: a_document_needs_nothing_but_itself",
+          "first": 260,
+          "last": 282
+        }
+      ]
+    },
+    "owned.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "owned: the fixtures and helpers",
+          "first": 1,
+          "last": 78
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 79,
+          "last": 79
+        },
+        {
+          "chunk": "owned: a_dropped_declaration_is_an_error_until_it_is_resolved",
+          "first": 80,
+          "last": 139
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 140,
+          "last": 140
+        },
+        {
+          "chunk": "owned: a_refused_pass_writes_nothing",
+          "first": 141,
+          "last": 154
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 155,
+          "last": 155
+        },
+        {
+          "chunk": "owned: declared_files_are_accounted_for",
+          "first": 156,
+          "last": 181
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 182,
+          "last": 182
+        },
+        {
+          "chunk": "owned: the_pattern_language_is_gitignores",
+          "first": 183,
+          "last": 196
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 197,
+          "last": 197
+        },
+        {
+          "chunk": "owned: a_deeper_ignore_file_can_take_a_file_back",
+          "first": 198,
+          "last": 217
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 218,
+          "last": 218
+        },
+        {
+          "chunk": "owned: the_pass_keeps_its_own_output_and_any_other_dotfile_is_a_stray",
+          "first": 219,
+          "last": 243
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 244,
+          "last": 244
+        },
+        {
+          "chunk": "owned: a_git_directory_is_ordinary_content",
+          "first": 245,
+          "last": 264
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 265,
+          "last": 265
+        },
+        {
+          "chunk": "owned: check_reports_a_stray_without_removing_it",
+          "first": 266,
+          "last": 282
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 283,
+          "last": 283
+        },
+        {
+          "chunk": "owned: the_stray_report_speaks_json",
+          "first": 284,
+          "last": 310
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 311,
+          "last": 311
+        },
+        {
+          "chunk": "owned: deleting_a_foreign_subtree_takes_one_line_and_one_command",
+          "first": 312,
+          "last": 334
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 335,
+          "last": 335
+        },
+        {
+          "chunk": "owned: without_a_declaration_a_stray_is_still_an_error",
+          "first": 336,
+          "last": 345
+        },
+        {
+          "chunk": "tests/owned.rs",
+          "first": 346,
+          "last": 346
+        },
+        {
+          "chunk": "owned: a_missing_output_directory_is_not_an_io_error",
+          "first": 347,
+          "last": 361
+        },
+        {
+          "chunk": "owned: the_tools_own_scratch_is_not_content",
+          "first": 362,
+          "last": 366
+        }
+      ]
+    },
+    "self.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "self: the fixtures and helpers",
+          "first": 1,
+          "last": 20
+        },
+        {
+          "chunk": "tests/self.rs",
+          "first": 21,
+          "last": 21
+        },
+        {
+          "chunk": "self: the_document_regenerates_the_sources_we_are_running",
+          "first": 22,
+          "last": 40
+        },
+        {
+          "chunk": "tests/self.rs",
+          "first": 41,
+          "last": 41
+        },
+        {
+          "chunk": "self: the_package_the_book_carries_is_the_one_the_tree_uses",
+          "first": 42,
+          "last": 55
+        }
+      ]
+    }
+  }
+}

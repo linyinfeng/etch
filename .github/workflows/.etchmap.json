@@ -1,0 +1,15 @@
+{
+  "version": 6,
+  "files": {
+    "check.yml": {
+      "lang": "yaml",
+      "runs": [
+        {
+          "chunk": "nix: the workflow",
+          "first": 1,
+          "last": 52
+        }
+      ]
+    }
+  }
+}

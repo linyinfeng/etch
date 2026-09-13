@@ -1,0 +1,10 @@
+*
+!/.gitignore
+!/.github/
+!/.github/**
+!/README.md
+!/etch.typ
+!/parts/
+!/parts/**
+!/package/
+!/package/**

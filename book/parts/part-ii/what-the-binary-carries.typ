@@ -1,0 +1,156 @@
+#import "../../package/lib.typ": chunk, file
+
+= What the binary carries
+
+A tool that can only work inside its own repository is not finished. This one carries two things: the
+program (it is the program), and — through the settings the document carries — the book that produced the
+tree it was built from. The package the document is written with is part of that book, as one of the files
+the document declares. `include_dir!` puts the book in the binary at compile time, so `etch self` needs
+nothing beside it.
+
+#file("src/embedded.rs", ````rust
+<<self: the imports>>
+
+<<self: the book, carried>>
+
+<<self: reading it>>
+
+<<self: proving it>>
+````)
+
+*Three subcommands, three things it can do with what it carries:*
+
+- `etch self book --out <dir>` writes the book out, entire: the document and its chapters, the package they
+  import, the pointer, and the ignore rules.
+- `etch self read --format (pdf|html)` weaves the document *it carries* into a temporary directory and hands
+  the result to the desktop. Weaving reuses `etch weave`, because there is one way to render a document and
+  it should not be written twice; opening is best effort — a machine with no desktop still gets the file
+  and its path. Either rendering carries the book with it — the block in a page, the attached files in a
+  PDF — so what opens is something that can give its own source back.
+- `etch self prove <dir>` unpacks that book into `<dir>`, tangles it with *this* binary, and runs the
+  tree's own checks in it: the whole bootstrap in one command, with nothing outside the binary but the
+  toolchain it borrows. The lock file is part of the book, so nix is asked not to resolve one — writing
+  one there would be drift.
+
+*And what it still needs, which is the other half of the same sentence:*
+
+- `etch self book` needs nothing. The book is bytes in the binary.
+- `etch self read` needs Typst: rendering is not this tool's work, so it borrows the compiler.
+- `etch self prove` needs Typst and nix, and the second one is the point rather than an accident. The tree
+  checks *itself* — `nix flake check` is the tree's own decision about itself, and it now renders this
+  document and reads the book back out of both carriers, so the round trip is a condition of the package
+  existing at all. A tool that ran those checks by hand would be claiming a guarantee it did not have.
+
+`include_dir` is the one dependency this adds, and the line D7 asks for: embedding a directory tree is
+`include_bytes!` at scale — one macro, no runtime dependency, and `Dir::extract` writes the tree back out
+in a single call. It also embeds in *every* profile, which matters more than it sounds: a crate that reads
+from the file system in debug builds would make the test below pass without embedding anything.
+
+Four fragments follow: the imports, the embedded directory itself, and one function per subcommand — proving
+last, because it is the one that uses the other two.
+
+#chunk("self: the imports", ````rust
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use include_dir::{Dir, include_dir};
+use tracing::debug;
+
+use crate::diag::EtchError;
+use crate::disk;
+
+static BOOK: Dir = include_dir!("$CARGO_MANIFEST_DIR/book");
+````)
+
+#chunk("self: the book, carried", ````rust
+pub fn book(out: &Path) -> Result<usize, EtchError> {
+    write(&BOOK, out)
+}
+
+fn write(dir: &Dir, out: &Path) -> Result<usize, EtchError> {
+    let mut written = 0;
+    for file in dir.files() {
+        let path = out.join(file.path());
+        disk::write(&path, file.contents())?;
+        written += 1;
+    }
+    for sub in dir.dirs().filter(|sub| !scratch(sub)) {
+        written += write(sub, out)?;
+    }
+    Ok(written)
+}
+
+fn scratch(dir: &Dir) -> bool {
+    dir.path()
+        .file_name()
+        .is_some_and(|name| name == crate::metadata::PACKAGE_ROOT)
+}
+````)
+
+The book is one walk. Every path it writes is the one the listing already carries — relative to the book — so a
+directory of chapters is nothing special, and the count is taken in the same walk and in the same place the
+writing happens: the number the message prints is the number of files that were written. The tool's own scratch
+is skipped: a package unpacked beside the book on some earlier day is not part of what this binary carries.
+
+#chunk("self: proving it", ````rust
+pub fn prove(dir: &Path) -> Result<i32, EtchError> {
+    let files = book(dir)?;
+
+    let mut documents: Vec<PathBuf> = Vec::new();
+    let entries = disk::entries(dir)?;
+    for entry in entries {
+        let path = entry.path();
+        if path.extension().is_some_and(|kind| kind == "typ") {
+            documents.push(path);
+        }
+    }
+    if documents.len() != 1 {
+        return Err(EtchError::plain(format!(
+            "the book carries {} .typ documents, not one",
+            documents.len()
+        ))
+        .with_help("`etch self prove` expects the book to be a single document"));
+    }
+
+    let tree = dir.join("tangled");
+    debug!("wrote {files} files of the book to {}", dir.display());
+    crate::tangle::run(&documents, &tree, false)?;
+
+    let status = Command::new("nix")
+        .args(["flake", "check", "--no-update-lock-file"])
+        .current_dir(&tree)
+        .status()
+        .map_err(|err| EtchError::plain(format!("cannot run nix: {err}")))?;
+    Ok(status.code().unwrap_or(1))
+}
+````)
+
+#chunk("self: reading it", ````rust
+pub fn read(format: &str) -> Result<PathBuf, EtchError> {
+    let (name, flags): (&str, &[&str]) = match format {
+        "pdf" => ("etch.pdf", &[]),
+        "html" => ("etch.html", &["--features", "html"]),
+        other => {
+            return Err(EtchError::plain(format!("unknown format {other:?}"))
+                .with_help("`etch self read --format pdf`, or `--format html`"));
+        }
+    };
+
+    let dir = std::env::temp_dir().join(format!("etch-self-{}", std::process::id()));
+    book(&dir)?;
+
+    let document = dir.join("etch.typ");
+    let output = dir.join(name);
+    let flags: Vec<String> = flags.iter().map(|flag| flag.to_string()).collect();
+    let status = crate::weave::run(&document, Some(&output), &flags)?;
+    if status != 0 {
+        return Err(EtchError::plain(format!(
+            "weaving {} failed with status {status}",
+            document.display()
+        )));
+    }
+
+    let _ = Command::new("xdg-open").arg(&output).spawn();
+    Ok(output)
+}
+````)

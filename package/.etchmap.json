@@ -1,0 +1,95 @@
+{
+  "version": 6,
+  "files": {
+    "lib.typ": {
+      "lang": "typst",
+      "runs": [
+        {
+          "chunk": "package: what a reference looks like",
+          "first": 1,
+          "last": 1
+        },
+        {
+          "chunk": "package/lib.typ",
+          "first": 2,
+          "last": 2
+        },
+        {
+          "chunk": "package: the escape",
+          "first": 3,
+          "last": 3
+        },
+        {
+          "chunk": "package/lib.typ",
+          "first": 4,
+          "last": 4
+        },
+        {
+          "chunk": "package: the indentation a reference contributes",
+          "first": 5,
+          "last": 8
+        },
+        {
+          "chunk": "package/lib.typ",
+          "first": 9,
+          "last": 9
+        },
+        {
+          "chunk": "package: the show rule",
+          "first": 10,
+          "last": 33
+        },
+        {
+          "chunk": "package/lib.typ",
+          "first": 34,
+          "last": 34
+        },
+        {
+          "chunk": "package: how a chunk is rendered",
+          "first": 35,
+          "last": 47
+        },
+        {
+          "chunk": "package/lib.typ",
+          "first": 48,
+          "last": 48
+        },
+        {
+          "chunk": "package: a fence without a language",
+          "first": 49,
+          "last": 49
+        },
+        {
+          "chunk": "package/lib.typ",
+          "first": 50,
+          "last": 50
+        },
+        {
+          "chunk": "package: a fragment",
+          "first": 51,
+          "last": 59
+        },
+        {
+          "chunk": "package/lib.typ",
+          "first": 60,
+          "last": 60
+        },
+        {
+          "chunk": "package: a root",
+          "first": 61,
+          "last": 69
+        },
+        {
+          "chunk": "package/lib.typ",
+          "first": 70,
+          "last": 70
+        },
+        {
+          "chunk": "package: options",
+          "first": 71,
+          "last": 81
+        }
+      ]
+    }
+  }
+}

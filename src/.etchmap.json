@@ -1,0 +1,1405 @@
+{
+  "version": 6,
+  "files": {
+    "book.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "book: the imports",
+          "first": 1,
+          "last": 7
+        },
+        {
+          "chunk": "src/book.rs",
+          "first": 8,
+          "last": 8
+        },
+        {
+          "chunk": "book: what the settings ask for",
+          "first": 9,
+          "last": 76
+        },
+        {
+          "chunk": "src/book.rs",
+          "first": 77,
+          "last": 77
+        },
+        {
+          "chunk": "book: carrying it over",
+          "first": 78,
+          "last": 398
+        }
+      ]
+    },
+    "diag.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "diag: the imports",
+          "first": 1,
+          "last": 1
+        },
+        {
+          "chunk": "src/diag.rs",
+          "first": 2,
+          "last": 2
+        },
+        {
+          "chunk": "diag: what an error carries",
+          "first": 3,
+          "last": 7
+        },
+        {
+          "chunk": "src/diag.rs",
+          "first": 8,
+          "last": 9
+        },
+        {
+          "chunk": "diag: a plain error",
+          "first": 10,
+          "last": 15
+        },
+        {
+          "chunk": "src/diag.rs",
+          "first": 16,
+          "last": 16
+        },
+        {
+          "chunk": "diag: adding advice",
+          "first": 17,
+          "last": 24
+        },
+        {
+          "chunk": "src/diag.rs",
+          "first": 25,
+          "last": 25
+        },
+        {
+          "chunk": "diag: the io case",
+          "first": 26,
+          "last": 28
+        },
+        {
+          "chunk": "src/diag.rs",
+          "first": 29,
+          "last": 30
+        },
+        {
+          "chunk": "diag: what a terminal needs",
+          "first": 31,
+          "last": 35
+        },
+        {
+          "chunk": "src/diag.rs",
+          "first": 36,
+          "last": 36
+        },
+        {
+          "chunk": "diag: the standard error trait",
+          "first": 37,
+          "last": 37
+        },
+        {
+          "chunk": "src/diag.rs",
+          "first": 38,
+          "last": 38
+        },
+        {
+          "chunk": "diag: what miette needs",
+          "first": 39,
+          "last": 45
+        }
+      ]
+    },
+    "disk.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "disk: the imports",
+          "first": 1,
+          "last": 5
+        },
+        {
+          "chunk": "src/disk.rs",
+          "first": 6,
+          "last": 6
+        },
+        {
+          "chunk": "disk: writing a file",
+          "first": 7,
+          "last": 15
+        },
+        {
+          "chunk": "src/disk.rs",
+          "first": 16,
+          "last": 16
+        },
+        {
+          "chunk": "disk: removing",
+          "first": 17,
+          "last": 33
+        },
+        {
+          "chunk": "src/disk.rs",
+          "first": 34,
+          "last": 34
+        },
+        {
+          "chunk": "disk: a directory",
+          "first": 35,
+          "last": 42
+        },
+        {
+          "chunk": "src/disk.rs",
+          "first": 43,
+          "last": 43
+        },
+        {
+          "chunk": "disk: reading",
+          "first": 44,
+          "last": 70
+        }
+      ]
+    },
+    "embedded.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "self: the imports",
+          "first": 1,
+          "last": 10
+        },
+        {
+          "chunk": "src/embedded.rs",
+          "first": 11,
+          "last": 11
+        },
+        {
+          "chunk": "self: the book, carried",
+          "first": 12,
+          "last": 33
+        },
+        {
+          "chunk": "src/embedded.rs",
+          "first": 34,
+          "last": 34
+        },
+        {
+          "chunk": "self: reading it",
+          "first": 35,
+          "last": 61
+        },
+        {
+          "chunk": "src/embedded.rs",
+          "first": 62,
+          "last": 62
+        },
+        {
+          "chunk": "self: proving it",
+          "first": 63,
+          "last": 92
+        }
+      ]
+    },
+    "explain.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "explain: the imports",
+          "first": 1,
+          "last": 6
+        },
+        {
+          "chunk": "src/explain.rs",
+          "first": 7,
+          "last": 8
+        },
+        {
+          "chunk": "the diagnostic pattern",
+          "first": 9,
+          "last": 10
+        },
+        {
+          "chunk": "src/explain.rs",
+          "first": 11,
+          "last": 17
+        },
+        {
+          "chunk": "one line, annotated",
+          "first": 18,
+          "last": 33
+        },
+        {
+          "chunk": "src/explain.rs",
+          "first": 34,
+          "last": 37
+        }
+      ]
+    },
+    "main.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "main: self, what it can do",
+          "first": 1,
+          "last": 20
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 21,
+          "last": 21
+        },
+        {
+          "chunk": "main: the modules, and what they are called",
+          "first": 22,
+          "last": 40
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 41,
+          "last": 41
+        },
+        {
+          "chunk": "main: the surface, as clap sees it",
+          "first": 42,
+          "last": 47
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 48,
+          "last": 50
+        },
+        {
+          "chunk": "main: weave",
+          "first": 51,
+          "last": 57
+        },
+        {
+          "chunk": "main: extract",
+          "first": 58,
+          "last": 68
+        },
+        {
+          "chunk": "main: self",
+          "first": 69,
+          "last": 73
+        },
+        {
+          "chunk": "main: tangle",
+          "first": 74,
+          "last": 87
+        },
+        {
+          "chunk": "main: plan",
+          "first": 88,
+          "last": 98
+        },
+        {
+          "chunk": "main: map",
+          "first": 99,
+          "last": 116
+        },
+        {
+          "chunk": "main: explain",
+          "first": 117,
+          "last": 121
+        },
+        {
+          "chunk": "main: list",
+          "first": 122,
+          "last": 123
+        },
+        {
+          "chunk": "main: metadata",
+          "first": 124,
+          "last": 128
+        },
+        {
+          "chunk": "main: unaccounted",
+          "first": 129,
+          "last": 141
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 142,
+          "last": 144
+        },
+        {
+          "chunk": "main: the log",
+          "first": 145,
+          "last": 159
+        },
+        {
+          "chunk": "main: a closed pipe is not a panic",
+          "first": 160,
+          "last": 163
+        },
+        {
+          "chunk": "main: how an error is printed",
+          "first": 164,
+          "last": 168
+        },
+        {
+          "chunk": "main: the exit status",
+          "first": 169,
+          "last": 175
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 176,
+          "last": 189
+        },
+        {
+          "chunk": "main: tangle, and what it reports",
+          "first": 190,
+          "last": 270
+        },
+        {
+          "chunk": "main: plan, which decides nothing",
+          "first": 271,
+          "last": 310
+        },
+        {
+          "chunk": "main: the map arm",
+          "first": 311,
+          "last": 318
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 319,
+          "last": 319
+        },
+        {
+          "chunk": "main: map, in reverse",
+          "first": 320,
+          "last": 345
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 346,
+          "last": 346
+        },
+        {
+          "chunk": "main: map, forward",
+          "first": 347,
+          "last": 361
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 362,
+          "last": 362
+        },
+        {
+          "chunk": "main: map, the answer",
+          "first": 363,
+          "last": 375
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 376,
+          "last": 376
+        },
+        {
+          "chunk": "main: explain, a filter on stdin",
+          "first": 377,
+          "last": 388
+        },
+        {
+          "chunk": "main: list, one document",
+          "first": 389,
+          "last": 392
+        },
+        {
+          "chunk": "main: metadata, the stream itself",
+          "first": 393,
+          "last": 409
+        },
+        {
+          "chunk": "main: unaccounted, which needs a plan",
+          "first": 410,
+          "last": 449
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 450,
+          "last": 453
+        },
+        {
+          "chunk": "main: plan, and who is referenced",
+          "first": 454,
+          "last": 456
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 457,
+          "last": 457
+        },
+        {
+          "chunk": "main: the same list, for a program",
+          "first": 458,
+          "last": 477
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 478,
+          "last": 478
+        },
+        {
+          "chunk": "main: one row per declaration",
+          "first": 479,
+          "last": 495
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 496,
+          "last": 496
+        },
+        {
+          "chunk": "main: the outputs at the end",
+          "first": 497,
+          "last": 509
+        },
+        {
+          "chunk": "src/main.rs",
+          "first": 510,
+          "last": 512
+        },
+        {
+          "chunk": "main: one document, for a program",
+          "first": 513,
+          "last": 522
+        }
+      ]
+    },
+    "map.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "map: the imports",
+          "first": 1,
+          "last": 8
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 9,
+          "last": 9
+        },
+        {
+          "chunk": "map: the two constants",
+          "first": 10,
+          "last": 11
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 12,
+          "last": 12
+        },
+        {
+          "chunk": "map: what a map holds",
+          "first": 13,
+          "last": 42
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 43,
+          "last": 43
+        },
+        {
+          "chunk": "map: a fresh map",
+          "first": 44,
+          "last": 53
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 54,
+          "last": 55
+        },
+        {
+          "chunk": "map: is it empty?",
+          "first": 56,
+          "last": 58
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 59,
+          "last": 59
+        },
+        {
+          "chunk": "map: who wrote these files",
+          "first": 60,
+          "last": 66
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 67,
+          "last": 67
+        },
+        {
+          "chunk": "map: write only what changed",
+          "first": 68,
+          "last": 75
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 76,
+          "last": 76
+        },
+        {
+          "chunk": "map: read one map",
+          "first": 77,
+          "last": 82
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 83,
+          "last": 83
+        },
+        {
+          "chunk": "map: when there is no output directory",
+          "first": 84,
+          "last": 87
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 88,
+          "last": 88
+        },
+        {
+          "chunk": "map: walk it",
+          "first": 89,
+          "last": 107
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 108,
+          "last": 108
+        },
+        {
+          "chunk": "map: the json, and where it goes",
+          "first": 109,
+          "last": 114
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 115,
+          "last": 117
+        },
+        {
+          "chunk": "map: which chunk produced a line",
+          "first": 118,
+          "last": 125
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 126,
+          "last": 127
+        },
+        {
+          "chunk": "map: paths, in one shape",
+          "first": 128,
+          "last": 148
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 149,
+          "last": 149
+        },
+        {
+          "chunk": "map: finding the map that knows a file",
+          "first": 150,
+          "last": 195
+        }
+      ]
+    },
+    "metadata.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "metadata: the imports",
+          "first": 1,
+          "last": 7
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 8,
+          "last": 8
+        },
+        {
+          "chunk": "metadata: the one query",
+          "first": 9,
+          "last": 9
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 10,
+          "last": 10
+        },
+        {
+          "chunk": "metadata: what a declaration says",
+          "first": 11,
+          "last": 22
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 23,
+          "last": 23
+        },
+        {
+          "chunk": "metadata: the two kinds",
+          "first": 24,
+          "last": 29
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 30,
+          "last": 31
+        },
+        {
+          "chunk": "metadata: a kind we do not know",
+          "first": 32,
+          "last": 45
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 46,
+          "last": 47
+        },
+        {
+          "chunk": "metadata: where the tool's own file goes",
+          "first": 48,
+          "last": 48
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 49,
+          "last": 49
+        },
+        {
+          "chunk": "metadata: finding typst",
+          "first": 50,
+          "last": 62
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 63,
+          "last": 64
+        },
+        {
+          "chunk": "metadata: absolute documents, and where we are",
+          "first": 65,
+          "last": 70
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 71,
+          "last": 71
+        },
+        {
+          "chunk": "metadata: where the wrapper goes",
+          "first": 72,
+          "last": 78
+        },
+        {
+          "chunk": "metadata: ask typst, and let the wrapper go",
+          "first": 79,
+          "last": 89
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 90,
+          "last": 90
+        },
+        {
+          "chunk": "metadata: when the document does not evaluate",
+          "first": 91,
+          "last": 99
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 100,
+          "last": 100
+        },
+        {
+          "chunk": "metadata: read the answer",
+          "first": 101,
+          "last": 104
+        },
+        {
+          "chunk": "metadata: every kind is checked here",
+          "first": 105,
+          "last": 107
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 108,
+          "last": 111
+        },
+        {
+          "chunk": "metadata: absolute documents, and where we are",
+          "first": 112,
+          "last": 117
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 118,
+          "last": 118
+        },
+        {
+          "chunk": "metadata: where the wrapper goes",
+          "first": 119,
+          "last": 125
+        },
+        {
+          "chunk": "metadata: the wrapper that lays out nothing",
+          "first": 126,
+          "last": 132
+        },
+        {
+          "chunk": "metadata: ask typst what it read",
+          "first": 133,
+          "last": 144
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 145,
+          "last": 145
+        },
+        {
+          "chunk": "metadata: when the document does not evaluate, either",
+          "first": 146,
+          "last": 155
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 156,
+          "last": 156
+        },
+        {
+          "chunk": "metadata: the list Typst writes",
+          "first": 157,
+          "last": 179
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 180,
+          "last": 181
+        },
+        {
+          "chunk": "metadata: what the list looks like",
+          "first": 182,
+          "last": 185
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 186,
+          "last": 186
+        },
+        {
+          "chunk": "metadata: the wrapper document",
+          "first": 187,
+          "last": 189
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 190,
+          "last": 191
+        },
+        {
+          "chunk": "metadata: writing the wrapper",
+          "first": 192,
+          "last": 210
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 211,
+          "last": 212
+        },
+        {
+          "chunk": "metadata: removing it, whatever happens",
+          "first": 213,
+          "last": 217
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 218,
+          "last": 218
+        },
+        {
+          "chunk": "metadata: the deepest directory that contains every document",
+          "first": 219,
+          "last": 235
+        },
+        {
+          "chunk": "src/metadata.rs",
+          "first": 236,
+          "last": 236
+        },
+        {
+          "chunk": "metadata: the wrapper's directory, pinned",
+          "first": 237,
+          "last": 263
+        }
+      ]
+    },
+    "status.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "status: the imports",
+          "first": 1,
+          "last": 9
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 10,
+          "last": 10
+        },
+        {
+          "chunk": "status: the file that says what etch does not manage",
+          "first": 11,
+          "last": 11
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 12,
+          "last": 12
+        },
+        {
+          "chunk": "status: what a directory of strays looks like",
+          "first": 13,
+          "last": 17
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 18,
+          "last": 22
+        },
+        {
+          "chunk": "status: nothing to report",
+          "first": 23,
+          "last": 25
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 26,
+          "last": 26
+        },
+        {
+          "chunk": "status: ask the walker",
+          "first": 27,
+          "last": 32
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 33,
+          "last": 33
+        },
+        {
+          "chunk": "status: what survives the walk",
+          "first": 34,
+          "last": 57
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 58,
+          "last": 58
+        },
+        {
+          "chunk": "status: group them by directory",
+          "first": 59,
+          "last": 72
+        },
+        {
+          "chunk": "status: sorted, and stable",
+          "first": 73,
+          "last": 79
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 80,
+          "last": 81
+        },
+        {
+          "chunk": "status: what the tool writes is not content",
+          "first": 82,
+          "last": 84
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 85,
+          "last": 85
+        },
+        {
+          "chunk": "status: when a subtree is too big to list",
+          "first": 86,
+          "last": 86
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 87,
+          "last": 87
+        },
+        {
+          "chunk": "status: compressing a subtree",
+          "first": 88,
+          "last": 108
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 109,
+          "last": 109
+        },
+        {
+          "chunk": "status: finding the subdirectories",
+          "first": 110,
+          "last": 124
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 125,
+          "last": 125
+        },
+        {
+          "chunk": "status: delete, on request",
+          "first": 126,
+          "last": 147
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 148,
+          "last": 148
+        },
+        {
+          "chunk": "status: cleaning up directories that emptied",
+          "first": 149,
+          "last": 161
+        },
+        {
+          "chunk": "src/status.rs",
+          "first": 162,
+          "last": 162
+        },
+        {
+          "chunk": "status: the rules, pinned by five cases",
+          "first": 163,
+          "last": 313
+        }
+      ]
+    },
+    "tangle.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "tangle: the imports",
+          "first": 1,
+          "last": 9
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 10,
+          "last": 10
+        },
+        {
+          "chunk": "tangle: a chunk as declared",
+          "first": 11,
+          "last": 16
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 17,
+          "last": 17
+        },
+        {
+          "chunk": "tangle: an error quotes the line",
+          "first": 18,
+          "last": 27
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 28,
+          "last": 28
+        },
+        {
+          "chunk": "tangle: the set of chunks",
+          "first": 29,
+          "last": 31
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 32,
+          "last": 33
+        },
+        {
+          "chunk": "tangle: one set, in document order",
+          "first": 34,
+          "last": 40
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 41,
+          "last": 41
+        },
+        {
+          "chunk": "tangle: the declared files",
+          "first": 42,
+          "last": 53
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 54,
+          "last": 54
+        },
+        {
+          "chunk": "tangle: every name",
+          "first": 55,
+          "last": 57
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 58,
+          "last": 58
+        },
+        {
+          "chunk": "tangle: the blocks behind a name",
+          "first": 59,
+          "last": 61
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 62,
+          "last": 63
+        },
+        {
+          "chunk": "tangle: names that stay inside the output directory",
+          "first": 64,
+          "last": 82
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 83,
+          "last": 83
+        },
+        {
+          "chunk": "tangle: what counts as a reference",
+          "first": 84,
+          "last": 91
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 92,
+          "last": 92
+        },
+        {
+          "chunk": "tangle: how to write one without it being one",
+          "first": 93,
+          "last": 101
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 102,
+          "last": 102
+        },
+        {
+          "chunk": "tangle: what comes out of an expansion",
+          "first": 103,
+          "last": 107
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 108,
+          "last": 109
+        },
+        {
+          "chunk": "tangle: one line, with its indentation",
+          "first": 110,
+          "last": 125
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 126,
+          "last": 127
+        },
+        {
+          "chunk": "tangle: expanding a root",
+          "first": 128,
+          "last": 137
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 138,
+          "last": 145
+        },
+        {
+          "chunk": "tangle: a cycle, named",
+          "first": 146,
+          "last": 155
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 156,
+          "last": 158
+        },
+        {
+          "chunk": "tangle: an empty chunk",
+          "first": 159,
+          "last": 163
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 164,
+          "last": 164
+        },
+        {
+          "chunk": "tangle: one line at a time",
+          "first": 165,
+          "last": 185
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 186,
+          "last": 191
+        },
+        {
+          "chunk": "tangle: what a pass reports",
+          "first": 192,
+          "last": 197
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 198,
+          "last": 198
+        },
+        {
+          "chunk": "tangle: what a pass is",
+          "first": 199,
+          "last": 217
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 218,
+          "last": 218
+        },
+        {
+          "chunk": "tangle: the plan",
+          "first": 219,
+          "last": 292
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 293,
+          "last": 311
+        },
+        {
+          "chunk": "tangle: ask typst what the document declares",
+          "first": 312,
+          "last": 339
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 340,
+          "last": 340
+        },
+        {
+          "chunk": "tangle: a document with no files",
+          "first": 341,
+          "last": 352
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 353,
+          "last": 353
+        },
+        {
+          "chunk": "tangle: fragments nobody uses",
+          "first": 354,
+          "last": 365
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 366,
+          "last": 366
+        },
+        {
+          "chunk": "tangle: declarations with no language",
+          "first": 367,
+          "last": 375
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 376,
+          "last": 380
+        },
+        {
+          "chunk": "tangle: check it, and expand it",
+          "first": 381,
+          "last": 386
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 387,
+          "last": 387
+        },
+        {
+          "chunk": "tangle: the same path twice",
+          "first": 388,
+          "last": 390
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 391,
+          "last": 391
+        },
+        {
+          "chunk": "tangle: record where each line came from",
+          "first": 392,
+          "last": 401
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 402,
+          "last": 441
+        },
+        {
+          "chunk": "tangle: what the documents produce, per directory",
+          "first": 442,
+          "last": 461
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 462,
+          "last": 483
+        },
+        {
+          "chunk": "tangle: plan, then an empty outcome",
+          "first": 484,
+          "last": 491
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 492,
+          "last": 492
+        },
+        {
+          "chunk": "tangle: the control files a check has to see",
+          "first": 493,
+          "last": 503
+        },
+        {
+          "chunk": "tangle: everything must be accounted for",
+          "first": 504,
+          "last": 531
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 532,
+          "last": 533
+        },
+        {
+          "chunk": "tangle: write what changed",
+          "first": 534,
+          "last": 535
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 536,
+          "last": 536
+        },
+        {
+          "chunk": "tangle: or say what drifted",
+          "first": 537,
+          "last": 549
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 550,
+          "last": 551
+        },
+        {
+          "chunk": "tangle: carrying the book, once nothing is unaccounted for",
+          "first": 552,
+          "last": 555
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 556,
+          "last": 557
+        },
+        {
+          "chunk": "tangle: the maps, and the ones that stopped applying",
+          "first": 558,
+          "last": 579
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 580,
+          "last": 583
+        },
+        {
+          "chunk": "tangle: every name a block references",
+          "first": 584,
+          "last": 592
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 593,
+          "last": 593
+        },
+        {
+          "chunk": "tangle: where two texts first differ",
+          "first": 594,
+          "last": 600
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 601,
+          "last": 601
+        },
+        {
+          "chunk": "tangle: what the disk says",
+          "first": 602,
+          "last": 630
+        },
+        {
+          "chunk": "src/tangle.rs",
+          "first": 631,
+          "last": 631
+        },
+        {
+          "chunk": "tangle: the two shapes, pinned",
+          "first": 632,
+          "last": 653
+        }
+      ]
+    },
+    "weave.rs": {
+      "lang": "rust",
+      "runs": [
+        {
+          "chunk": "weave: the imports",
+          "first": 1,
+          "last": 5
+        },
+        {
+          "chunk": "src/weave.rs",
+          "first": 6,
+          "last": 6
+        },
+        {
+          "chunk": "weave: the command",
+          "first": 7,
+          "last": 25
+        },
+        {
+          "chunk": "src/weave.rs",
+          "first": 26,
+          "last": 26
+        },
+        {
+          "chunk": "weave: the status",
+          "first": 27,
+          "last": 52
+        }
+      ]
+    }
+  }
+}

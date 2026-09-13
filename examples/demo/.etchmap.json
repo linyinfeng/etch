@@ -1,0 +1,35 @@
+{
+  "version": 6,
+  "files": {
+    "expected.txt": {
+      "lang": "text",
+      "runs": [
+        {
+          "chunk": "examples/demo/expected.txt",
+          "first": 1,
+          "last": 1
+        }
+      ]
+    },
+    "literate.typ": {
+      "lang": "typst",
+      "runs": [
+        {
+          "chunk": "examples/demo/literate.typ",
+          "first": 1,
+          "last": 41
+        }
+      ]
+    },
+    "run.sh": {
+      "lang": "sh",
+      "runs": [
+        {
+          "chunk": "examples/demo/run.sh",
+          "first": 1,
+          "last": 8
+        }
+      ]
+    }
+  }
+}

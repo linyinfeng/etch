@@ -1,0 +1,179 @@
+{
+  "version": 6,
+  "docs": [
+    "etch.typ"
+  ],
+  "book": {
+    "directory": "book",
+    "files": [
+      ".gitignore",
+      "README.md",
+      "etch.typ",
+      "package/lib.typ",
+      "parts/back-matter/license.typ",
+      "parts/front-matter/abstract.typ",
+      "parts/front-matter/introduction.typ",
+      "parts/front-matter/quick-start.typ",
+      "parts/front-matter/the-tool-in-its-own-words.typ",
+      "parts/part-i/a-small-one-to-read-in-one-sitting.typ",
+      "parts/part-i/differences-from-web.typ",
+      "parts/part-i/four-claims.typ",
+      "parts/part-i/reading-a-literate-program.typ",
+      "parts/part-i/the-reader-that-is-not-a-person.typ",
+      "parts/part-i/when-not-to.typ",
+      "parts/part-i/writing-a-literate-program.typ",
+      "parts/part-ii/carrying-the-book.typ",
+      "parts/part-ii/dispatch.typ",
+      "parts/part-ii/errors.typ",
+      "parts/part-ii/expanding-a-reference.typ",
+      "parts/part-ii/metadata.typ",
+      "parts/part-ii/package.typ",
+      "parts/part-ii/reading-a-diagnostic-back.typ",
+      "parts/part-ii/the-command-line.typ",
+      "parts/part-ii/the-declarations-a-pass-works-from.typ",
+      "parts/part-ii/the-disk-and-the-log.typ",
+      "parts/part-ii/the-ownership-rules-pinned.typ",
+      "parts/part-ii/the-rules.typ",
+      "parts/part-ii/weave.typ",
+      "parts/part-ii/what-a-pass-plans.typ",
+      "parts/part-ii/what-the-binary-carries.typ",
+      "parts/part-ii/where-each-generated-line-came-from.typ",
+      "parts/part-ii/who-owns-the-output-directory.typ",
+      "parts/part-ii/writing-the-pass.typ",
+      "parts/part-iii/appendix-what-is-pinned.typ",
+      "parts/part-iii/how-the-tests-are-written.typ",
+      "parts/part-iii/tests-flow.typ",
+      "parts/part-iii/tests-lazy.typ",
+      "parts/part-iii/tests-metadata.typ",
+      "parts/part-iii/tests-owned.typ",
+      "parts/part-iii/tests-self.typ",
+      "parts/part-iii/the-build-environment.typ",
+      "parts/part-iii/the-example.typ",
+      "parts/part-iii/the-programs-own-pipeline.typ",
+      "parts/part-iii/this-repository.typ",
+      "parts/part-iii/what-comes-from-outside.typ"
+    ]
+  },
+  "files": {
+    ".etchignore": {
+      "lang": "gitignore",
+      "runs": [
+        {
+          "chunk": ".etchignore",
+          "first": 1,
+          "last": 7
+        }
+      ]
+    },
+    ".gitignore": {
+      "lang": "gitignore",
+      "runs": [
+        {
+          "chunk": ".gitignore",
+          "first": 1,
+          "last": 2
+        }
+      ]
+    },
+    "Cargo.lock": {
+      "lang": "toml",
+      "runs": [
+        {
+          "chunk": "lock: the cargo resolution",
+          "first": 1,
+          "last": 1440
+        }
+      ]
+    },
+    "Cargo.toml": {
+      "lang": "toml",
+      "runs": [
+        {
+          "chunk": "env: what the package is",
+          "first": 1,
+          "last": 9
+        },
+        {
+          "chunk": "Cargo.toml",
+          "first": 10,
+          "last": 10
+        },
+        {
+          "chunk": "env: the runtime dependencies",
+          "first": 11,
+          "last": 25
+        },
+        {
+          "chunk": "Cargo.toml",
+          "first": 26,
+          "last": 26
+        },
+        {
+          "chunk": "env: what only the tests need",
+          "first": 27,
+          "last": 28
+        }
+      ]
+    },
+    "LICENSE": {
+      "lang": "text",
+      "runs": [
+        {
+          "chunk": "LICENSE",
+          "first": 1,
+          "last": 18
+        }
+      ]
+    },
+    "flake.lock": {
+      "lang": "json",
+      "runs": [
+        {
+          "chunk": "lock: the nix inputs",
+          "first": 1,
+          "last": 106
+        }
+      ]
+    },
+    "flake.nix": {
+      "lang": "nix",
+      "runs": [
+        {
+          "chunk": "nix: the flake",
+          "first": 1,
+          "last": 32
+        },
+        {
+          "chunk": "nix: the per-system half",
+          "first": 33,
+          "last": 187
+        },
+        {
+          "chunk": "nix: the flake",
+          "first": 188,
+          "last": 195
+        }
+      ]
+    },
+    "typos.toml": {
+      "lang": "toml",
+      "runs": [
+        {
+          "chunk": "nix: the words typos should leave alone",
+          "first": 1,
+          "last": 3
+        }
+      ]
+    },
+    "zizmor.yml": {
+      "lang": "yaml",
+      "runs": [
+        {
+          "chunk": "nix: the zizmor policy",
+          "first": 1,
+          "last": 4
+        }
+      ]
+    }
+  }
+}
