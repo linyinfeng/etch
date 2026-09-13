@@ -72,13 +72,11 @@ No bot opens a pull request for a version bump in this repository, and nothing h
 on a schedule of its own. The one scheduled thing is the tree's own check — the workflow fragment in the
 chapter on the pipeline runs it daily as well as on demand — and what it catches is the outside world moving
 out from under a pin: a runner GitHub retired, an action that stopped existing, a nixpkgs that no longer
-builds what it built last month. The three signals are:
+builds what it built last month. Two signals are:
 
 - `nix flake check` fails, on a schedule or on a push. Usually that is the world moving, occasionally it is
   this repository moving.
 - `pinact run -u --check` is not silent. Something numbered has a newer number.
-- Typst refuses to read the package. That is the compiler line doing its job, aimed at a reader whose Typst
-  is older than the one this document was last read with.
 
 One thing is deliberately not a signal: the versions of the tools the machine in front of you happens to
 have. Nothing here pins them, the bootstrap says as much, and what this repository pins is what the tree

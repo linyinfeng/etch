@@ -4,9 +4,9 @@
 
 `lp` treats its output directory as its own and refuses to guess: every file in the tree it writes is
 produced by a declaration or listed in the `.lpignore` of its directory. That tree is `tangled/`, one
-directory next to the document. Everything else in the repository is a source file, and there are five kinds
-of them: this document, its chapters, the pointer at the root, the `.gitignore` that tells git what to track
-at all, and the pipeline that turns each generation into the seed.
+directory next to the document. Everything else in the repository is a source file, and there are six kinds
+of them: this document, its chapters, the package they are written with, the pointer at the root, the
+`.gitignore` that tells git what to track at all, and the pipeline that turns each generation into the seed.
 
 Two of those files exist for the tree rather than for a reader, and this chapter declares them because the
 tree has to carry them: the ignore rules the generated repository needs, and the protect list that says which
@@ -41,9 +41,10 @@ the one place output can live without being a file next to the document.
 
 == Starting from nothing
 
-A fresh clone of this repository holds five things and nothing else: this document, the chapters it includes, the pointer at the
-root that leads here, the `.gitignore` that says which of them git is told to keep, and the pipeline that hands
-each generation to the seed branch. Everything else is produced by tangling — except the one thing this
+A fresh clone of this repository holds six things and nothing else: this document, the chapters it includes,
+the package the document is written with, the pointer at the root that leads here, the `.gitignore` that says
+which of them git is told to keep, and the pipeline that hands each generation to the seed branch.
+Everything else is produced by tangling — except the one thing this
 document cannot produce for itself, the binary that reads it, because the package has to exist before the
 document can be evaluated at all.
 
@@ -85,9 +86,10 @@ missing directory rather than a sentence about a skipped step.
 
 Then build it, and let it read this document. These commands want `typst` and `cargo` on the path;
 where they come from nix, that is `nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c
-<command>`, and the chapter on the build environment is where the argument for that lives. The package
-this document is written against declares the compiler it needs, so a Typst older than that refuses the
-import with both versions in the message rather than half-evaluating the document:
+<command>`, and the chapter on the build environment is where the argument for that lives.
+Nothing here states a compiler floor: the document imports its package by path, so there is no manifest for
+Typst to read a version out of, and an older Typst fails on the syntax it does not know, like any other
+document:
 
 ```sh
 cargo build --manifest-path tangled/Cargo.toml
@@ -116,8 +118,8 @@ worth keeping is the writer's call, not the tool's.
 A file that only changes when someone remembers to change it goes stale, and the published tree is built from
 a seed — a hand-maintained file has no way to reach it. So the tree carries its own two settings instead: the
 `.gitignore` above, which says what the tool keeps and what the build writes, and the `.lpignore` beside it,
-which says the two things under the tree that are nobody's to delete — the git directory itself, and what a
-build leaves behind: nix's `result` symlink and cargo's directory.
+which says what under the tree is nobody's to delete — the git directory itself, the demo's build directory,
+and what a build leaves behind: nix's `result` symlink and cargo's directory.
 
 After that the loop is the ordinary one: edit this document, tangle, test. Nothing here watches the files — see
 the chapter on what this tool does not do — so the loop is the command, and a watcher of your choosing is what
@@ -141,7 +143,7 @@ that is a program can do it. Three of the four steps are chapters of this book r
 
 *Install the package first, because nothing else can happen until it exists.* The document imports its own
 package at the top, so Typst cannot read the document until that one file is on disk — which is the only
-place this road reads markup instead of evaluating it. The package is ten fragments of one chapter,
+place this road reads markup instead of evaluating it. The package is nine fragments of one chapter,
 `parts/part-ii/package.typ`, and it is a single file: `package/lib.typ`, the path the import names. Pull
 those fragments out, by hand or with a script, and expand the `<<…>>` references between them. The check is
 immediate: a document that imports it either evaluates or does not.
@@ -219,8 +221,8 @@ out, and each for a reason worth being able to say:
 - `.lpmap.json`, in every directory that received a file. The tool classifies it as a *control
   file* rather than content — the same list `--check` exempts — and it is derived from the document
   alone. The first tangle of a fresh clone writes it back.
-- `.lp/`, the copy of the package unpacked next to a document so Typst can import it. Also
-  derived: it is the declaration of the package, unpacked.
+- `.lp/`, where a pass keeps the entry document it writes to ask a document its question. Also
+  transient: the pass writes it, and removes it when the question is answered.
 - `target/`, which the build produces rather than this document.
 
 So the seed is the program, not the state around it: a generation to read, to build, and — in the
