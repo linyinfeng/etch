@@ -192,6 +192,50 @@ for a file that was already right and `wrote` for one that was not. That pass al
 generated files, which the tree's own tests read; `cargo test` after it is the whole suite, and the test that
 re-tangles this document into the tree it is running in is the same agreement, restated.
 
+== Editing this book
+
+The loop above is a reader's. This section is the writer's — the one who arrived with a task rather than with
+curiosity: where a change goes, what else moves with it, and what catches you when it does not.
+
+*A change goes in the chapter that explains it.* Not in `tangled/**`, which is the last pass's output:
+`lp tangle lp.typ --check` fails on a file edited there, and `tests/self.rs` re-tangles this document and
+compares it with the tree it is running in. A fragment is written in the section that argues for it, and it is
+named the way the code names it, with its file as a prefix (`map: which chunk produced a line`) — because a
+chunk name is global to the document, and two sections that declare one name are concatenated in document order
+rather than refused. `lp list lp.typ` is the index to look in before inventing a name.
+
+Three mechanical facts an editor needs: a line that is exactly `<<name>>` is a reference, and
+`@<<name>>` is how to write one that is not (D17); the prose is Typst rather than Markdown, so emphasis is *one
+star*; and a chapter that declares anything imports the package itself, because `#include` splices content
+without sharing the includer's scope.
+
+*Adding a chapter is a file, a heading and an include.* The file goes under `parts/`, in the part it belongs
+to; it holds one `= Title`; and the root `lp.typ` gets one `#include` for it, placed where you want a reader to
+meet it, because that list is the only place the order of this book exists. There is no third step: the book's
+file list is derived from what the document reads, so an included chapter travels into the tree's `book/` with
+no setting touched. The file name is the title's slug, and that much is a convention rather than a rule —
+nothing checks that the two agree.
+
+The one silent mistake in this repository is the `#include` someone forgot. A file under `parts/` that nobody
+includes is not part of the document, so it is not part of the book, and nothing says a word: the tool knows
+documents, not this repository's directories. A chapter that seems to have disappeared is worth looking for in
+the include list first.
+
+*A test chapter moves three counts.* Adding one to `tests/` also means the intro's list of reader paths,
+*How the tests are written*'s five files, and the five names in *The example, which is this document* all say
+the wrong number — five becomes six — and nothing checks any of them.
+
+*What a finished change has to pass.* Tangle, then the same command with `--check` to refuse drift, then
+`cargo test --manifest-path tangled/Cargo.toml`, then `nix flake check` inside `tangled/` for the tree's own
+promises. The seed stays one generation behind until the pipeline refreshes it, and that is the ordinary state
+rather than drift.
+
+*Two habits worth having before believing yourself.* Re-measure every number you write: a count in prose is a
+promise no check keeps, and the checks that hold the code still say nothing about it. And when a mechanism
+changes, search the book for the story it used to tell — when this book was audited, thirty-six claims had gone
+false, and nine of them described something that was no longer there — a function, a file, a whole chapter —
+while the sentences describing it stayed. Neither habit is about style; both are what the audit found.
+
 == Keeping the seed in step
 
 The seed only ever reads, and it is output: the same tree the tangle writes, committed at the root
