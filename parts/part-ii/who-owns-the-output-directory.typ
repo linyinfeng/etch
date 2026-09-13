@@ -186,12 +186,12 @@ Ok(found
 
 == What the tool itself writes
 
-Two names, and both of them are the tool's. Every directory that receives a file also receives a map, which
-records which declaration produced each line; and a directory holding a document gets `.lp`, where the package
-is unpacked in the form Typst wants to read it. Both are written by a pass of this program under names nothing
-else uses, so both are accounted for by name rather than by a declaration: a map left behind in a directory that
-stopped producing anything is that pass's to delete, and the package beside a book is unpacked again every time
-the book is woven. Making a project declare its own tool's scratch would be asking it to describe `lp` to `lp`.
+One name, and it is the tool's. Every directory that receives a file also receives a map, which records which
+declaration produced each line, and a directory holding a document is where a pass asks its question — so the
+wrapper it writes for that question lives under `.lp` beside the document. Both are written by a pass of this
+program under names nothing else uses, so both are accounted for by name rather than by a declaration: a map
+left behind in a directory that stopped producing anything is that pass's to delete, and a wrapper left behind
+by a killed run is invisible rather than reported.
 
 The ignore file is not one of them. It is a *decision* — which files under the output directory belong
 to somebody else — and a decision is either declared by the document, like any

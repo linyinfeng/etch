@@ -1174,9 +1174,9 @@ fn the_book_is_carried_into_the_tree() {
     std::fs::write(dir.path().join("chapters/one.typ"), "= One\n").expect("chapter");
     std::fs::write(dir.path().join("ignored.txt"), "not part of it\n").expect("ignored");
     std::fs::write(dir.path().join(".gitignore"), "ignored.txt\n").expect("gitignore");
-    std::fs::create_dir_all(dir.path().join(".lp/local/lp/0.1.0")).expect("dir");
+    std::fs::create_dir_all(dir.path().join(".lp/leftovers")).expect("dir");
     std::fs::write(
-        dir.path().join(".lp/local/lp/0.1.0/lib.typ"),
+        dir.path().join(".lp/leftovers/lib.typ"),
         "the tool's own state\n",
     )
     .expect("state");

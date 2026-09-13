@@ -32,7 +32,7 @@ what `--check` and `--delete` each do.
 <<owned: without_a_declaration_a_stray_is_still_an_error>>
 
 <<owned: a_missing_output_directory_is_not_an_io_error>>
-<<owned: the_unpacked_package_is_not_content>>
+<<owned: the_tools_own_scratch_is_not_content>>
 ````)
 
 The cases, in the order they appear:
@@ -49,7 +49,7 @@ The cases, in the order they appear:
 - `deleting_a_foreign_subtree_takes_one_line_and_one_command` — one compressed entry, one `--delete`, and a subtree is gone
 - `without_a_declaration_a_stray_is_still_an_error` — with no `.lpignore` at all, strays are still errors
 - `a_missing_output_directory_is_not_an_io_error` — a missing output file is drift, not an I/O failure
-- `the_unpacked_package_is_not_content` — the directory the tool unpacks its package into is never reported
+- `the_tools_own_scratch_is_not_content` — whatever a pass writes under `.lp` is never reported, because a killed run leaves it behind
 
 #chunk("owned: the fixtures and helpers", ````rust
 use std::path::Path;
@@ -410,11 +410,11 @@ fn without_a_declaration_a_stray_is_still_an_error() {
 }
 ````)
 
-#chunk("owned: the_unpacked_package_is_not_content", ````rust
+#chunk("owned: the_tools_own_scratch_is_not_content", ````rust
 #[test]
-fn the_unpacked_package_is_not_content() {
-    let (_guard, dir) = tangled("", &[(".lp/local/lp/0.1.0/lib.typ", "the package")]);
-    assert!(dir.join("out/.lp/local/lp/0.1.0/lib.typ").exists());
+fn the_tools_own_scratch_is_not_content() {
+    let (_guard, dir) = tangled("", &[(".lp/leftovers/lib.typ", "the package")]);
+    assert!(dir.join("out/.lp/leftovers/lib.typ").exists());
 }
 ````)
 
