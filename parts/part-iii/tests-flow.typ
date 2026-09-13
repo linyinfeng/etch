@@ -63,6 +63,8 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: an_unknown_tangle_option_is_refused>>
 
+<<flow: a_moved_book_copy_leaves_no_empty_directory>>
+
 <<flow: a_stale_book_copy_is_removed_and_check_refuses_it>>
 
 <<flow: a_book_name_may_not_leave_the_tree>>
@@ -123,6 +125,7 @@ The cases, in the order they appear:
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_book_name_may_not_leave_the_tree` — a name in `book-files` that climbs out of the source tree is refused
 - `a_stale_book_copy_is_removed_and_check_refuses_it` — the book directory is the list: a copy it no longer names is removed by a tangle and refused by `--check`
+- `a_moved_book_copy_leaves_no_empty_directory` — a copy that moves to a different directory takes its old one with it, empty or not
 - `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
 - `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
 - `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
@@ -1205,6 +1208,37 @@ fn an_unknown_tangle_option_is_refused() {
         stderr(&output).contains("unknown tangle option"),
         "the package refuses it where it was written: {}",
         stderr(&output)
+    );
+}
+````)
+
+#chunk("flow: a_moved_book_copy_leaves_no_empty_directory", ````rust
+#[test]
+fn a_moved_book_copy_leaves_no_empty_directory() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::create_dir_all(dir.path().join("one")).expect("dir");
+    std::fs::write(dir.path().join("one/x.txt"), "the book\n").expect("chapter");
+    let source = |listed: &str| {
+        format!(
+            "#tangle-options((book-directory: \"book\", book-files: (\"demo.typ\", \"{listed}\")))\n\n#file(\"main.py\", ```py\nprint('x')\n```)\n"
+        )
+    };
+    std::fs::write(dir.path().join("demo.typ"), document(&source("one/x.txt"))).expect("doc");
+    let first = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(first.status.success(), "{}", stderr(&first));
+    assert!(dir.path().join("tangled/book/one/x.txt").exists());
+
+    std::fs::create_dir_all(dir.path().join("two")).expect("dir");
+    std::fs::write(dir.path().join("two/x.txt"), "the book\n").expect("chapter");
+    std::fs::write(dir.path().join("demo.typ"), document(&source("two/x.txt"))).expect("doc");
+    let moved = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(moved.status.success(), "{}", stderr(&moved));
+
+    assert!(dir.path().join("tangled/book/two/x.txt").exists());
+    assert!(
+        !dir.path().join("tangled/book/one").exists(),
+        "the directory the copy moved out of is gone, not left empty"
     );
 }
 ````)

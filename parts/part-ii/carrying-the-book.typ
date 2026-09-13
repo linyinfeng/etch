@@ -329,8 +329,13 @@ pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Resul
         }
         disk::remove_file(&path)?;
         removed += 1;
-        if let Some(parent) = path.parent() {
-            parents.push(parent.to_path_buf());
+        let mut parent = path.parent();
+        while let Some(dir) = parent {
+            if dir == root {
+                break;
+            }
+            parents.push(dir.to_path_buf());
+            parent = dir.parent();
         }
     }
     parents.sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
