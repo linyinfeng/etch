@@ -2,16 +2,16 @@
 
 = A small one, to read in one sitting
 
-The rest of this book is a hard example: nine thousand lines, self-hosting, bootstrapped from a frozen seed.
+The rest of this book is a hard example: ten thousand lines, self-hosting, bootstrapped from a frozen seed.
 A reader who wants to see the shape of a literate program before all that should have a small one, and this
-chapter is it — a program of about thirty lines, written twice, once as a book and once as the shell script it
-becomes, showing the decisions that a program of forty lines normally avoids.
+chapter is it — a program of about forty lines, written twice, once as a book and once as the shell script it
+becomes.
 
 It is declared *here*, in this book, rather than kept beside it, so that the demo cannot drift from the method
 it demonstrates: tangling the book produces the demo, and a test tangles the demo's own document, runs what
 comes out of it, and compares the bytes.
 
-Two of the demo's lines are written with `@<<…>>` rather than `<<…>>`. That is this book's escape, and this
+Three of the demo's lines are written with `@<<…>>` rather than `<<…>>`. That is this book's escape, and this
 chapter is the case it exists for: a document that *contains* another document is still tangled by this one, so
 the demo's references have to survive the book's tangle and be left for the demo's own.
 
