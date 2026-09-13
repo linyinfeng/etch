@@ -89,9 +89,12 @@ does.
 
 The other half of that promise is where the two kinds of output go, and it is a rule rather than a flag.
 Standard output is data: every command that answers a question writes exactly one JSON document there, and a
-command that changes files writes one that says what it changed. Nothing else is written to standard output —
-no table, no sentence, not even "wrote" — so a program reads it without parsing anything, and a person pipes
-it into `jq`. Standard error is the log: what the tool did to the disk at `INFO`, and what it looked at, plus
+command that changes files writes one that says what it changed. Three commands are the exceptions, each
+writing its own product there instead of a report about it: `explain` echoes what it read with a note added,
+`self read` prints the path it opened, and `extract` and `self book` write files and say so only in the log.
+Nothing else is written to standard output — no table, no sentence, not even "wrote" — so a program reads it
+without parsing anything, and a person pipes it into `jq`. Standard error is the log: what the tool did to the
+disk at `INFO`, and what it looked at, plus
 the report it would otherwise have printed, at `DEBUG`. `LP_LOG=debug` is how a person reads that report; the
 readouts this book quotes — `ok`, `wrote`, `STALE`, the sentence `map` answers with — are those log lines.
 
