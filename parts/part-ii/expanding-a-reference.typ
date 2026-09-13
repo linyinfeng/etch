@@ -81,7 +81,7 @@ Three fragments: the entry point, the cycle check that turns a loop into a named
 inner loop that does the substitution.
 
 #chunk("tangle: expanding a root", ````rust
-pub fn expand(set: &ChunkSet, root: &str) -> Result<Tangled, LpError> {
+pub fn expand(set: &ChunkSet, root: &str) -> Result<Tangled, EtchError> {
     let mut out = Tangled {
         text: String::new(),
         runs: Vec::new(),
@@ -111,7 +111,7 @@ if let Some(start) = stack.iter().position(|entry| entry == name) {
     let block = set.get(name).and_then(|blocks| blocks.first()).copied();
     return Err(match block {
         Some(block) => block.error(0, message),
-        None => LpError::plain(message),
+        None => EtchError::plain(message),
     });
 }
 ````)
@@ -119,7 +119,7 @@ if let Some(start) = stack.iter().position(|entry| entry == name) {
 #chunk("tangle: an empty chunk", ````rust
 if block.text.trim().is_empty() {
     stack.pop();
-    return Err(LpError::plain(format!("chunk ⟪{name}⟫ is empty"))
+    return Err(EtchError::plain(format!("chunk ⟪{name}⟫ is empty"))
         .with_help("delete the declaration, or give it a code block with a body"));
 }
 ````)

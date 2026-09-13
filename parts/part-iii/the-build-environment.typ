@@ -39,7 +39,7 @@ table.
 
 #chunk("env: what the package is", ````toml
 [package]
-name = "lp"
+name = "etch"
 version = "0.1.0"
 edition = "2024"
 publish = false

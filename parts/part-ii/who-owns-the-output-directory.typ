@@ -5,21 +5,21 @@
 Tangling writes into a directory that already holds things it did not write: a compiler's
 build directory, a lock file, the PDF the weave produced, notes the user keeps there. A
 tool that deleted or overwrote by guessing would be worse than useless in that position, so
-this part of `lp` is a rule instead of a heuristic — and it is the reason `--check` can be
+this part of `etch` is a rule instead of a heuristic — and it is the reason `--check` can be
 trusted.
 
 == The rule
 
-Point `--out` at a directory and that whole directory is `lp`'s, at any depth. Every file
+Point `--out` at a directory and that whole directory is `etch`'s, at any depth. Every file
 under it falls into exactly one of three groups: produced by a `#file` declaration,
-declared in the `.lpignore` of its directory, or neither. The third group is the only one
+declared in the `.etchignore` of its directory, or neither. The third group is the only one
 worth reporting, and it is reported as an error that names every entry.
 
 Two halves of that rule are easy to get backwards, so they are worth saying plainly. The
-declaration file is a list of what `lp` does *not* manage: matching means the file is
-protected, which is the opposite of what the word "ignore" suggests. And `lp` never deletes
+declaration file is a list of what `etch` does *not* manage: matching means the file is
+protected, which is the opposite of what the word "ignore" suggests. And `etch` never deletes
 as a side effect of a pass — stale output is either declared, or removed by an explicit
-`lp unaccounted --delete`.
+`etch unaccounted --delete`.
 
 Why report at all, rather than tidy up? Because the answer is unknowable from the inside. A
 file that no chunk produces may be one a chunk *should* produce, a file the user put there,
@@ -29,14 +29,14 @@ what it finds and stops.
 #file("src/status.rs", ````rust
 <<status: the imports>>
 
-<<status: the file that says what lp does not manage>>
+<<status: the file that says what etch does not manage>>
 
 <<status: what a directory of strays looks like>>
 
 pub fn unaccounted(
     out: &Path,
     produced: &BTreeMap<String, BTreeSet<String>>,
-) -> Result<Vec<Unaccounted>, LpError> {
+) -> Result<Vec<Unaccounted>, EtchError> {
     <<status: nothing to report>>
 
     <<status: ask the walker>>
@@ -74,19 +74,19 @@ use std::path::Path;
 use ignore::WalkBuilder;
 use serde::Serialize;
 
-use crate::diag::LpError;
+use crate::diag::EtchError;
 use crate::disk;
 use crate::map::{MAP_FILE, relative};
 ````)
 
 == One name is the contract
 
-A constant, because the name is part of the interface: a directory declares what `lp` does
+A constant, because the name is part of the interface: a directory declares what `etch` does
 not manage in exactly this file, and the walker below is told to look for this name instead
 of git's default.
 
-#chunk("status: the file that says what lp does not manage", ````rust
-pub const IGNORE_FILE: &str = ".lpignore";
+#chunk("status: the file that says what etch does not manage", ````rust
+pub const IGNORE_FILE: &str = ".etchignore";
 ````)
 
 == What a directory of strays looks like
@@ -125,7 +125,7 @@ builder
 ````)
 
 The walker is the crate git itself uses, with its default filters switched off — this is not
-a git question — and `.lpignore` registered as *the* ignore file name. That choice is the
+a git question — and `.etchignore` registered as *the* ignore file name. That choice is the
 whole reason there is no second implementation of ignore rules here: nesting, deepest-wins,
 whitelists and the `!` operator are the library's job, and a directory that declares
 something is simply never visited.
@@ -133,8 +133,8 @@ something is simply never visited.
 #chunk("status: what survives the walk", ````rust
 let mut files: BTreeSet<String> = BTreeSet::new();
 for entry in builder.build() {
-    let entry =
-        entry.map_err(|err| LpError::plain(format!("cannot scan {}: {err}", out.display())))?;
+    let entry = entry
+        .map_err(|err| EtchError::plain(format!("cannot scan {}: {err}", out.display())))?;
     if entry.file_type().is_some_and(|kind| kind.is_dir()) {
         continue;
     }
@@ -188,7 +188,7 @@ Ok(found
 
 One name, and it is the tool's. Every directory that receives a file also receives a map, which records which
 declaration produced each line, and a directory holding a document is where a pass asks its question — so the
-wrapper it writes for that question lives under `.lp` beside the document. Both are written by a pass of this
+wrapper it writes for that question lives under `.etch` beside the document. Both are written by a pass of this
 program under names nothing else uses, so both are accounted for by name rather than by a declaration: a map
 left behind in a directory that stopped producing anything is that pass's to delete, and a wrapper left behind
 by a killed run is invisible rather than reported.
@@ -196,7 +196,7 @@ by a killed run is invisible rather than reported.
 The ignore file is not one of them. It is a *decision* — which files under the output directory belong
 to somebody else — and a decision is either declared by the document, like any
 other file, or written by a person, who then says so inside it. Exempting it by name is how a
-`.lpignore` whose declaration went away stayed in the tree for good: nothing produced it,
+`.etchignore` whose declaration went away stayed in the tree for good: nothing produced it,
 nothing matched it, and nothing removed it, because the report had never seen it.
 
 #chunk("status: what the tool writes is not content", ````rust
@@ -269,7 +269,7 @@ it leaves empty behind it.
 pub fn delete(
     out: &Path,
     produced: &BTreeMap<String, BTreeSet<String>>,
-) -> Result<Vec<String>, LpError> {
+) -> Result<Vec<String>, EtchError> {
     let mut removed = Vec::new();
     for group in unaccounted(out, produced)? {
         for entry in group.entries {

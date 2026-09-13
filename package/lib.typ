@@ -50,21 +50,21 @@
 
 #let chunk(name, code) = {
   [#metadata((
-    lp: "chunk",
+    etch: "chunk",
     name: name,
     lang: lang-of(code),
     text: code.text,
-  ))<lp-decl>]
+  ))<etch-decl>]
   tile(name, lang-of(code), code)
 }
 
 #let file(path, code) = {
   [#metadata((
-    lp: "file",
+    etch: "file",
     name: path,
     lang: lang-of(code),
     text: code.text,
-  ))<lp-decl>]
+  ))<etch-decl>]
   tile(path, lang-of(code), code)
 }
 
@@ -77,5 +77,5 @@
       )
     }
   }
-  [#metadata((lp: "options", options: options))<lp-decl>]
+  [#metadata((etch: "options", options: options))<etch-decl>]
 }

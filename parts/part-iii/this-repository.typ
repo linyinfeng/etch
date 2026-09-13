@@ -2,8 +2,8 @@
 
 = This repository, and its seed
 
-`lp` treats its output directory as its own and refuses to guess: every file in the tree it writes is
-produced by a declaration or listed in the `.lpignore` of its directory. That tree is `tangled/`, one
+`etch` treats its output directory as its own and refuses to guess: every file in the tree it writes is
+produced by a declaration or listed in the `.etchignore` of its directory. That tree is `tangled/`, one
 directory next to the document. Everything else in the repository is a source file, and there are six kinds
 of them: this document, its chapters, the package they are written with, the pointer at the root, the
 `.gitignore` that tells git what to track at all, and the pipeline that turns each generation into the seed.
@@ -14,12 +14,12 @@ of its files are nobody's to delete. They are output like everything else, and t
 they cannot be maintained by hand instead.
 
 #file(".gitignore", ````gitignore
-.lp
+.etch
 target
 
 ````)
 
-#file(".lpignore", ````gitignore
+#file(".etchignore", ````gitignore
 /.git
 
 /examples/demo/build
@@ -50,7 +50,7 @@ document cannot produce for itself, the binary that reads it, because the packag
 document can be evaluated at all.
 
 That is the seed, and it is not a file in the tree: it is a branch. This repository lives at
-`https://github.com/linyinfeng/lp`, and the whole of what a bootstrap needs from it is that one
+`https://github.com/linyinfeng/etch`, and the whole of what a bootstrap needs from it is that one
 branch. Start from whichever of the two states you are in.
 
 *From a clone.* A clone already knows the remote, and `origin/tangled` is the branch. The first line is
@@ -69,7 +69,7 @@ seed is a snapshot rather than a history, and nothing from it is ever merged:
 
 ```sh
 git init -q
-git remote add origin https://github.com/linyinfeng/lp
+git remote add origin https://github.com/linyinfeng/etch
 git fetch --depth 1 origin tangled
 mkdir -p tangled
 git archive FETCH_HEAD | tar -x -C tangled
@@ -94,18 +94,18 @@ document:
 
 ```sh
 cargo build --manifest-path tangled/Cargo.toml
-./tangled/target/debug/lp tangle lp.typ            # writes to tangled/, next to the document
+./tangled/target/debug/etch tangle etch.typ            # writes to tangled/, next to the document
 cargo test --manifest-path tangled/Cargo.toml
 ```
 
 The first tangle is not a report on a tree that was already right. The seed is one generation behind,
 so a few files come out as `wrote` instead of `ok` — the ones this document changed since that
 generation, and the rest of the tree stays as it was. Everything is consistent when it finishes, and
-`lp tangle lp.typ --check` is what says so.
+`etch tangle etch.typ --check` is what says so.
 
 The tangle writes to `tangled/` without being told to: when `--out` is not given it is the
 directory `tangled` next to the document, because the document is what the output belongs to. The
-older lp reads the declarations here and writes this generation over its own tree — crate, package,
+older etch reads the declarations here and writes this generation over its own tree — crate, package,
 protect list. Its own history is what makes it readable a generation later, which is the
 whole trick: the seed was never a special artifact, only an older generation of this.
 
@@ -118,7 +118,7 @@ worth keeping is the writer's call, not the tool's.
 
 A file that only changes when someone remembers to change it goes stale, and the published tree is built from
 a seed — a hand-maintained file has no way to reach it. So the tree carries its own two settings instead: the
-`.gitignore` above, which says what the tool keeps and what the build writes, and the `.lpignore` beside it,
+`.gitignore` above, which says what the tool keeps and what the build writes, and the `.etchignore` beside it,
 which says what under the tree is nobody's to delete — the git directory itself, the demo's build directory,
 and what a build leaves behind: nix's `result` symlink and cargo's directory.
 
@@ -127,7 +127,7 @@ the chapter on what this tool does not do — so the loop is the command, and a 
 runs it:
 
 ```sh
-watchexec -e typ -r -- ./tangled/target/debug/lp tangle lp.typ
+watchexec -e typ -r -- ./tangled/target/debug/etch tangle etch.typ
 ```
 
 `tests/self.rs` is what keeps the loop honest: the binary this document builds has to be
@@ -158,12 +158,12 @@ what makes expansion recursive, and recursion is not optional.
 a wrapper document that includes the documents, with `--root` set.
 
 ```sh
-typst eval 'query(<lp-decl>).map(declaration => declaration.value)' \
+typst eval 'query(<etch-decl>).map(declaration => declaration.value)' \
   --in wrapper.typ --root .
 ```
 
 The answer is JSON, and it carries both kinds of thing at once: the declarations, and the options — the
-directory the book is carried in and the names of its files arrive as a declaration whose `lp` is
+directory the book is carried in and the names of its files arrive as a declaration whose `etch` is
 `"options"`. A reader that looks for declarations by scanning the markup instead of evaluating it will be
 wrong exactly where Typst is interesting: a scanner that looks for `#chunk(` gets lost in nested fences,
 and finds declarations that are inside Rust string literals instead of in the markup. That is why this tool
@@ -180,14 +180,14 @@ produced over the document it came from — or ask it first, since a plan writes
 
 ```sh
 nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo build --manifest-path tangled/Cargo.toml
-nix shell nixpkgs#typst -c ./tangled/target/debug/lp plan book/lp.typ --out .
-nix shell nixpkgs#typst -c ./tangled/target/debug/lp tangle book/lp.typ --out .
+nix shell nixpkgs#typst -c ./tangled/target/debug/etch plan book/etch.typ --out .
+nix shell nixpkgs#typst -c ./tangled/target/debug/etch tangle book/etch.typ --out .
 ```
 
 The plan answers with a document that says what that pass would write — on a tree nobody has built yet, all of
 it — and the tangle answers with one that says what it did: an empty `changed` means your expansion and this
 document agree, and anything in `changed`, `drifted` or `missing` means they do not, with the file, the line
-and the declaration named. `LP_LOG=debug` prints the same thing as the readout this book used to quote, `ok`
+and the declaration named. `ETCH_LOG=debug` prints the same thing as the readout this book used to quote, `ok`
 for a file that was already right and `wrote` for one that was not. That pass also writes the maps beside the
 generated files, which the tree's own tests read; `cargo test` after it is the whole suite, and the test that
 re-tangles this document into the tree it is running in is the same agreement, restated.
@@ -198,11 +198,11 @@ The loop above is a reader's. This section is the writer's — the one who arriv
 curiosity: where a change goes, what else moves with it, and what catches you when it does not.
 
 *A change goes in the chapter that explains it.* Not in `tangled/**`, which is the last pass's output:
-`lp tangle lp.typ --check` fails on a file edited there, and `tests/self.rs` re-tangles this document and
+`etch tangle etch.typ --check` fails on a file edited there, and `tests/self.rs` re-tangles this document and
 compares it with the tree it is running in. A fragment is written in the section that argues for it, and it is
 named the way the code names it, with its file as a prefix (`map: which chunk produced a line`) — because a
 chunk name is global to the document, and two sections that declare one name are concatenated in document order
-rather than refused. `lp list lp.typ` is the index to look in before inventing a name.
+rather than refused. `etch list etch.typ` is the index to look in before inventing a name.
 
 Three mechanical facts an editor needs: a line that is exactly `<<name>>` is a reference, and
 `@<<name>>` is how to write one that is not (D17); the prose is Typst rather than Markdown, so emphasis is *one
@@ -210,7 +210,7 @@ star*; and a chapter that declares anything imports the package itself, because 
 without sharing the includer's scope.
 
 *Adding a chapter is a file, a heading and an include.* The file goes under `parts/`, in the part it belongs
-to; it holds one `= Title`; and the root `lp.typ` gets one `#include` for it, placed where you want a reader to
+to; it holds one `= Title`; and the root `etch.typ` gets one `#include` for it, placed where you want a reader to
 meet it, because that list is the only place the order of this book exists. There is no third step: the book's
 file list is derived from what the document reads, so an included chapter travels into the tree's `book/` with
 no setting touched. The file name is the title's slug, and that much is a convention rather than a rule —
@@ -265,10 +265,10 @@ the tree's own `.gitignore`. The lock file is the one file in the seed that no d
 repository needs it, not because a reader does. Everything else the tangle writes stays
 out, and each for a reason worth being able to say:
 
-- `.lpmap.json`, in every directory that received a file. The tool classifies it as a *control
+- `.etchmap.json`, in every directory that received a file. The tool classifies it as a *control
   file* rather than content — the same list `--check` exempts — and it is derived from the document
   alone. The first tangle of a fresh clone writes it back.
-- `.lp/`, where a pass keeps the entry document it writes to ask a document its question. Also
+- `.etch/`, where a pass keeps the entry document it writes to ask a document its question. Also
   transient: the pass writes it, and removes it when the question is answered.
 - `target/`, which the build produces rather than this document.
 

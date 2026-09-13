@@ -12,7 +12,7 @@ the previous generation, and it is a branch, so it is fetched rather than built:
 
 ```sh
 git init -q
-git remote add origin https://github.com/linyinfeng/lp
+git remote add origin https://github.com/linyinfeng/etch
 git fetch --depth 1 origin tangled
 mkdir -p tangled
 git archive FETCH_HEAD | tar -x -C tangled
@@ -22,30 +22,30 @@ nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo build --manifes
 
 Then ask what a pass would do. It writes nothing, and it answers on standard output with one JSON document —
 which files it would write, which fragments nobody references, which files nothing accounts for. The log on
-standard error says the same in prose, level by level; `LP_LOG=debug` is how a person reads it.
+standard error says the same in prose, level by level; `ETCH_LOG=debug` is how a person reads it.
 
 ```sh
-nix shell nixpkgs#typst -c ./tangled/target/debug/lp plan lp.typ
+nix shell nixpkgs#typst -c ./tangled/target/debug/etch plan etch.typ
 ```
 
 Then do it, and then check it the way the tree checks itself:
 
 ```sh
-nix shell nixpkgs#typst -c ./tangled/target/debug/lp tangle lp.typ
+nix shell nixpkgs#typst -c ./tangled/target/debug/etch tangle etch.typ
 nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo test --manifest-path tangled/Cargo.toml
 cd tangled && nix flake check --no-update-lock-file
 ```
 
 The first `tangle` writes a handful of files rather than reporting everything `ok`: the seed is one generation
 behind, and the log names what changed. From here the loop is the ordinary one — edit this document, tangle,
-test — and a watcher of your choosing can run it: `watchexec -e typ -r -- ./tangled/target/debug/lp tangle
-lp.typ`. Nothing in the tool watches files, and the chapter on what it does not do says why.
+test — and a watcher of your choosing can run it: `watchexec -e typ -r -- ./tangled/target/debug/etch tangle
+etch.typ`. Nothing in the tool watches files, and the chapter on what it does not do says why.
 
 Two things are worth knowing before editing:
 
-- The generated tree is output. `lp tangle lp.typ --check` compares it with the document and is what the tests
+- The generated tree is output. `etch tangle etch.typ --check` compares it with the document and is what the tests
   use to prove the document still reproduces what it produced; `tests/self.rs` is that check, restated.
-- `lp map --file src/main.rs --line 42` answers "which declaration produced this line", and `lp explain` rewrites
+- `etch map --file src/main.rs --line 42` answers "which declaration produced this line", and `etch explain` rewrites
   a compiler's diagnostics into those names, so both directions back to the book exist.
 
 Where to go from here: the introduction has a list that says which chapters are for which reader. If you are

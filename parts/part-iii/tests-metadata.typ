@@ -53,13 +53,13 @@ fn typst_available() -> bool {
         .is_ok_and(|output| output.status.success())
 }
 
-fn lp(dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lp"))
+fn etch(dir: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_etch"))
         .args(args)
-        .env("LP_LOG", "debug")
+        .env("ETCH_LOG", "debug")
         .current_dir(dir)
         .output()
-        .expect("run lp")
+        .expect("run etch")
 }
 
 fn stdout(output: &Output) -> String {
@@ -71,11 +71,11 @@ fn stderr(output: &Output) -> String {
 }
 
 fn write(dir: &Path, name: &str, body: &str) {
-    std::fs::write(dir.join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.join(name),
         format!(
-            "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}"
+            "#import \"etch.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}"
         ),
     )
     .expect("doc");
@@ -98,7 +98,7 @@ fn a_styling_show_rule_does_not_hide_a_chunk() {
     );
     let path = dir.path().to_path_buf();
 
-    let output = lp(&path, &["metadata", "styled.typ"]);
+    let output = etch(&path, &["metadata", "styled.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
     let report = stderr(&output);
     assert!(report.contains("styled"), "{report}");
@@ -115,7 +115,7 @@ fn a_chapter_is_tangled_without_being_listed() {
     }
 
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     write(dir.path(), "book.typ", "= Book\n#include \"chapter.typ\"\n");
     write(
         dir.path(),
@@ -124,14 +124,14 @@ fn a_chapter_is_tangled_without_being_listed() {
     );
     let path = dir.path().to_path_buf();
 
-    let output = lp(&path, &["tangle", "book.typ", "--out", "out"]);
+    let output = etch(&path, &["tangle", "book.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(
         std::fs::read_to_string(path.join("out/src/main.py")).expect("output"),
         "print('from a chapter')\n"
     );
 
-    let mapped = lp(
+    let mapped = etch(
         &path,
         &[
             "map",
@@ -160,7 +160,7 @@ fn the_document_reports_chunks_no_parser_could_find() {
     }
 
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     write(
         dir.path(),
         "dynamic.typ",
@@ -168,7 +168,7 @@ fn the_document_reports_chunks_no_parser_could_find() {
     );
     let path = dir.path().to_path_buf();
 
-    let output = lp(&path, &["metadata", "dynamic.typ"]);
+    let output = etch(&path, &["metadata", "dynamic.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
     let report = stderr(&output);
     assert!(
@@ -176,7 +176,7 @@ fn the_document_reports_chunks_no_parser_could_find() {
         "{report}"
     );
 
-    let tangled = lp(&path, &["tangle", "dynamic.typ", "--out", "out"]);
+    let tangled = etch(&path, &["tangle", "dynamic.typ", "--out", "out"]);
     assert!(tangled.status.success(), "{}", stderr(&tangled));
     assert_eq!(
         std::fs::read_to_string(path.join("out/src/main.py")).expect("output"),
@@ -201,7 +201,7 @@ fn a_document_that_does_not_evaluate_says_so() {
     .expect("doc");
     let path = dir.path().to_path_buf();
 
-    let output = lp(&path, &["metadata", "broken.typ"]);
+    let output = etch(&path, &["metadata", "broken.typ"]);
     assert!(!output.status.success());
     let message = stderr(&output);
     assert!(message.contains("did not evaluate"), "{message}");
@@ -232,7 +232,7 @@ fn a_document_that_does_not_evaluate_says_so() {
       let workdir = TempDir::new().expect("workdir");
       let doc = documents.path().join("book.typ");
       let out = workdir.path().join("out");
-      let output = lp(
+      let output = etch(
           workdir.path(),
           &[
               "tangle",
@@ -247,15 +247,17 @@ fn a_document_that_does_not_evaluate_says_so() {
           "print('elsewhere')\n"
       );
 
-      let leftovers: Vec<String> = std::fs::read_dir(documents.path())
-          .expect("read_dir")
-          .flatten()
-          .map(|entry| entry.file_name().to_string_lossy().to_string())
-          .filter(|name| name.starts_with(".lp-decl-"))
-          .collect();
+      let leftovers: Vec<String> = std::fs::read_dir(documents.path().join(".etch"))
+          .map(|entries| {
+              entries
+                  .flatten()
+                  .map(|entry| entry.file_name().to_string_lossy().to_string())
+                  .collect()
+          })
+          .unwrap_or_default();
       assert!(
           leftovers.is_empty(),
-          "wrapper files left behind: {leftovers:?}"
+          "scratch files left behind: {leftovers:?}"
       );
   }
   ````,
@@ -272,12 +274,12 @@ fn a_declaration_of_an_unknown_kind_is_an_error() {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(
         dir.path().join("odd.typ"),
-        "= Odd\n\n#metadata((lp: \"sideways\", name: \"x\", text: \"y\"))<lp-decl>\n",
+        "= Odd\n\n#metadata((etch: \"sideways\", name: \"x\", text: \"y\"))<etch-decl>\n",
     )
     .expect("doc");
     let path = dir.path().to_path_buf();
 
-    let output = lp(&path, &["metadata", "odd.typ"]);
+    let output = etch(&path, &["metadata", "odd.typ"]);
     assert!(!output.status.success());
     assert!(
         stderr(&output).contains("unknown declaration kind"),
@@ -296,15 +298,15 @@ fn a_document_needs_nothing_but_itself() {
     }
 
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("alone.typ"),
-        "#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n\n#file(\"main.py\", ```py\n<<body>>\n```)\n\n#chunk(\"body\", ```py\nprint('alone')\n```)\n",
+        "#import \"etch.typ\": chunk, file, show-rule\n#show: show-rule\n\n#file(\"main.py\", ```py\n<<body>>\n```)\n\n#chunk(\"body\", ```py\nprint('alone')\n```)\n",
     )
     .expect("doc");
     let path = dir.path().to_path_buf();
 
-    let output = lp(&path, &["tangle", "alone.typ", "--out", "out"]);
+    let output = etch(&path, &["tangle", "alone.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(
         std::fs::read_to_string(path.join("out/main.py")).expect("output"),
@@ -329,7 +331,7 @@ fn a_document_without_declarations_says_what_to_do() {
     .expect("doc");
     let path = dir.path().to_path_buf();
 
-    let output = lp(&path, &["metadata", "plain.typ"]);
+    let output = etch(&path, &["metadata", "plain.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
     let json: serde_json::Value = serde_json::from_str(&stdout(&output)).expect("one document");
     assert_eq!(

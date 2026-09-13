@@ -63,8 +63,8 @@ greet "hello, $NAME"
 #!/bin/sh
 set -eu
 
-lp=${LP:-lp}
-"$lp" tangle literate.typ --out build
+etch=${ETCH:-etch}
+"$etch" tangle literate.typ --out build
 NAME=${NAME:-world} sh build/greet.sh > build/out.txt
 diff build/out.txt expected.txt
 echo "the demo agrees with itself"
@@ -106,5 +106,5 @@ so it never answers — *The example, which is this document* is where those are
 is the method that makes them worth answering.
 
 To run it: `sh examples/demo/run.sh` from the root of the tree, or tangle `examples/demo/literate.typ` into
-whatever directory you like. The demo's own `build/` is named in the book's `.lpignore`, so running it does not
+whatever directory you like. The demo's own `build/` is named in the book's `.etchignore`, so running it does not
 make the tree's own check complain about files nothing accounts for.

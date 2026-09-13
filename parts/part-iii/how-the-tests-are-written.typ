@@ -7,7 +7,7 @@ accounts for, a diagnostic that has to find its way back — and a unit test wit
 middle would test the mock.
 
 The shape is the same in every file: copy the package next to the fixture, write a document,
-run `lp` with `current_dir` set to the temporary project, and assert on what came out. There is
+run `etch` with `current_dir` set to the temporary project, and assert on what came out. There is
 no test framework beyond `#[test]`, and the assertions read as sentences because the names of
 the cases do.
 

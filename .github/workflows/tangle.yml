@@ -42,13 +42,13 @@ jobs:
       # The seed is the previous generation, so a document that moved a file leaves the old one behind.
       # Nothing is removed on its own; this asks, and on an ordinary run there is nothing to ask about.
       - name: drop what the previous generation left behind
-        run: ./tangled/target/debug/lp unaccounted lp.typ --delete
+        run: ./tangled/target/debug/etch unaccounted etch.typ --delete
 
       - name: tangle, and check the tree against the document
         run: |
           set -euo pipefail
-          ./tangled/target/debug/lp tangle lp.typ
-          ./tangled/target/debug/lp tangle lp.typ --check
+          ./tangled/target/debug/etch tangle etch.typ
+          ./tangled/target/debug/etch tangle etch.typ --check
 
       # The seed is one generation behind, so it is not the tool this document describes — anything that
       # reads this tool's output has to be the generation that was just written.
@@ -58,18 +58,18 @@ jobs:
       - name: weave the document
         run: |
           set -euo pipefail
-          ./tangled/target/debug/lp weave lp.typ lp.pdf
-          ./tangled/target/debug/lp weave lp.typ lp.html --features html
+          ./tangled/target/debug/etch weave etch.typ etch.pdf
+          ./tangled/target/debug/etch weave etch.typ etch.html --features html
 
       - uses: actions/upload-artifact@v7
         with:
           name: pdf
-          path: lp.pdf
+          path: etch.pdf
 
       - uses: actions/upload-artifact@v7
         with:
           name: html
-          path: lp.html
+          path: etch.html
 
       - name: hand the generation to the seed branch
         run: |
@@ -88,7 +88,7 @@ jobs:
 
           # An ignore rule can hide a file the document declares — the seed would then be a
           # generation missing part of itself, and only a fresh clone would notice.
-          declared=$(./tangled/target/debug/lp tangle lp.typ --check |
+          declared=$(./tangled/target/debug/etch tangle etch.typ --check |
             jq -r '.unchanged[].root, .changed[].root' | sort -u)
           missing=$(printf '%s\n' "$declared" | while read -r file; do
             [ -z "$file" ] && continue

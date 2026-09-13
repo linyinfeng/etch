@@ -19,7 +19,7 @@ These are not style preferences; each one was paid for.
 - *An error points at a declaration*, never at a bare string: which chunk, and which
   line inside it.
 - *Unexplained files are errors, deletion is explicit.* Everything under the output
-  directory is produced by a declaration or listed in a `.lpignore`; `lp` never deletes
+  directory is produced by a declaration or listed in a `.etchignore`; `etch` never deletes
   anything by itself.
 - *Only changed bytes are written, and a document that does not evaluate is not tangled.*
   The previous good output stays until the document is valid again.
@@ -28,7 +28,7 @@ These are not style preferences; each one was paid for.
   this program, with its own idea of when a file changed and its own ways to be wrong about a half-written one.
   The first version of that loop watched itself and ran a pass every two hundred milliseconds, forever; the
   second borrowed git's view of the tree and was right more often, which is not the same as right. So the loop
-  belongs to somebody else's tool: `watchexec -e typ -r -- lp tangle lp.typ` is the whole of what this one
+  belongs to somebody else's tool: `watchexec -e typ -r -- etch tangle etch.typ` is the whole of what this one
   would have done. What the tool owes
   that arrangement it already has: a pass writes only changed bytes, and a document that does not evaluate
   leaves the last good output in place, so re-running the command blindly costs the run and nothing else.
@@ -46,4 +46,4 @@ These are not style preferences; each one was paid for.
   banner that survives is `Cargo.lock`'s, and that one is cargo's — the document quotes the lock
   verbatim, so what cargo writes is what the document has to carry.
 - *Dependencies are chosen from mature crates* (D7); every new one gets a line saying
-  why. `typst` is a hard dependency of tangling (`LP_TYPST`, then `PATH`).
+  why. `typst` is a hard dependency of tangling (`ETCH_TYPST`, then `PATH`).

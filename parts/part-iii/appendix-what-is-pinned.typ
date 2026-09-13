@@ -408,6 +408,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "etch"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "ignore",
+ "include_dir",
+ "libc",
+ "lopdf",
+ "miette",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -691,24 +709,6 @@ dependencies = [
  "stringprep",
  "thiserror",
  "weezl",
-]
-
-[[package]]
-name = "lp"
-version = "0.1.0"
-dependencies = [
- "clap",
- "ignore",
- "include_dir",
- "libc",
- "lopdf",
- "miette",
- "regex",
- "serde",
- "serde_json",
- "tempfile",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

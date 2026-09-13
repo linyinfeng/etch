@@ -3,7 +3,7 @@
 = The command line, and what each command is for
 
 This is the file that turns the library into a program. It has two jobs and no third:
-describe the surface, so that `lp --help` is the contract and clap writes it; and translate a
+describe the surface, so that `etch --help` is the contract and clap writes it; and translate a
 command into calls on the modules the earlier chapters described, printing what happened and
 choosing an exit status.
 
@@ -49,7 +49,7 @@ fn out_dir(given: Option<PathBuf>, docs: &[PathBuf]) -> PathBuf {
     }
 }
 
-fn run() -> Result<i32, LpError> {
+fn run() -> Result<i32, EtchError> {
     match Cli::parse().command {
         <<main: tangle, and what it reports>>
         <<main: plan, which decides nothing>>
@@ -68,7 +68,7 @@ fn run() -> Result<i32, LpError> {
     }
 }
 
-fn list(docs: &[PathBuf]) -> Result<(), LpError> {
+fn list(docs: &[PathBuf]) -> Result<(), EtchError> {
     <<main: plan, and who is referenced>>
 
     <<main: the same list, for a program>>
@@ -84,7 +84,7 @@ fn list(docs: &[PathBuf]) -> Result<(), LpError> {
 
 == The surface
 The declarations are the contract, so they are also where the help text lives: the `help` attributes in this
-file are `lp --help`. Each command gets its own fragment, because each one is a promise about what the tool
+file are `etch --help`. Each command gets its own fragment, because each one is a promise about what the tool
 does.
 
 The other half of that promise is where the two kinds of output go, and it is a rule rather than a flag.
@@ -95,7 +95,7 @@ writing its own product there instead of a report about it: `explain` echoes wha
 Nothing else is written to standard output — no table, no sentence, not even "wrote" — so a program reads it
 without parsing anything, and a person pipes it into `jq`. Standard error is the log: what the tool did to the
 disk at `INFO`, and what it looked at, plus
-the report it would otherwise have printed, at `DEBUG`. `LP_LOG=debug` is how a person reads that report; the
+the report it would otherwise have printed, at `DEBUG`. `ETCH_LOG=debug` is how a person reads that report; the
 readouts this book quotes — `ok`, `wrote`, `STALE`, the sentence `map` answers with — are those log lines.
 
 Every document starts the same way — `version`, which is `1`, and `command`, which is the command's name —
@@ -128,12 +128,12 @@ use clap::{ArgGroup, Parser, Subcommand};
 use serde_json::json;
 use tracing::debug;
 
-use diag::LpError;
+use diag::EtchError;
 ````)
 
 #chunk("main: the surface, as clap sees it", ````rust
 #[derive(Parser)]
-#[command(name = "lp", version, about = "Typst-based literate programming")]
+#[command(name = "etch", version, about = "Typst-based literate programming")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -199,7 +199,7 @@ Weave {
 #[command(about = "Expand a .typ document into its source files")]
 Tangle {
     #[arg(required = true)]
-    #[arg(help = "Documents to tangle, e.g. book/lp.typ")]
+    #[arg(help = "Documents to tangle, e.g. book/etch.typ")]
     docs: Vec<PathBuf>,
     #[arg(long)]
     #[arg(
@@ -220,7 +220,7 @@ nothing. None of the three can be derived from the others, so all three are writ
 #[command(about = "Print what a pass would do, without writing anything")]
 Plan {
     #[arg(required = true)]
-    #[arg(help = "Documents to plan for, e.g. book/lp.typ")]
+    #[arg(help = "Documents to plan for, e.g. book/etch.typ")]
     docs: Vec<PathBuf>,
     #[arg(long)]
     #[arg(

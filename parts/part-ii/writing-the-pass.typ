@@ -50,7 +50,7 @@ answer: a pass writes, a plan records, and neither of them decides anything the 
 already said. A second comparison would be a second answer to the same question.
 
 Then the ownership check, before anything the document says is written, for the reason recorded in D20 and the
-consequence of it. The reason: a `.lpignore` can itself be something the document produces, so a fresh tree has
+consequence of it. The reason: a `.etchignore` can itself be something the document produces, so a fresh tree has
 no control file until this pass writes one, and a check that ran before *that* would refuse to bootstrap. The
 consequence: the control files are the one thing written first, and only when the pass is not a check. Once
 they are there, the check runs against the disk as this pass would leave it, and one part of the tree is left
@@ -98,8 +98,8 @@ if !outcome.unaccounted.is_empty() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    return Err(LpError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
-        "declare each one in the .lpignore of its directory, or delete it with `lp unaccounted --delete`",
+    return Err(EtchError::plain(format!("nothing accounts for these files:\n{listed}")).with_help(
+        "declare each one in the .etchignore of its directory, or delete it with `etch unaccounted --delete`",
     ));
 }
 ````)
@@ -129,7 +129,7 @@ for (dir, mut map) in plan.maps {
     map.write_if_changed(&out.join(&dir))?;
     live.insert(dir);
 }
-for (dir, _) in LpMap::read_all(out) {
+for (dir, _) in EtchMap::read_all(out) {
     if live.contains(&dir) {
         continue;
     }
@@ -166,7 +166,7 @@ enum Disk {
     },
 }
 
-fn look(plan: &Plan, root: &str, text: &str, out: &Path) -> Result<(Output, Disk), LpError> {
+fn look(plan: &Plan, root: &str, text: &str, out: &Path) -> Result<(Output, Disk), EtchError> {
     let (dir, name) = split(root);
     let entry = &plan.maps[Path::new(dir)].files[name];
     let output = Output {

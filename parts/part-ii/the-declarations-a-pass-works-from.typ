@@ -84,7 +84,7 @@ fn expand_chunk(
     indent: &str,
     stack: &mut Vec<String>,
     out: &mut Tangled,
-) -> Result<(), LpError> {
+) -> Result<(), EtchError> {
     <<tangle: a cycle, named>>
     stack.push(name.to_string());
 
@@ -104,7 +104,7 @@ fn expand_chunk(
 
 <<tangle: the plan>>
 
-pub(crate) fn declared_book(docs: &[PathBuf]) -> Result<Option<Book>, LpError> {
+pub(crate) fn declared_book(docs: &[PathBuf]) -> Result<Option<Book>, EtchError> {
     let typst = metadata::binary()?;
     let absolute: Vec<PathBuf> = docs
         .iter()
@@ -121,7 +121,7 @@ pub(crate) fn declared_book(docs: &[PathBuf]) -> Result<Option<Book>, LpError> {
     Ok(None)
 }
 
-pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
+pub fn plan(docs: &[PathBuf]) -> Result<Plan, EtchError> {
     <<tangle: ask typst what the document declares>>
 
     <<tangle: a document with no files>>
@@ -130,7 +130,7 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
 
     <<tangle: declarations with no language>>
 
-    let mut maps: BTreeMap<PathBuf, LpMap> = BTreeMap::new();
+    let mut maps: BTreeMap<PathBuf, EtchMap> = BTreeMap::new();
     let mut texts: BTreeMap<String, String> = BTreeMap::new();
     let mut produced: BTreeSet<String> = BTreeSet::new();
     for root in set.roots() {
@@ -159,7 +159,7 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
                 .is_some_and(|map| map.files.contains_key(name))
             {
                 return Err(
-                    LpError::plain(format!("the book would overwrite {}", copy.to)).with_help(
+                    EtchError::plain(format!("the book would overwrite {}", copy.to)).with_help(
                         "a declaration writes that path; change `book-directory` or `extra-book-files`",
                     ),
                 );
@@ -181,7 +181,7 @@ pub fn plan(docs: &[PathBuf]) -> Result<Plan, LpError> {
 
 <<tangle: what the documents produce, per directory>>
 
-pub fn inspect(docs: &[PathBuf], out: &Path) -> Result<Outcome, LpError> {
+pub fn inspect(docs: &[PathBuf], out: &Path) -> Result<Outcome, EtchError> {
     let plan = plan(docs)?;
     let mut outcome = Outcome {
         unreferenced: plan.unreferenced.clone(),
@@ -201,7 +201,7 @@ pub fn inspect(docs: &[PathBuf], out: &Path) -> Result<Outcome, LpError> {
     Ok(outcome)
 }
 
-pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, LpError> {
+pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, EtchError> {
     <<tangle: plan, then an empty outcome>>
 
     <<tangle: the control files a check has to see>>
@@ -243,9 +243,9 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use crate::diag::LpError;
+use crate::diag::EtchError;
 use crate::disk;
-use crate::map::{Book, FileMap, LpMap, MAP_FILE, Run, split};
+use crate::map::{Book, EtchMap, FileMap, MAP_FILE, Run, split};
 use crate::metadata;
 ````)
 
@@ -260,9 +260,9 @@ pub struct Block {
 
 #chunk("tangle: an error quotes the line", ````rust
 impl Block {
-    fn error(&self, index: usize, message: impl Into<String>) -> LpError {
+    fn error(&self, index: usize, message: impl Into<String>) -> EtchError {
         let line = self.text.lines().nth(index).unwrap_or("");
-        LpError::plain(format!("{}: {line}", message.into())).with_help(format!(
+        EtchError::plain(format!("{}: {line}", message.into())).with_help(format!(
             "in chunk ⟪{}⟫, line {} of it",
             self.name,
             index + 1
@@ -328,7 +328,7 @@ runs before anything is expanded, so a document cannot write outside the directo
 given even by accident.
 
 #chunk("tangle: names that stay inside the output directory", ````rust
-pub fn check_output_path(name: &str) -> Result<(), LpError> {
+pub fn check_output_path(name: &str) -> Result<(), EtchError> {
     let unsafe_name = name.is_empty()
         || name.starts_with('/')
         || name.contains('\\')
@@ -342,7 +342,7 @@ pub fn check_output_path(name: &str) -> Result<(), LpError> {
         });
 
     if unsafe_name {
-        return Err(LpError::plain(format!("unsafe chunk name {name:?}"))
+        return Err(EtchError::plain(format!("unsafe chunk name {name:?}"))
             .with_help("a file declaration must be a relative path inside --out, without `..`"));
     }
     Ok(())

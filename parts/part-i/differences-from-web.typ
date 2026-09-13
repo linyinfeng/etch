@@ -19,7 +19,7 @@ WEB prints `This code is used in section N` next to every definition and a `See 
 a name is used. That is the reader's upward direction, generated. This tool cannot generate it: Typst's
 script layer has no source positions, so the pass knows which declaration produced a line of a generated
 file but not where a reference sits in the document (D14). The reader's substitute is a search for the
-name, and `lp map` answers the same question from the compiled side. This one is a gap. A document
+name, and `etch map` answers the same question from the compiled side. This one is a gap. A document
 written for this tool has to be arranged so that jumping is rare, because jumping is all there is.
 
 == There are no change files
@@ -45,7 +45,7 @@ the tree fails the drift check.
 WEB can point a compiler's diagnostic at the WEB file because processing happens when the compiler runs,
 and a section number is a legitimate line directive. Here the generated file has to stay exactly what a
 compiler reading that language expects — see the previous paragraph — so provenance is read back instead
-of baked in: the pass records which declaration wrote each line, and `lp map` and `lp explain` translate
+of baked in: the pass records which declaration wrote each line, and `etch map` and `etch explain` translate
 the compiler's position into a name afterwards.
 
 == The declaration stream is read by evaluating, not parsing

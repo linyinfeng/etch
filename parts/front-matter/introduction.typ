@@ -60,12 +60,12 @@ improvement in what comes out: you can write terrible software, and no compiler 
 terrible book, and nothing here prevents it either. What it offers is a change in what the artifact *is* — the
 argument first, the code as its by-product — and a convenient process for turning one into the other.
 
-== What `lp` is, in one paragraph
+== What `etch` is, in one paragraph
 
 A document declares fragments of code as *chunks*, and the chunks that are written to files as *file*
-declarations; a line that is exactly `<<name>>` is replaced by everything named `name`. `lp tangle` reads
+declarations; a line that is exactly `<<name>>` is replaced by everything named `name`. `etch tangle` reads
 those declarations — by evaluating the document, never by parsing Typst — expands the references and writes
-the tree they describe. `lp weave` renders the document itself, carrying the book inside the page it renders.
+the tree they describe. `etch weave` renders the document itself, carrying the book inside the page it renders.
 Everything else serves the two questions a person asks constantly: which declaration produced this line, and
 what has drifted since the last pass. The tool has no opinion about how a program should be arranged, computes
 nothing about the languages in the tree, and never edits what it did not write.

@@ -11,7 +11,7 @@ without the others. Each one can be argued for, paid for, and given up on its ow
   introduced in an order that is best for human understanding" (*Literate Programming*, 1984).
 3. *A program is written as literature.* Prose is not a comment on the code; it is where the thinking
   lives, and the code is the evidence that the thinking is real.
-4. *The woven document is worth having on its own.* Here that is `lp weave lp.typ lp.pdf`: the same
+4. *The woven document is worth having on its own.* Here that is `etch weave etch.typ etch.pdf`: the same
   declarations, rendered as the page you are reading.
 
 This document takes the first claim literally and argues for the other three by being an example of them.

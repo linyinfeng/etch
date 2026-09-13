@@ -23,7 +23,7 @@ each one is copied into the output directory under `book-directory` with the nam
 The copy is output like everything else: written only when its bytes differ, part of what `--check`
 compares, and accounted for by the ownership check rather than reported as a stray. The directory is the
 list, in both directions: a copy the list no longer names is stale, removed by the next tangle and refused
-by `--check`. That is the one report a `.lpignore` could not have answered — the file was never unaccounted
+by `--check`. That is the one report a `.etchignore` could not have answered — the file was never unaccounted
 for, it was simply old — so the book stops producing it rather than explaining it.
 
 #file("src/book.rs", ````rust
@@ -39,7 +39,7 @@ use std::path::{Path, PathBuf};
 
 use lopdf::{Dictionary, Document, Object, Stream};
 
-use crate::diag::LpError;
+use crate::diag::EtchError;
 use crate::disk;
 use crate::map::Book;
 ````)
@@ -64,17 +64,17 @@ pub fn settle(
     typst: &Path,
     docs: &[PathBuf],
     anchor: &Path,
-) -> Result<(), LpError> {
+) -> Result<(), EtchError> {
     let inputs = crate::metadata::inputs(typst, docs)?;
     book.files = files(book, anchor, &inputs)?;
     Ok(())
 }
 
-fn files(book: &Book, anchor: &Path, inputs: &[PathBuf]) -> Result<Vec<String>, LpError> {
+fn files(book: &Book, anchor: &Path, inputs: &[PathBuf]) -> Result<Vec<String>, EtchError> {
     let mut files: Vec<String> = book.extra.clone();
     for input in inputs {
         let relative = input.strip_prefix(anchor).map_err(|_| {
-            LpError::plain(format!(
+            EtchError::plain(format!(
                 "the document reads {}, which is outside {}",
                 input.display(),
                 anchor.display()
@@ -94,13 +94,13 @@ fn files(book: &Book, anchor: &Path, inputs: &[PathBuf]) -> Result<Vec<String>, 
     Ok(files)
 }
 
-pub fn plan(settings: &Book, anchor: &Path) -> Result<Vec<Copy>, LpError> {
+pub fn plan(settings: &Book, anchor: &Path) -> Result<Vec<Copy>, EtchError> {
     let mut copies = Vec::new();
     for name in &settings.files {
         let from = anchor.join(name);
         if !from.is_file() {
             return Err(
-                LpError::plain(format!("extra-book-files: {name} is not a file")).with_help(
+                EtchError::plain(format!("extra-book-files: {name} is not a file")).with_help(
                     "names are relative to the document, and the book is a list of them",
                 ),
             );
@@ -116,21 +116,21 @@ pub fn plan(settings: &Book, anchor: &Path) -> Result<Vec<Copy>, LpError> {
 ````)
 
 The two carriers are explained where weaving is, because that is the command that produces them: a page gets a
-data block, a PDF gets attached files, and `lp extract` reads either one back. What is left for this chapter
+data block, a PDF gets attached files, and `etch extract` reads either one back. What is left for this chapter
 is the plumbing — the four functions that write and read the two carriers, with the dispatcher and the PDF
 dictionary vocabulary they need. That dictionary is the one place in this program that speaks a file format's
 own language, and it is why the crate depends on a PDF library at all.
 
 #chunk("book: carrying it over", ````rust
-const SOURCE_ID: &str = "lp-source";
+const SOURCE_ID: &str = "etch-source";
 
 const MARKER: &str = "the book this document declares";
 
-fn pdf_err(page: &Path) -> impl Fn(lopdf::Error) -> LpError + '_ {
-    move |err| LpError::plain(format!("{}: {err}", page.display()))
+fn pdf_err(page: &Path) -> impl Fn(lopdf::Error) -> EtchError + '_ {
+    move |err| EtchError::plain(format!("{}: {err}", page.display()))
 }
 
-pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
+pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), EtchError> {
     match page.extension().and_then(|ext| ext.to_str()) {
         Some("html") => attach_html(page, directory, copies),
         Some("pdf") => attach_pdf(page, directory, copies),
@@ -138,12 +138,12 @@ pub fn attach(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpErr
     }
 }
 
-fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
+fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), EtchError> {
     let mut files = serde_json::Map::new();
     for copy in copies {
         let bytes = disk::read_bytes(&copy.from)?;
         let text = String::from_utf8(bytes).map_err(|_| {
-            LpError::plain(format!(
+            EtchError::plain(format!(
                 "{} is not text, so it cannot ride in a page",
                 copy.to
             ))
@@ -157,7 +157,7 @@ fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpEr
     let payload = serde_json::json!({ "version": 1, "files": files }).to_string();
 
     let block = format!(
-        "<script type=\"application/json\" id=\"{SOURCE_ID}\" data-lp=\"1\">\n{}\n</script>\n",
+        "<script type=\"application/json\" id=\"{SOURCE_ID}\" data-etch=\"1\">\n{}\n</script>\n",
         payload.replace('<', "\\u003c")
     );
 
@@ -169,7 +169,7 @@ fn attach_html(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpEr
     disk::write(page, html)
 }
 
-fn attach_pdf(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpError> {
+fn attach_pdf(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), EtchError> {
     let mut document = Document::load(page).map_err(pdf_err(page))?;
     let mut listed = Vec::new();
     for copy in copies {
@@ -204,24 +204,24 @@ fn attach_pdf(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), LpErr
     document
         .save(page)
         .map(|_| ())
-        .map_err(|err| LpError::io(page, err))
+        .map_err(|err| EtchError::io(page, err))
 }
 
-pub fn extract(page: &Path, format: &str, out: &Path) -> Result<usize, LpError> {
+pub fn extract(page: &Path, format: &str, out: &Path) -> Result<usize, EtchError> {
     match format {
         "html" => extract_html(page, out),
         "pdf" => extract_pdf(page, out),
         other => Err(
-            LpError::plain(format!("there is no book to read out of {other}"))
+            EtchError::plain(format!("there is no book to read out of {other}"))
                 .with_help("the book rides in an HTML page and in a PDF"),
         ),
     }
 }
 
-fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
+fn extract_html(page: &Path, out: &Path) -> Result<usize, EtchError> {
     let bytes = disk::read_bytes(page)?;
     let html = String::from_utf8(bytes).map_err(|_| {
-        LpError::plain(format!(
+        EtchError::plain(format!(
             "{} is not text, so it is not a page",
             page.display()
         ))
@@ -229,7 +229,7 @@ fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
     })?;
     let tag = format!("<script type=\"application/json\" id=\"{SOURCE_ID}\"");
     let open = html.rfind(&tag).ok_or_else(|| {
-        LpError::plain(format!(
+        EtchError::plain(format!(
             "{} carries no book: no {tag}> block",
             page.display()
         ))
@@ -237,16 +237,16 @@ fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
     })?;
     let body = html[open..]
         .find('>')
-        .ok_or_else(|| LpError::plain(format!("{}: the block never opens", page.display())))?
+        .ok_or_else(|| EtchError::plain(format!("{}: the block never opens", page.display())))?
         + open
         + 1;
     let end = html[body..]
         .find("</script>")
-        .ok_or_else(|| LpError::plain(format!("{}: the block never closes", page.display())))?
+        .ok_or_else(|| EtchError::plain(format!("{}: the block never closes", page.display())))?
         + body;
 
     let value: serde_json::Value = serde_json::from_str(&html[body..end]).map_err(|err| {
-        LpError::plain(format!(
+        EtchError::plain(format!(
             "{}: the book is not readable: {err}",
             page.display()
         ))
@@ -254,10 +254,10 @@ fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
     let files = value
         .get("files")
         .and_then(|files| files.as_object())
-        .ok_or_else(|| LpError::plain(format!("{}: the book has no files", page.display())))?;
+        .ok_or_else(|| EtchError::plain(format!("{}: the book has no files", page.display())))?;
     for name in files.keys() {
         if name.starts_with('/') || name.split('/').any(|part| part == "..") {
-            return Err(LpError::plain(format!(
+            return Err(EtchError::plain(format!(
                 "{}: {name} would be written outside the output directory",
                 page.display()
             )));
@@ -268,7 +268,7 @@ fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
     for (name, text) in files {
         let text = text
             .as_str()
-            .ok_or_else(|| LpError::plain(format!("{name} is not text in this book")))?;
+            .ok_or_else(|| EtchError::plain(format!("{name} is not text in this book")))?;
         let path = out.join(name);
         disk::write(&path, text)?;
         written += 1;
@@ -276,7 +276,7 @@ fn extract_html(page: &Path, out: &Path) -> Result<usize, LpError> {
     Ok(written)
 }
 
-fn extract_pdf(page: &Path, out: &Path) -> Result<usize, LpError> {
+fn extract_pdf(page: &Path, out: &Path) -> Result<usize, EtchError> {
     let document = Document::load(page).map_err(pdf_err(page))?;
     let mut attached = Vec::new();
     let embedded = document
@@ -333,10 +333,10 @@ fn write_names(
     page: &Path,
     out: &Path,
     attached: Vec<(String, Vec<u8>)>,
-) -> Result<usize, LpError> {
+) -> Result<usize, EtchError> {
     for (name, _) in &attached {
         if name.starts_with('/') || name.split('/').any(|part| part == "..") {
-            return Err(LpError::plain(format!(
+            return Err(EtchError::plain(format!(
                 "{}: {name} would be written outside the output directory",
                 page.display()
             )));
@@ -351,7 +351,12 @@ fn write_names(
     Ok(written)
 }
 
-pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Result<usize, LpError> {
+pub fn sweep(
+    out: &Path,
+    directory: &str,
+    copies: &[Copy],
+    check: bool,
+) -> Result<usize, EtchError> {
     let root = out.join(directory.trim_end_matches('/'));
     let listed: Vec<&str> = copies.iter().map(|copy| copy.name(directory)).collect();
     let mut removed = 0;
@@ -361,12 +366,12 @@ pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Resul
             continue;
         }
         if check {
-            return Err(LpError::plain(format!(
+            return Err(EtchError::plain(format!(
                 "{} is a copy the book no longer names",
                 path.display()
             ))
             .with_help(
-                "the book is the list in `tangle-options`; `lp tangle` without `--check` removes it",
+                "the book is the list in `tangle-options`; `etch tangle` without `--check` removes it",
             ));
         }
         disk::remove_file(&path)?;
@@ -389,7 +394,7 @@ pub fn sweep(out: &Path, directory: &str, copies: &[Copy], check: bool) -> Resul
     Ok(removed)
 }
 
-fn files_under(root: &Path) -> Result<Vec<(PathBuf, String)>, LpError> {
+fn files_under(root: &Path) -> Result<Vec<(PathBuf, String)>, EtchError> {
     let mut found = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
@@ -419,7 +424,7 @@ fn files_under(root: &Path) -> Result<Vec<(PathBuf, String)>, LpError> {
     Ok(found)
 }
 
-pub fn place(out: &Path, copies: &[Copy], check: bool) -> Result<usize, LpError> {
+pub fn place(out: &Path, copies: &[Copy], check: bool) -> Result<usize, EtchError> {
     let mut written = 0;
     for copy in copies {
         let path = out.join(&copy.to);
@@ -428,8 +433,10 @@ pub fn place(out: &Path, copies: &[Copy], check: bool) -> Result<usize, LpError>
             continue;
         }
         if check {
-            return Err(LpError::plain(format!("{} is out of date", path.display()))
-                .with_help("run `lp tangle` without `--check` to carry the book again"));
+            return Err(
+                EtchError::plain(format!("{} is out of date", path.display()))
+                    .with_help("run `etch tangle` without `--check` to carry the book again"),
+            );
         }
         disk::write(&path, &bytes)?;
         written += 1;

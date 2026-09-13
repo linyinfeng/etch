@@ -157,11 +157,11 @@ and the tool: it should be readable in one place, not assembled from an argument
 #chunk("package: a fragment", ````typst
 #let chunk(name, code) = {
   [#metadata((
-    lp: "chunk",
+    etch: "chunk",
     name: name,
     lang: lang-of(code),
     text: code.text,
-  ))<lp-decl>]
+  ))<etch-decl>]
   tile(name, lang-of(code), code)
 }
 ````)
@@ -169,11 +169,11 @@ and the tool: it should be readable in one place, not assembled from an argument
 #chunk("package: a root", ````typst
 #let file(path, code) = {
   [#metadata((
-    lp: "file",
+    etch: "file",
     name: path,
     lang: lang-of(code),
     text: code.text,
-  ))<lp-decl>]
+  ))<etch-decl>]
   tile(path, lang-of(code), code)
 }
 ````)
@@ -199,6 +199,6 @@ are written, which is the only place the mistake is still fresh.
       )
     }
   }
-  [#metadata((lp: "options", options: options))<lp-decl>]
+  [#metadata((etch: "options", options: options))<etch-decl>]
 }
 ````)

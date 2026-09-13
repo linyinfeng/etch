@@ -2,7 +2,7 @@
 
 = Asking the document what it declares
 
-This is the one thing `lp` cannot work out for itself. Typst is Turing-complete: a chunk can come from a
+This is the one thing `etch` cannot work out for itself. Typst is Turing-complete: a chunk can come from a
 loop, a branch, a function, or a file that was `#include`d, so the only authority on what a document
 declares is evaluating it. Rather than parse the document — which would mean being wrong exactly where the
 document is clever — the tool asks Typst a question and reads the answer.
@@ -29,7 +29,7 @@ impl Decl {
 
 <<metadata: finding typst>>
 
-pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError> {
+pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, EtchError> {
     <<metadata: absolute documents, and where we are>>
 
     <<metadata: where the wrapper goes>>
@@ -42,7 +42,7 @@ pub fn declarations(typst: &Path, docs: &[PathBuf]) -> Result<Vec<Decl>, LpError
     Ok(declarations)
 }
 
-pub fn inputs(typst: &Path, docs: &[PathBuf]) -> Result<Vec<PathBuf>, LpError> {
+pub fn inputs(typst: &Path, docs: &[PathBuf]) -> Result<Vec<PathBuf>, EtchError> {
     <<metadata: absolute documents, and where we are>>
 
     <<metadata: where the wrapper goes>>
@@ -82,12 +82,12 @@ use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
-use crate::diag::LpError;
+use crate::diag::EtchError;
 use crate::disk;
 ````)
 
 #chunk("metadata: the one query", ````rust
-const QUERY: &str = "query(<lp-decl>).map(declaration => declaration.value)";
+const QUERY: &str = "query(<etch-decl>).map(declaration => declaration.value)";
 ````)
 
 == The second question, which is about files rather than values
@@ -124,11 +124,11 @@ let _ = disk::remove_file(&laid_out);
 
 #chunk("metadata: when the document does not evaluate, either", ````rust
 let output =
-    output.map_err(|err| LpError::plain(format!("cannot run {}: {err}", typst.display())))?;
+    output.map_err(|err| EtchError::plain(format!("cannot run {}: {err}", typst.display())))?;
 if !output.status.success() {
     let _ = disk::remove_file(&list);
     let message = String::from_utf8_lossy(&output.stderr);
-    return Err(LpError::plain(format!(
+    return Err(EtchError::plain(format!(
         "the document did not evaluate, so there is no telling what it reads:\n{}",
         message.trim_end()
     )));
@@ -139,7 +139,7 @@ if !output.status.success() {
 let text = disk::read(&list)?;
 let _ = disk::remove_file(&list);
 let report: Deps = serde_json::from_str(&text).map_err(|err| {
-    LpError::plain(format!("cannot read the list Typst wrote: {err}")).with_help(text.clone())
+    EtchError::plain(format!("cannot read the list Typst wrote: {err}")).with_help(text.clone())
 })?;
 Ok(report
     .inputs
@@ -179,7 +179,7 @@ guess at.
 #chunk("metadata: what a declaration says", ````rust
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Decl {
-    pub lp: String,
+    pub etch: String,
     #[serde(default)]
     pub name: String,
     #[serde(default)]
@@ -201,46 +201,48 @@ pub enum Kind {
 ````)
 
 #chunk("metadata: a kind we do not know", ````rust
-pub fn kind(&self) -> Result<Kind, LpError> {
-    match self.lp.as_str() {
+pub fn kind(&self) -> Result<Kind, EtchError> {
+    match self.etch.as_str() {
         "chunk" => Ok(Kind::Chunk),
         "file" => Ok(Kind::File),
         "options" => Ok(Kind::Options),
-        other => Err(LpError::plain(format!(
+        other => Err(EtchError::plain(format!(
             "{}: unknown declaration kind {other:?}",
             self.name
         ))
-        .with_help("the package emits `lp: \"chunk\"`, `lp: \"file\"` or `lp: \"options\"`")),
+        .with_help(
+            "the package emits `etch: \"chunk\"`, `etch: \"file\"` or `etch: \"options\"`",
+        )),
     }
 }
 ````)
 
 == Finding typst
 
-This is the one hard dependency, and it has an explicit override (`LP_TYPST`) in front of it and a failure
+This is the one hard dependency, and it has an explicit override (`ETCH_TYPST`) in front of it and a failure
 that says what to do rather than what went wrong. Where the package comes from is not this tool's business:
 the document imports one, Typst resolves that import on its own, and what comes back — if the document is an
-`lp` document at all — is the metadata below. The package is a reference implementation of the functions that
+`etch` document at all — is the metadata below. The package is a reference implementation of the functions that
 emit it; the interface is the records themselves.
 
 The only file this program writes beside a document is the wrapper, and it writes it under one reserved name
 so that no name a person might want is taken.
 
 #chunk("metadata: where the tool's own file goes", ````rust
-pub const PACKAGE_ROOT: &str = ".lp";
+pub const PACKAGE_ROOT: &str = ".etch";
 ````)
 
 #chunk("metadata: finding typst", ````rust
-pub fn binary() -> Result<PathBuf, LpError> {
-    if let Some(path) = std::env::var_os("LP_TYPST") {
+pub fn binary() -> Result<PathBuf, EtchError> {
+    if let Some(path) = std::env::var_os("ETCH_TYPST") {
         return Ok(PathBuf::from(path));
     }
     let name = if cfg!(windows) { "typst.exe" } else { "typst" };
     std::env::var_os("PATH")
         .and_then(|paths| std::env::split_paths(&paths).map(|dir| dir.join(name)).find(|candidate| candidate.is_file()))
         .ok_or_else(|| {
-            LpError::plain("no `typst` binary found").with_help(
-                "tangling asks the document for its declarations, so typst has to be available (set LP_TYPST or put it on PATH)",
+            EtchError::plain("no `typst` binary found").with_help(
+                "tangling asks the document for its declarations, so typst has to be available (set ETCH_TYPST or put it on PATH)",
             )
         })
 }
@@ -253,7 +255,7 @@ absolute, decide where the wrapper lives, run Typst, and report what came back.
 
 #chunk("metadata: absolute documents, and where we are", ````rust
 let cwd = std::env::current_dir()
-    .map_err(|err| LpError::plain(format!("cannot read the working directory: {err}")))?;
+    .map_err(|err| EtchError::plain(format!("cannot read the working directory: {err}")))?;
 let docs: Vec<PathBuf> = docs
     .iter()
     .map(|doc| std::path::absolute(doc).unwrap_or_else(|_| cwd.join(doc)))
@@ -292,10 +294,10 @@ drop(wrapper);
 
 #chunk("metadata: when the document does not evaluate", ````rust
 let output =
-    output.map_err(|err| LpError::plain(format!("cannot run {}: {err}", typst.display())))?;
+    output.map_err(|err| EtchError::plain(format!("cannot run {}: {err}", typst.display())))?;
 if !output.status.success() {
     let message = String::from_utf8_lossy(&output.stderr);
-    return Err(LpError::plain(format!(
+    return Err(EtchError::plain(format!(
         "the document did not evaluate, so there are no chunks to tangle:\n{}",
         message.trim_end()
     )));
@@ -307,7 +309,7 @@ document needs to see — a missing bracket in a chunk is a document error, not 
 
 #chunk("metadata: read the answer", ````rust
 let declarations: Vec<Decl> = serde_json::from_slice(&output.stdout).map_err(|err| {
-    LpError::plain(format!("cannot read the document's declarations: {err}"))
+    EtchError::plain(format!("cannot read the document's declarations: {err}"))
         .with_help(String::from_utf8_lossy(&output.stdout).to_string())
 })?;
 ````)
@@ -323,8 +325,8 @@ for declaration in &declarations {
 The wrapper is a temporary document holding one `#include` per document named on the command line. It is
 removed when it goes out of scope, and that includes the failing and panicking paths.
 
-It lives under `.lp` because of what it is not: a file beside a document is a name taken from whoever works
-there, and one reserved name is enough. Inside `.lp` a leftover — a run that was killed before it could
+It lives under `.etch` because of what it is not: a file beside a document is a name taken from whoever works
+there, and one reserved name is enough. Inside `.etch` a leftover — a run that was killed before it could
 clean up — is invisible rather than reported, because no pass reads that directory at all.
 
 #chunk("metadata: the wrapper document", ````rust
@@ -334,7 +336,7 @@ struct Wrapper {
 ````)
 
 #chunk("metadata: writing the wrapper", ````rust
-fn write(root: &Path, docs: &[PathBuf], quiet: bool) -> Result<Self, LpError> {
+fn write(root: &Path, docs: &[PathBuf], quiet: bool) -> Result<Self, EtchError> {
     let path = root
         .join(PACKAGE_ROOT)
         .join(format!("entry-{}.typ", std::process::id()));
@@ -368,7 +370,7 @@ impl Drop for Wrapper {
 
 == The directory the wrapper lives in
 
-The deepest directory containing every document. The wrapper goes into `.lp` under it, which is what lets it
+The deepest directory containing every document. The wrapper goes into `.etch` under it, which is what lets it
 say `#include "../…"` and reach every one of them; the deepest directory is what the `..` is relative to.
 The unit test is here rather than in `tests/` because this arithmetic — walk up until every path fits — is
 easy to get subtly wrong, and the failure mode is quiet: a wrapper written outside the root is simply

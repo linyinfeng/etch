@@ -24,7 +24,7 @@ lookup only has to consult the maps under the output directory, and that the mos
 one can win when more than one could explain a name.
 
 There is a version number because a map outlives one run: a checkout can hold maps written
-by an older `lp`, and reading one has to be able to say "not mine" instead of guessing.
+by an older `etch`, and reading one has to be able to say "not mine" instead of guessing.
 
 == The shape of the record
 
@@ -42,7 +42,7 @@ a repeated name is a concatenation and not a collision.
 
 <<map: a fresh map>>
 
-impl LpMap {
+impl EtchMap {
     <<map: is it empty?>>
 
     <<map: who wrote these files>>
@@ -83,7 +83,7 @@ use std::path::{Path, PathBuf};
 use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 
-use crate::diag::LpError;
+use crate::diag::EtchError;
 use crate::disk;
 ````)
 
@@ -95,7 +95,7 @@ for exactly this name. The version is a constant for the same reason — it is a
 the format, and facts about the format belong in one place.
 
 #chunk("map: the two constants", ````rust
-pub const MAP_FILE: &str = ".lpmap.json";
+pub const MAP_FILE: &str = ".etchmap.json";
 const VERSION: u32 = 6;
 ````)
 
@@ -106,7 +106,7 @@ entry for one file, and one run of lines.
 
 #chunk("map: what a map holds", ````rust
 #[derive(Debug, Serialize, Deserialize)]
-pub struct LpMap {
+pub struct EtchMap {
     pub version: u32,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub docs: Vec<String>,
@@ -143,7 +143,7 @@ A `Default` implementation, and the only thing in it worth reading is the versio
 was constructed rather than read still says which schema it is.
 
 #chunk("map: a fresh map", ````rust
-impl Default for LpMap {
+impl Default for EtchMap {
     fn default() -> Self {
         Self {
             version: VERSION,
@@ -184,7 +184,7 @@ pub fn set_docs(&mut self, docs: impl IntoIterator<Item = String>) {
 ````)
 
 #chunk("map: write only what changed", ````rust
-pub fn write_if_changed(&self, dir: &Path) -> Result<bool, LpError> {
+pub fn write_if_changed(&self, dir: &Path) -> Result<bool, EtchError> {
     let (path, json) = self.serialize(dir)?;
     if disk::read_ok(&path)?.as_deref() == Some(json.as_str()) {
         return Ok(false);
@@ -195,11 +195,11 @@ pub fn write_if_changed(&self, dir: &Path) -> Result<bool, LpError> {
 ````)
 
 #chunk("map: read one map", ````rust
-pub fn read(dir: &Path) -> Result<Self, LpError> {
+pub fn read(dir: &Path) -> Result<Self, EtchError> {
     let path = dir.join(MAP_FILE);
     let text = disk::read(&path)?;
     serde_json::from_str(&text)
-        .map_err(|err| LpError::plain(format!("{}: {err}", path.display())))
+        .map_err(|err| EtchError::plain(format!("{}: {err}", path.display())))
 }
 ````)
 
@@ -207,7 +207,7 @@ The search is two fragments rather than one: the guard for an output directory t
 the walk.
 
 #chunk("map: when there is no output directory", ````rust
-pub fn read_all(out: &Path) -> Vec<(String, LpMap)> {
+pub fn read_all(out: &Path) -> Vec<(String, EtchMap)> {
     if !out.exists() {
         return Vec::new();
     }
@@ -236,10 +236,10 @@ pub fn read_all(out: &Path) -> Vec<(String, LpMap)> {
 ````)
 
 #chunk("map: the json, and where it goes", ````rust
-fn serialize(&self, dir: &Path) -> Result<(PathBuf, String), LpError> {
+fn serialize(&self, dir: &Path) -> Result<(PathBuf, String), EtchError> {
     let path = dir.join(MAP_FILE);
     let json = serde_json::to_string_pretty(self)
-        .map_err(|err| LpError::plain(format!("{}: {err}", path.display())))?;
+        .map_err(|err| EtchError::plain(format!("{}: {err}", path.display())))?;
     Ok((path, json + "\n"))
 }
 ````)
@@ -311,9 +311,9 @@ typo into something visible instead of a mystery.
 
 #chunk("map: finding the map that knows a file", ````rust
 pub fn resolve_all<'a>(
-    maps: &'a [(String, LpMap)],
+    maps: &'a [(String, EtchMap)],
     file: &str,
-) -> Result<(&'a str, &'a str, &'a FileMap), LpError> {
+) -> Result<(&'a str, &'a str, &'a FileMap), EtchError> {
     let normalized = file.replace('\\', "/");
     let (indir, name) = split(&normalized);
 
@@ -338,7 +338,7 @@ pub fn resolve_all<'a>(
             .flat_map(|(dir, map)| map.files.keys().map(move |name| join(dir, name)))
             .collect::<Vec<_>>()
             .join(", ");
-        return Err(LpError::plain(format!("{file}: no map knows this file"))
+        return Err(EtchError::plain(format!("{file}: no map knows this file"))
             .with_help(format!("known files: {known}")));
     };
     if candidates
@@ -351,7 +351,7 @@ pub fn resolve_all<'a>(
             .collect::<Vec<_>>()
             .join(", ");
         return Err(
-            LpError::plain(format!("{file}: which map?")).with_help(format!("candidates: {all}"))
+            EtchError::plain(format!("{file}: which map?")).with_help(format!("candidates: {all}"))
         );
     }
     Ok(*best)

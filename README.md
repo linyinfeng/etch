@@ -1,1 +1,1 @@
-# [`lp.typ`](lp.typ)
+# [`etch.typ`](etch.typ)

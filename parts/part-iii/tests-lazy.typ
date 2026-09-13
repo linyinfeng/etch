@@ -26,7 +26,7 @@ The cases, in the order they appear:
 - `a_pass_does_not_touch_files_that_did_not_change` — the first pass writes, the second rewrites nothing at all
 - `only_the_affected_output_is_rewritten` — editing one document rewrites only the files that changed
 - `a_half_written_document_is_not_tangled` — a document that does not evaluate leaves the previous output in place
-- `map_works_in_both_directions` — `lp map` answers forwards and backwards
+- `map_works_in_both_directions` — `etch map` answers forwards and backwards
 - `unused_fragment_warns_without_failing` — a fragment nobody references is a warning, not a failure
 
 #chunk("lazy: the fixtures and helpers", ````rust
@@ -62,13 +62,13 @@ print('two')
 ",
 );
 
-fn lp(dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lp"))
+fn etch(dir: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_etch"))
         .args(args)
-        .env("LP_LOG", "debug")
+        .env("ETCH_LOG", "debug")
         .current_dir(dir)
         .output()
-        .expect("run lp")
+        .expect("run etch")
 }
 
 fn stdout(output: &Output) -> String {
@@ -80,9 +80,9 @@ fn stderr(output: &Output) -> String {
 }
 
 fn write_doc(dir: &Path, name: &str, body: &str) {
-    std::fs::write(dir.join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.join("etch.typ"), PKG).expect("package");
     let text = format!(
-        "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}"
+        "#import \"etch.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}"
     );
     std::fs::write(dir.join(name), text).expect("doc");
 }
@@ -111,7 +111,7 @@ fn modified(path: &Path) -> std::time::SystemTime {
 #[test]
 fn a_pass_does_not_touch_files_that_did_not_change() {
     let (_guard, dir) = project();
-    let first = lp(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
+    let first = etch(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
     assert!(first.status.success(), "{}", stderr(&first));
     assert!(stderr(&first).contains("wrote  main.py"));
     assert!(stderr(&first).contains("wrote  other.py"));
@@ -119,11 +119,11 @@ fn a_pass_does_not_touch_files_that_did_not_change() {
     let before = (
         modified(&dir.join("out/main.py")),
         modified(&dir.join("out/other.py")),
-        modified(&dir.join("out/.lpmap.json")),
+        modified(&dir.join("out/.etchmap.json")),
     );
     std::thread::sleep(std::time::Duration::from_millis(30));
 
-    let second = lp(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
+    let second = etch(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
     assert!(second.status.success(), "{}", stderr(&second));
     let written: serde_json::Value = serde_json::from_str(&stdout(&second)).expect("one document");
     assert_eq!(
@@ -136,7 +136,7 @@ fn a_pass_does_not_touch_files_that_did_not_change() {
     let after = (
         modified(&dir.join("out/main.py")),
         modified(&dir.join("out/other.py")),
-        modified(&dir.join("out/.lpmap.json")),
+        modified(&dir.join("out/.etchmap.json")),
     );
     assert_eq!(before, after, "a no-op pass must not touch mtimes");
 }
@@ -147,7 +147,7 @@ fn a_pass_does_not_touch_files_that_did_not_change() {
 fn only_the_affected_output_is_rewritten() {
     let (_guard, dir) = project();
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"])
             .status
             .success()
     );
@@ -158,7 +158,7 @@ fn only_the_affected_output_is_rewritten() {
         &DOC.replace("print('two')", "print('three')"),
     );
 
-    let output = lp(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "second.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     let report = stderr(&output);
     assert!(report.contains("wrote  main.py"), "{report}");
@@ -179,7 +179,7 @@ fn only_the_affected_output_is_rewritten() {
 fn a_half_written_document_is_not_tangled() {
     let (_guard, dir) = project();
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
@@ -191,7 +191,7 @@ fn a_half_written_document_is_not_tangled() {
         &DOC.replace("#file(\"main.py\", ```py", "#file(\"main.py\", `"),
     );
 
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(
         !output.status.success(),
         "a document that does not evaluate must not be tangled"
@@ -210,12 +210,12 @@ fn a_half_written_document_is_not_tangled() {
 fn map_works_in_both_directions() {
     let (_guard, dir) = project();
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
 
-    let forward = lp(
+    let forward = etch(
         &dir,
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
@@ -226,7 +226,7 @@ fn map_works_in_both_directions() {
         stderr(&forward)
     );
 
-    let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
+    let reverse = etch(&dir, &["map", "--typ", "body", "--out", "out"]);
     assert!(reverse.status.success(), "{}", stderr(&reverse));
     assert!(
         stdout(&reverse).contains("\"file\":\"main.py\""),
@@ -246,7 +246,7 @@ fn unused_fragment_warns_without_failing() {
         &format!("{DOC}\n#chunk(\"never-used\", ```py\nprint('dead')\n```)\n"),
     );
 
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(
         stderr(&output).contains("chunk ⟪never-used⟫ is never referenced"),

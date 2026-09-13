@@ -54,18 +54,18 @@ Six things here are this tool's own, and every one of them was found by a failur
   on macOS only.
 - *The round trip is a check rather than a condition of the build.* Rendering the document and reading the
   book back out of both carriers is a thing to assert, not a thing to make someone pay for by installing
-  `lp`. The check copies the whole book directory rather than the files it remembers, because the document
+  `etch`. The check copies the whole book directory rather than the files it remembers, because the document
   already says which files those are, and a second list of names is a list that goes stale. The copy is made
   writable first, because what comes out of the store is read-only and a read-only directory cannot be written
   to, and it is made twice: one copy is the yardstick the extracted book is compared against, the other is
   where the rendering happens.
 - *The package does not run the tests.* `doCheck = false` there and a `test` check beside it, because a
   package that ran them as well would fail before a reader could see *which* test broke.
-- *The bootstrap is a workflow step, not a check.* `lp self prove` unpacks the book the binary carries,
+- *The bootstrap is a workflow step, not a check.* `etch self prove` unpacks the book the binary carries,
 tangles it with that binary, and runs this tree's own checks in what comes out — the property the seed exists
 for. It cannot be a check, because a check runs in a sandbox with no nix in it, and the last thing this command
 does is run nix; so the workflow runs it where nix exists, inside the shell: `nix develop --command nix run
-.#lp -- self prove`. `nix run` rather than `nix build` and a `result` link, so that proving the tree does not
+.#etch -- self prove`. `nix run` rather than `nix build` and a `result` link, so that proving the tree does not
 leave something in it for the ownership check to complain about.
 
 #chunk("nix: the per-system half", ````nix
@@ -95,7 +95,7 @@ leave something in it for the ownership check to complain about.
         prePatch = ''export CARGO_HOME="$TMPDIR/cargo-home"'';
       };
 
-      lp = craneLib.buildPackage (
+      etch = craneLib.buildPackage (
         cargoEnv
         // {
           inherit src cargoArtifacts;
@@ -105,17 +105,17 @@ leave something in it for the ownership check to complain about.
           nativeBuildInputs = [ pkgs.makeWrapper ];
 
           postInstall = ''
-            wrapProgram $out/bin/lp --prefix PATH : ${lib.makeBinPath [ pkgs.typst ]}
+            wrapProgram $out/bin/etch --prefix PATH : ${lib.makeBinPath [ pkgs.typst ]}
           '';
         }
       );
 
       roundtrip =
-        pkgs.runCommand "lp-roundtrip"
+        pkgs.runCommand "etch-roundtrip"
           {
             nativeBuildInputs = [
               pkgs.typst
-              lp
+              etch
             ];
           }
           ''
@@ -127,19 +127,19 @@ leave something in it for the ownership check to complain about.
             chmod -R u+w "$work/carried" "$work/woven"
 
             pushd "$work/woven" >/dev/null
-            lp weave lp.typ "$work/lp.pdf"
-            lp weave lp.typ "$work/lp.html" --features html
+            etch weave etch.typ "$work/etch.pdf"
+            etch weave etch.typ "$work/etch.html" --features html
             popd >/dev/null
 
             for format in pdf html; do
-              lp extract --format "$format" "$work/lp.$format" --out "$work/back-$format"
+              etch extract --format "$format" "$work/etch.$format" --out "$work/back-$format"
               diff -r "$work/carried" "$work/back-$format"
             done
             touch "$out"
           '';
 
       gates = {
-        package = lp;
+        package = etch;
 
         test = craneLib.cargoTest (
           cargoEnv
@@ -163,8 +163,8 @@ leave something in it for the ownership check to complain about.
     in
     {
       packages = {
-        inherit lp;
-        default = lp;
+        inherit etch;
+        default = etch;
       };
 
       checks = gates // {
@@ -255,7 +255,7 @@ stop being a claim and become something that ran.
 
 #chunk("nix: the flake", ````nix
 {
-  description = "lp: literate programming for Typst documents";
+  description = "etch: literate programming for Typst documents";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -372,7 +372,7 @@ jobs:
         with:
           name: linyinfeng
           signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
-      - run: nix develop --command nix run .#lp -- self prove /tmp/proved
+      - run: nix develop --command nix run .#etch -- self prove /tmp/proved
 ````)
 
 The policy file travels with the tree for the same reason the workflow does: `zizmor` now runs *in* the

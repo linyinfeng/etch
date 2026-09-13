@@ -40,16 +40,16 @@ things they can be searched for.
 The page is not the only way in. Every declaration is a record in the document's metadata, and the tool
 will answer questions about it without the reader having to trust the prose.
 
-`lp list lp.typ` prints the declarations in document order — each one's kind, name and language. That is
+`etch list etch.typ` prints the declarations in document order — each one's kind, name and language. That is
 the table of contents for the code, and it is derived from the same declaration stream the tangle reads.
 
-The compiler's position is the reader's most common entry point: an error at `src/diag.rs:14:5`. `lp map
+The compiler's position is the reader's most common entry point: an error at `src/diag.rs:14:5`. `etch map
 --file src/diag.rs --line 14` answers which declaration wrote that line, and prints the search that finds it
-in the document — which is what a reader in an editor wants, rather than a page number. `lp explain` does the
+in the document — which is what a reader in an editor wants, rather than a page number. `etch explain` does the
 same for a whole diagnostic, rewriting the compiler's file-and-line into a name from the document. The map is
 written while tangling, so it costs nothing to ask and cannot disagree with the tree.
 
-The opposite direction is `lp map --typ 'diag: a plain error'`, or a plain search for the name. The
+The opposite direction is `etch map --typ 'diag: a plain error'`, or a plain search for the name. The
 document is text, the names are unique, and grep is a legitimate reader's tool — the tool has no index to
 be faster than it.
 

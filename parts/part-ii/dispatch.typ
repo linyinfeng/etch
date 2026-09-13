@@ -6,24 +6,24 @@ The surface ends at the argument parser; what happens to a parsed command is thi
 are decided here and nowhere else: how an error becomes text and an exit status, which module each command
 calls, and the one command that prints a view of its own instead of writing files.
 
-Every error in this program is an `LpError`, and this is the only place it becomes text. The
+Every error in this program is an `EtchError`, and this is the only place it becomes text. The
 report handler is installed once, so no module has to think about rendering; and the exit
 status is 1 for every failure, which is all a shell needs to know.
 
 A program that prints has one more way to end than the two below, and it is worth naming because it
 looks like a crash: the reader on the other end of the pipe has gone away. Rust ignores `SIGPIPE`,
 so a closed pipe does not kill the write — it makes it fail, and `println!` panics on a failed write.
-That is how `lp list lp.typ | head` exits: one hundred and one, with a message about a broken pipe,
+That is how `etch list etch.typ | head` exits: one hundred and one, with a message about a broken pipe,
 where every filter on the machine exits quietly. So the one handler this tool has anything to do with
 is put back the way the shell expects it.
 
 The log is the other half of the surface: what the tool did, rather than what it knows. It is `INFO` by
-default and it goes to standard error, which is what makes standard output usable as data. `LP_LOG` moves
+default and it goes to standard error, which is what makes standard output usable as data. `ETCH_LOG` moves
 the level — `debug` shows every read as well, `off` shows nothing — and colour is decided by whether
 standard error is a terminal, so a log in a file is a log without escape codes.
 
 #chunk("main: the log", ````rust
-let named = std::env::var("LP_LOG").unwrap_or_default();
+let named = std::env::var("ETCH_LOG").unwrap_or_default();
 let level = match named.to_lowercase().as_str() {
     "off" => tracing::Level::ERROR,
     "error" => tracing::Level::ERROR,
@@ -62,7 +62,7 @@ and a promise made in six places is six promises. The version is a number to che
 a consumer that does not know `1` should stop rather than guess at fields that may have moved.
 
 #chunk("main: one document, for a program", ````rust
-fn machine(command: &str, payload: serde_json::Value) -> Result<(), LpError> {
+fn machine(command: &str, payload: serde_json::Value) -> Result<(), EtchError> {
     let mut fields = serde_json::Map::new();
     fields.insert("version".into(), serde_json::Value::from(1));
     fields.insert("command".into(), serde_json::Value::from(command));
@@ -230,7 +230,7 @@ Command::Map {
     out,
 } => {
     let out = out_dir(out, &[]);
-    let maps = map::LpMap::read_all(&out);
+    let maps = map::EtchMap::read_all(&out);
 ````)
 
 `map` has two directions, and they are different enough to be separate fragments. In reverse
@@ -276,15 +276,15 @@ guarantee a compiler cannot see.
     let (file, line) = match (file, line) {
         (Some(file), Some(line)) => (file, line),
         _ => {
-            return Err(LpError::plain("lp map takes one direction").with_help(
-                "use `lp map --file src/main.rs --line 42` for a generated line, or `lp map --typ <chunk>` the other way",
+            return Err(EtchError::plain("etch map takes one direction").with_help(
+                "use `etch map --file src/main.rs --line 42` for a generated line, or `etch map --typ <chunk>` the other way",
             ))
         }
     };
     let (dir, name, entry) = map::resolve_all(&maps, &file)?;
     let rel = map::join(dir, name);
     let Some((run, offset)) = entry.locate(line) else {
-        return Err(LpError::plain(format!(
+        return Err(EtchError::plain(format!(
             "{rel}:{line}: no map knows this file"
         )));
     };
@@ -312,7 +312,7 @@ Command::Explain { out } => {
     let mut input = String::new();
     std::io::stdin()
         .read_to_string(&mut input)
-        .map_err(|e| LpError::plain(e.to_string()))?;
+        .map_err(|e| EtchError::plain(e.to_string()))?;
     let mapped = explain::run(&out, &input)?;
     if mapped == 0 {
         debug!("no diagnostic line matched any map");
@@ -340,7 +340,7 @@ Command::Metadata { docs } => {
     for declaration in &declarations {
         debug!(
             "{:<6} {:<28} {:<8} {}",
-            declaration.lp,
+            declaration.etch,
             declaration.name,
             declaration.lang.as_deref().unwrap_or("-"),
             declaration.text.lines().next().unwrap_or("")

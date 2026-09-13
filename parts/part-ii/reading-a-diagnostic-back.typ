@@ -16,7 +16,7 @@ positions we could inject would be `.typ` line numbers, which do not exist, beca
 does not expose them (ADR D14, with the measurements behind it).
 
 So the mapping is built on the side, while tangling: every generated line is recorded
-together with the declaration it came from. What is left for `lp explain` is a filter with
+together with the declaration it came from. What is left for `etch explain` is a filter with
 no opinion about any language at all — it echoes what it reads, and for each line shaped
 like `file:line:col:` it adds one note about where that line came from.
 
@@ -27,10 +27,10 @@ Every line of this file is a name; the details come in the sections after it.
 #file("src/explain.rs", ````rust
 <<explain: the imports>>
 
-pub fn run(out: &Path, input: &str) -> Result<usize, LpError> {
+pub fn run(out: &Path, input: &str) -> Result<usize, EtchError> {
     <<the diagnostic pattern>>
 
-    let maps = LpMap::read_all(out);
+    let maps = EtchMap::read_all(out);
     let mut mapped = 0;
 
     for line in input.lines() {
@@ -56,7 +56,7 @@ built, shipped and read by people who never open this book, and those readers wo
 
 What pays for the rule is that a second copy of the argument would drift while a pointer would need
 maintaining, and the file has nowhere to put either that the document would notice. So the code has one home,
-the reasoning has one home, and `lp map` is what connects the two for a reader who arrives from the tree.
+the reasoning has one home, and `etch map` is what connects the two for a reader who arrives from the tree.
 
 == What the filter needs
 
@@ -69,8 +69,8 @@ use std::path::Path;
 
 use regex::Regex;
 
-use crate::diag::LpError;
-use crate::map::{LpMap, join, resolve_all};
+use crate::diag::EtchError;
+use crate::map::{EtchMap, join, resolve_all};
 ````)
 
 == One pattern, and it is not language knowledge
@@ -83,7 +83,7 @@ algorithm (ADR D5).
 
 #chunk("the diagnostic pattern", ````rust
 let pattern = Regex::new(r"^(?P<file>[^\s:]+\.\w+):(?P<line>\d+):(?P<col>\d+):\s?(?P<msg>.*)$")
-    .map_err(|err| LpError::plain(format!("internal: bad diagnostic pattern: {err}")))?;
+    .map_err(|err| EtchError::plain(format!("internal: bad diagnostic pattern: {err}")))?;
 ````)
 
 == Give up quietly, or say where the line came from

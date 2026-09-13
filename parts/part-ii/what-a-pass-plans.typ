@@ -12,9 +12,9 @@ field, and only the sentence built from it is prose.
 == Two readers of one plan, and the command that asks
 
 A pass and a plan are the same look at the same document, and what separates them is what they do with the
-answer. `lp tangle` writes. `lp tangle --check` is a gate: it stops at the first thing that must not pass —
+answer. `etch tangle` writes. `etch tangle --check` is a gate: it stops at the first thing that must not pass —
 drift, a book copy out of date, a file under the output directory that nothing accounts for — and what it
-prints is the evidence for a verdict, which is why it can stop early. `lp plan` is the question: what a
+prints is the evidence for a verdict, which is why it can stop early. `etch plan` is the question: what a
 pass would write, what it would leave alone, which fragments nobody references, which files are nobody's,
 all at once — and it exits zero, because finding something wrong is not the same as failing. That is the
 difference between the command a script gates on and the command a reader asks, or a program that is about
@@ -57,7 +57,7 @@ pub struct Drift {
 
 #chunk("tangle: the plan", ````rust
 pub struct Plan {
-    pub maps: BTreeMap<PathBuf, LpMap>,
+    pub maps: BTreeMap<PathBuf, EtchMap>,
     pub texts: BTreeMap<String, String>,
     pub referenced: BTreeSet<String>,
     pub unreferenced: BTreeSet<String>,
@@ -67,17 +67,17 @@ pub struct Plan {
     pub book_copies: Vec<crate::book::Copy>,
 }
 
-fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
+fn settings(declaration: &metadata::Decl) -> Result<Book, EtchError> {
     let value = declaration
         .options
         .clone()
         .unwrap_or(serde_json::Value::Null);
     let table = value
         .as_object()
-        .ok_or_else(|| LpError::plain("tangle-options was given something that is not a dict"))?;
+        .ok_or_else(|| EtchError::plain("tangle-options was given something that is not a dict"))?;
     for key in table.keys() {
         if key != "book-directory" && key != "extra-book-files" {
-            return Err(LpError::plain(format!("unknown tangle option {key:?}"))
+            return Err(EtchError::plain(format!("unknown tangle option {key:?}"))
                 .with_help("known options: `book-directory`, `extra-book-files`"));
         }
     }
@@ -85,7 +85,7 @@ fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
         .get("book-directory")
         .and_then(|value| value.as_str())
         .ok_or_else(|| {
-            LpError::plain("tangle-options needs a `book-directory`")
+            EtchError::plain("tangle-options needs a `book-directory`")
                 .with_help("a string: the directory inside the output that the book is copied into")
         })?
         .to_string();
@@ -93,13 +93,13 @@ fn settings(declaration: &metadata::Decl) -> Result<Book, LpError> {
     if let Some(value) = table.get("extra-book-files") {
         let list = value
             .as_array()
-            .ok_or_else(|| LpError::plain("`extra-book-files` is a list of file names"))?;
+            .ok_or_else(|| EtchError::plain("`extra-book-files` is a list of file names"))?;
         for entry in list {
             let name = entry
                 .as_str()
-                .ok_or_else(|| LpError::plain("`extra-book-files` is a list of file names"))?;
+                .ok_or_else(|| EtchError::plain("`extra-book-files` is a list of file names"))?;
             if name.starts_with('/') || name.split('/').any(|part| part == "..") {
-                return Err(LpError::plain(format!(
+                return Err(EtchError::plain(format!(
                     "extra-book-files: {name} leaves the source tree"
                 ))
                 .with_help("names are relative to the document, and a book stays inside it"));
@@ -143,16 +143,18 @@ let mut blocks: Vec<Block> = Vec::new();
 let mut book: Option<Book> = None;
 let declared = metadata::declarations(&typst, docs)?;
 if declared.is_empty() {
-    return Err(LpError::plain("the document declares no chunks").with_help(
-    "import the package and declare them: `#import \"lp.typ\": chunk, file`, then `#chunk(\"name\", ```…```)` or `#file(\"src/main.rs\", ```…```)`",
+    return Err(EtchError::plain("the document declares no chunks").with_help(
+    "import the package and declare them: `#import \"etch.typ\": chunk, file`, then `#chunk(\"name\", ```…```)` or `#file(\"src/main.rs\", ```…```)`",
 ));
 }
 for declaration in declared {
     match declaration.kind()? {
         metadata::Kind::Options => {
             if book.is_some() {
-                return Err(LpError::plain("the document declares tangle options twice")
-                    .with_help("one `#tangle-options(…)` call, with one dict"));
+                return Err(
+                    EtchError::plain("the document declares tangle options twice")
+                        .with_help("one `#tangle-options(…)` call, with one dict"),
+                );
             }
             book = Some(settings(&declaration)?);
         }
@@ -174,8 +176,10 @@ if set.roots().is_empty() {
         .map(|doc| doc.display().to_string())
         .collect::<Vec<_>>()
         .join(", ");
-    return Err(LpError::plain(format!("no file declarations in {listed}"))
-        .with_help("declare one: `#file(\"src/main.rs\", ```…```)`"));
+    return Err(
+        EtchError::plain(format!("no file declarations in {listed}"))
+            .with_help("declare one: `#file(\"src/main.rs\", ```…```)`"),
+    );
 }
 ````)
 
@@ -187,7 +191,7 @@ that downstream tools read and that this program refuses to guess from a file na
 reported rather than quietly filled.
 
 Two places ask the same question about a block — which names does it reference — and it is one function
-rather than two readings of the same text: the warning below, and `lp list`, which marks each declaration as
+rather than two readings of the same text: the warning below, and `etch list`, which marks each declaration as
 referenced or not.
 
 #chunk("tangle: every name a block references", ````rust
@@ -248,7 +252,7 @@ which of them came last.
 
 #chunk("tangle: the same path twice", ````rust
 if !produced.insert(root.to_string()) {
-    return Err(LpError::plain(format!("output {root} is produced twice")));
+    return Err(EtchError::plain(format!("output {root} is produced twice")));
 }
 ````)
 

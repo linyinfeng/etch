@@ -8,7 +8,7 @@ commands that read the result back. Most of the cases share one fixture, because
 what the *same* document produces in different situations.
 
 One helper walks a directory, because the round-trip cases are about the whole book, and comparing a
-list of names would be comparing a list that goes stale. The walk skips `.lp`: that is the one name the
+list of names would be comparing a list that goes stale. The walk skips `.etch`: that is the one name the
 tool writes beside a document, and the only thing under `book/` that is not part of the book.
 
 #file("tests/flow.rs", ````rust
@@ -47,7 +47,7 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: a_blank_line_in_an_indented_fragment_stays_blank>>
 
-<<flow: tangling_leaves_only_dot_lp_beside_the_document>>
+<<flow: tangling_leaves_only_dot_etch_beside_the_document>>
 
 <<flow: a_pdf_gives_the_book_back>>
 
@@ -117,14 +117,14 @@ The cases, in the order they appear:
 - `a_declaration_without_a_language_warns` — a fence with no language tag is reported, and the pass still succeeds
 - `a_file_declaration_can_name_a_nested_path` — `src/main.rs` is created under the output directory, directories and all
 - `unsafe_paths_are_rejected` — `../escape.txt` and its relatives cannot leave the output directory
-- `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose package is a file beside it, imported by path
+- `weave_renders_a_document_that_imports_the_package` — `etch weave` renders a document whose package is a file beside it, imported by path
 - `a_blank_line_in_an_indented_fragment_stays_blank` — an indented fragment's blank line is written blank, not as a line of spaces
-- `tangling_leaves_only_dot_lp_beside_the_document` — everything the tool writes beside a document is under `.lp`: the package, the wrapper, all of it
-- `a_pdf_gives_the_book_back` — the PDF carries the book as attached files, and `lp extract --format pdf` gets it back byte for byte
+- `tangling_leaves_only_dot_etch_beside_the_document` — everything the tool writes beside a document is under `.etch`: the package, the wrapper, all of it
+- `a_pdf_gives_the_book_back` — the PDF carries the book as attached files, and `etch extract --format pdf` gets it back byte for byte
 - `weaving_a_document_with_no_book_carries_none` — a document that declares nothing still weaves: no block, and no complaint either
-- `a_page_gives_the_book_back` — `lp weave` puts the book the document declares into the HTML it renders, and `lp extract` gets it back byte for byte
-- `reading_weaves_what_the_binary_carries` — `lp self read --format html` weaves the embedded document and leaves a rendering behind
-- `the_book_comes_back_out_whole` — `lp self book --out` writes exactly the book the binary carries, byte for byte
+- `a_page_gives_the_book_back` — `etch weave` puts the book the document declares into the HTML it renders, and `etch extract` gets it back byte for byte
+- `reading_weaves_what_the_binary_carries` — `etch self read --format html` weaves the embedded document and leaves a rendering behind
+- `the_book_comes_back_out_whole` — `etch self book --out` writes exactly the book the binary carries, byte for byte
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
 - `a_chapter_a_document_includes_travels_with_it` — a chapter added to the include list travels into the book with no change to the settings
 - `a_document_that_reads_outside_itself_cannot_be_carried` — a document whose reading reaches past its own directory is refused, and the file it reached for is named
@@ -134,13 +134,13 @@ The cases, in the order they appear:
 - `a_book_name_may_not_leave_the_tree` — a name in `extra-book-files` that climbs out of the source tree is refused
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
 - `a_book_may_not_overwrite_an_output` — a book that would land on a declared file is refused while planning
-- `map_names_the_chunk_a_generated_line_came_from` — `lp map --file --line` answers with the chunk and how far into it the line is
+- `map_names_the_chunk_a_generated_line_came_from` — `etch map --file --line` answers with the chunk and how far into it the line is
 - `the_demo_tangles_and_runs` — the small example this book declares tangles from its own document, runs, and prints what it promised
 - `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay in the log
-- `plan_says_what_a_pass_would_do` — `lp plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
-- `map_takes_one_direction` — an empty `lp map`, and a `--line` beside `--typ`, are refused by the surface (exit 2) rather than by the arm
+- `plan_says_what_a_pass_would_do` — `etch plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
+- `map_takes_one_direction` — an empty `etch map`, and a `--line` beside `--typ`, are refused by the surface (exit 2) rather than by the arm
 - `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
-- `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
+- `list_reports_declarations` — `etch list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `the_reading_commands_speak_json` — the commands that answer a question hand back one JSON document each: the declarations, the whole text of a chunk, an exact line and a nearest one
 - `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
 - `a_chunk_built_by_code_is_attributed_to_itself` — roots declared by a loop are attributed to the declarations the loop produced
@@ -155,7 +155,9 @@ use tempfile::TempDir;
 const PKG: &str = include_str!("../package/lib.typ");
 
 fn document(body: &str) -> String {
-    format!("#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}")
+    format!(
+        "#import \"etch.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}"
+    )
 }
 
 const DOC: &str = concat!(
@@ -187,17 +189,17 @@ not a chunk
 ",
 );
 
-fn lp(dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lp"))
+fn etch(dir: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_etch"))
         .args(args)
-        .env("LP_LOG", "debug")
+        .env("ETCH_LOG", "debug")
         .current_dir(dir)
         .output()
-        .expect("run lp")
+        .expect("run etch")
 }
 
 fn write_doc(dir: &Path, name: &str, body: &str) -> String {
-    std::fs::write(dir.join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.join("etch.typ"), PKG).expect("package");
     let text = document(body);
     std::fs::write(dir.join(name), &text).expect("doc");
     text
@@ -231,7 +233,7 @@ fn under(dir: &Path) -> Vec<PathBuf> {
     while let Some(next) = todo.pop() {
         for entry in std::fs::read_dir(&next).expect("read") {
             let path = entry.expect("entry").path();
-            let scratch = path.file_name().is_some_and(|name| name == ".lp");
+            let scratch = path.file_name().is_some_and(|name| name == ".etch");
             if path.is_dir() && !scratch {
                 todo.push(path);
             } else if path.is_file() {
@@ -248,7 +250,7 @@ fn under(dir: &Path) -> Vec<PathBuf> {
 #[test]
 fn tangle_writes_files_with_concat_and_indentation() {
     let (_guard, dir, _) = project(DOC);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(
         std::fs::read_to_string(dir.join("out/main.py")).expect("main.py"),
@@ -262,13 +264,13 @@ fn tangle_writes_files_with_concat_and_indentation() {
 fn tangle_records_which_chunk_every_line_came_from() {
     let (_guard, dir, _) = project(DOC);
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
 
     let map: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(dir.join("out/.lpmap.json")).expect("map"))
+        serde_json::from_str(&std::fs::read_to_string(dir.join("out/.etchmap.json")).expect("map"))
             .expect("json");
     let entry = &map["files"]["main.py"];
     assert_eq!(
@@ -289,7 +291,7 @@ fn indentation_follows_the_reference_site() {
     let body = "#file(\"main.py\", ```py\nif True:\n    <<body>>\n```)\n\n#chunk(\"body\", ```py\nprint(1)\n```)\n";
     let (_guard, dir, _) = project(body);
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
@@ -307,7 +309,7 @@ fn indentation_follows_the_reference_site() {
   fn a_chunk_written_indented_in_the_document_is_still_dedented() {
       let body = "#file(\"main.py\", ```py\nif x:\n    <<body>>\n```)\n\n- step one:\n\n  #chunk(\"body\", ```py\n  print(1)\n  print(2)\n  ```)\n";
       let (_guard, dir, _) = project(body);
-      let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+      let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
       assert!(output.status.success(), "{}", stderr(&output));
       assert_eq!(
           std::fs::read_to_string(dir.join("out/main.py")).expect("main"),
@@ -321,7 +323,7 @@ fn indentation_follows_the_reference_site() {
 #[test]
 fn a_chapter_can_hold_the_fragment_another_file_references() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     write_doc(
         dir.path(),
         "chapter.typ",
@@ -334,7 +336,7 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
     );
     let path = dir.path().to_path_buf();
 
-    let output = lp(
+    let output = etch(
         &path,
         &["tangle", "book.typ", "chapter.typ", "--out", "out"],
     );
@@ -344,7 +346,7 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
         "print('hi')\n"
     );
 
-    let mapped = lp(
+    let mapped = etch(
         &path,
         &[
             "map",
@@ -362,7 +364,7 @@ fn a_chapter_can_hold_the_fragment_another_file_references() {
         stderr(&mapped)
     );
 
-    let no_files = lp(&path, &["tangle", "chapter.typ", "--out", "out2"]);
+    let no_files = etch(&path, &["tangle", "chapter.typ", "--out", "out2"]);
     assert!(!no_files.status.success());
     assert!(
         stderr(&no_files).contains("no file declarations"),
@@ -379,17 +381,17 @@ fn maps_live_next_to_the_files_they_explain() {
         "#file(\"a.py\", ```py\nprint('a')\n```)\n\n#file(\"src/b.py\", ```py\nprint('b')\n```)\n";
     let (_guard, dir, _) = project(body);
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
 
     let root: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(dir.join("out/.lpmap.json")).expect("root map"),
+        &std::fs::read_to_string(dir.join("out/.etchmap.json")).expect("root map"),
     )
     .expect("json");
     let nested: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(dir.join("out/src/.lpmap.json")).expect("nested map"),
+        &std::fs::read_to_string(dir.join("out/src/.etchmap.json")).expect("nested map"),
     )
     .expect("json");
     assert!(root["files"].get("a.py").is_some(), "{root}");
@@ -400,7 +402,7 @@ fn maps_live_next_to_the_files_they_explain() {
     assert!(nested["files"].get("b.py").is_some(), "{nested}");
 
     for file in ["src/b.py", "b.py"] {
-        let output = lp(
+        let output = etch(
             &dir,
             &["map", "--file", file, "--line", "1", "--out", "out"],
         );
@@ -420,12 +422,12 @@ fn an_ambiguous_file_name_is_an_error_not_a_guess() {
     let body = "#file(\"one/b.py\", ```py\nprint('a')\n```)\n\n#file(\"two/b.py\", ```py\nprint('b')\n```)\n";
     let (_guard, dir, _) = project(body);
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
 
-    let output = lp(
+    let output = etch(
         &dir,
         &["map", "--file", "b.py", "--line", "1", "--out", "out"],
     );
@@ -436,7 +438,7 @@ fn an_ambiguous_file_name_is_an_error_not_a_guess() {
         stderr(&output)
     );
 
-    let explicit = lp(
+    let explicit = etch(
         &dir,
         &["map", "--file", "two/b.py", "--line", "1", "--out", "out"],
     );
@@ -449,18 +451,18 @@ fn an_ambiguous_file_name_is_an_error_not_a_guess() {
 fn check_names_the_chunk_of_the_first_difference() {
     let (_guard, dir, _) = project(DOC);
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out", "--check"])
             .status
             .success()
     );
 
     std::fs::write(dir.join("out/main.py"), "hand edited\n").expect("write");
-    let drift = lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"]);
+    let drift = etch(&dir, &["tangle", "demo.typ", "--out", "out", "--check"]);
     assert!(!drift.status.success(), "drift must fail");
     let message = stderr(&drift);
     assert!(
@@ -469,12 +471,12 @@ fn check_names_the_chunk_of_the_first_difference() {
     );
 
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out", "--check"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out", "--check"])
             .status
             .success()
     );
@@ -488,18 +490,18 @@ fn check_names_the_chunk_of_the_first_difference() {
   fn the_map_follows_the_document_even_when_no_output_byte_changes() {
       let (_guard, dir, _) = project(DOC);
       assert!(
-          lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+          etch(&dir, &["tangle", "demo.typ", "--out", "out"])
               .status
               .success()
       );
 
       let moved = format!(
           "{}\n{}",
-          "#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule", DOC
+          "#import \"etch.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule", DOC
       );
       std::fs::write(dir.join("demo.typ"), &moved).expect("rewrite");
 
-      let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+      let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
       assert!(output.status.success(), "{}", stderr(&output));
       let json: serde_json::Value = serde_json::from_str(&stdout(&output)).expect("one document");
       assert_eq!(
@@ -509,7 +511,7 @@ fn check_names_the_chunk_of_the_first_difference() {
           stdout(&output)
       );
 
-      let forward = lp(
+      let forward = etch(
           &dir,
           &["map", "--file", "main.py", "--line", "3", "--out", "out"],
       );
@@ -527,7 +529,7 @@ fn check_names_the_chunk_of_the_first_difference() {
 fn dangling_reference_quotes_the_line() {
     let body = "#file(\"main.py\", ```py\n<<missing>>\n```)\n";
     let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(!output.status.success());
     let message = stderr(&output);
     assert!(
@@ -550,7 +552,7 @@ fn dangling_reference_quotes_the_line() {
 fn cycle_is_reported() {
     let body = "#file(\"main.py\", ```py\n<<a>>\n```)\n\n#chunk(\"a\", ```py\n<<b>>\n```)\n\n#chunk(\"b\", ```py\n<<a>>\n```)\n";
     let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(!output.status.success());
     assert!(
         stderr(&output).contains("cycle in chunks"),
@@ -565,7 +567,7 @@ fn cycle_is_reported() {
 fn a_declaration_without_a_language_warns() {
     let body = "#file(\"main.py\", ```\nprint(1)\n```)\n";
     let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(
         stderr(&output).contains("chunk ⟪main.py⟫ is declared without a language"),
@@ -580,7 +582,7 @@ fn a_declaration_without_a_language_warns() {
 fn an_empty_chunk_is_an_error() {
     let body = "#file(\"main.py\", ```py\n```)\n";
     let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(!output.status.success());
     assert!(stderr(&output).contains("is empty"), "{}", stderr(&output));
 }
@@ -591,7 +593,7 @@ fn an_empty_chunk_is_an_error() {
 fn a_file_declaration_can_name_a_nested_path() {
     let body = "#file(\"src/main.rs\", ```rust\nfn main() {}\n```)\n";
     let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(
         std::fs::read_to_string(dir.join("out/src/main.rs")).expect("nested"),
@@ -605,7 +607,7 @@ fn a_file_declaration_can_name_a_nested_path() {
 fn unsafe_paths_are_rejected() {
     let body = "#file(\"../escape.txt\", ```text\nx\n```)\n";
     let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(!output.status.success());
     assert!(
         stderr(&output).contains("unsafe chunk name"),
@@ -620,12 +622,12 @@ fn unsafe_paths_are_rejected() {
 fn map_names_the_chunk_a_generated_line_came_from() {
     let (_guard, dir, _) = project(DOC);
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
 
-    let output = lp(
+    let output = etch(
         &dir,
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
@@ -636,7 +638,7 @@ fn map_names_the_chunk_a_generated_line_came_from() {
         stderr(&output)
     );
 
-    let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
+    let reverse = etch(&dir, &["map", "--typ", "body", "--out", "out"]);
     assert!(reverse.status.success(), "{}", stderr(&reverse));
     assert!(
         stdout(&reverse).contains("\"file\":\"main.py\""),
@@ -667,7 +669,7 @@ fn the_demo_tangles_and_runs() {
     )
     .expect("the package");
 
-    let tangled = lp(
+    let tangled = etch(
         dir.path(),
         &["tangle", "examples/demo/literate.typ", "--out", "build"],
     );
@@ -686,7 +688,7 @@ fn the_demo_tangles_and_runs() {
     );
     assert_eq!(String::from_utf8_lossy(&ran.stdout), "hello, reader\n");
 
-    let checked = lp(
+    let checked = etch(
         dir.path(),
         &[
             "tangle",
@@ -704,7 +706,7 @@ fn the_demo_tangles_and_runs() {
 #[test]
 fn tangle_speaks_json_about_what_it_wrote() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(dir.path().join("README.md"), "the book\n").expect("readme");
     std::fs::write(
         dir.path().join("demo.typ"),
@@ -714,7 +716,7 @@ fn tangle_speaks_json_about_what_it_wrote() {
     )
     .expect("doc");
 
-    let written = lp(dir.path(), &["tangle", "demo.typ"]);
+    let written = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(written.status.success(), "{}", stderr(&written));
     let json: serde_json::Value =
         serde_json::from_str(&stdout(&written)).expect("one document, and nothing else on stdout");
@@ -729,7 +731,7 @@ fn tangle_speaks_json_about_what_it_wrote() {
         stderr(&written)
     );
 
-    let settled = lp(dir.path(), &["tangle", "demo.typ"]);
+    let settled = etch(dir.path(), &["tangle", "demo.typ"]);
     let json: serde_json::Value =
         serde_json::from_str(&stdout(&settled)).expect("one document, and nothing else on stdout");
     assert_eq!(json["changed"], serde_json::json!([]));
@@ -742,7 +744,7 @@ fn tangle_speaks_json_about_what_it_wrote() {
 fn plan_says_what_a_pass_would_do() {
     let (_guard, dir, _) = project(DOC);
 
-    let fresh = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
+    let fresh = etch(&dir, &["plan", "demo.typ", "--out", "out"]);
     assert!(fresh.status.success(), "{}", stderr(&fresh));
     let planned: serde_json::Value = serde_json::from_str(&stdout(&fresh)).expect("one document");
     assert!(
@@ -754,11 +756,11 @@ fn plan_says_what_a_pass_would_do() {
     assert!(!dir.join("out").exists(), "a plan writes nothing");
 
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
-    let settled = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
+    let settled = etch(&dir, &["plan", "demo.typ", "--out", "out"]);
     assert!(settled.status.success(), "{}", stderr(&settled));
     let settled_json: serde_json::Value =
         serde_json::from_str(&stdout(&settled)).expect("one document");
@@ -772,7 +774,7 @@ fn plan_says_what_a_pass_would_do() {
     );
 
     std::fs::write(dir.join("out/main.py"), "print('drifted')\n").expect("drift");
-    let drifted = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
+    let drifted = etch(&dir, &["plan", "demo.typ", "--out", "out"]);
     assert!(
         drifted.status.success(),
         "a plan does not fail on bad news: {}",
@@ -785,7 +787,7 @@ fn plan_says_what_a_pass_would_do() {
     );
 
     std::fs::write(dir.join("out/leftover.py"), "stale\n").expect("stray");
-    let reported = lp(&dir, &["plan", "demo.typ", "--out", "out"]);
+    let reported = etch(&dir, &["plan", "demo.typ", "--out", "out"]);
     assert!(reported.status.success(), "{}", stderr(&reported));
     let json: serde_json::Value = serde_json::from_str(&stdout(&reported)).expect("one document");
     assert_eq!(json["version"], 1);
@@ -799,16 +801,16 @@ fn plan_says_what_a_pass_would_do() {
 fn map_takes_one_direction() {
     let (_guard, dir, _) = project(DOC);
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
 
-    let nothing = lp(&dir, &["map", "--out", "out"]);
+    let nothing = etch(&dir, &["map", "--out", "out"]);
     assert_eq!(nothing.status.code(), Some(2), "{}", stderr(&nothing));
     assert!(stderr(&nothing).contains("--typ"), "{}", stderr(&nothing));
 
-    let line_beside_a_chunk = lp(
+    let line_beside_a_chunk = etch(
         &dir,
         &["map", "--typ", "body", "--line", "3", "--out", "out"],
     );
@@ -819,7 +821,7 @@ fn map_takes_one_direction() {
         stderr(&line_beside_a_chunk)
     );
 
-    let pair = lp(
+    let pair = etch(
         &dir,
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
@@ -832,12 +834,12 @@ fn map_takes_one_direction() {
 fn the_reading_commands_speak_json() {
     let (_guard, dir, _) = project(DOC);
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
 
-    let listed = lp(&dir, &["list", "demo.typ"]);
+    let listed = etch(&dir, &["list", "demo.typ"]);
     assert!(listed.status.success(), "{}", stderr(&listed));
     let list: serde_json::Value = serde_json::from_str(&stdout(&listed)).expect("one document");
     assert_eq!(list["version"], 1);
@@ -854,7 +856,7 @@ fn the_reading_commands_speak_json() {
     assert_eq!(body["lang"], "py");
     assert_eq!(body["referenced"], true);
 
-    let carried = lp(&dir, &["metadata", "demo.typ"]);
+    let carried = etch(&dir, &["metadata", "demo.typ"]);
     assert!(carried.status.success(), "{}", stderr(&carried));
     let metadata: serde_json::Value =
         serde_json::from_str(&stdout(&carried)).expect("one document");
@@ -870,7 +872,7 @@ fn the_reading_commands_speak_json() {
         .to_string();
     assert!(text.contains("print('one')"), "{text}");
 
-    let forward = lp(
+    let forward = etch(
         &dir,
         &["map", "--file", "main.py", "--line", "3", "--out", "out"],
     );
@@ -881,7 +883,7 @@ fn the_reading_commands_speak_json() {
     assert_eq!(mapped["chunk"], "body");
     assert_eq!(mapped["exact"], true);
 
-    let past_the_end = lp(
+    let past_the_end = etch(
         &dir,
         &["map", "--file", "main.py", "--line", "99", "--out", "out"],
     );
@@ -893,7 +895,7 @@ fn the_reading_commands_speak_json() {
         "a tolerance is not an exact answer"
     );
 
-    let reverse = lp(&dir, &["map", "--typ", "body", "--out", "out"]);
+    let reverse = etch(&dir, &["map", "--typ", "body", "--out", "out"]);
     assert!(reverse.status.success(), "{}", stderr(&reverse));
     let hits: serde_json::Value = serde_json::from_str(&stdout(&reverse)).expect("one document");
     assert_eq!(hits["hits"][0]["file"], "main.py");
@@ -910,13 +912,13 @@ fn a_closed_pipe_is_not_a_panic() {
     let many = format!("#file(\"main.py\", ```py\nprint(0)\n```)\n{declared}");
     let (_guard, dir, _) = project(&many);
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_lp"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_etch"))
         .args(["list", "demo.typ"])
         .current_dir(&dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("run lp");
+        .expect("run etch");
     let mut stdout = child.stdout.take().expect("a pipe to read");
     let mut first = [0u8; 64];
     std::io::Read::read_exact(&mut stdout, &mut first).expect("the first bytes");
@@ -937,12 +939,12 @@ fn a_closed_pipe_is_not_a_panic() {
 fn explain_rewrites_diagnostics_to_the_chunk() {
     let (_guard, dir, _) = project(DOC);
     assert!(
-        lp(&dir, &["tangle", "demo.typ", "--out", "out"])
+        etch(&dir, &["tangle", "demo.typ", "--out", "out"])
             .status
             .success()
     );
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_lp"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_etch"))
         .args(["explain", "--out", "out"])
         .current_dir(&dir)
         .stdin(std::process::Stdio::piped())
@@ -970,14 +972,14 @@ fn explain_rewrites_diagnostics_to_the_chunk() {
 #[test]
 fn weave_renders_a_document_that_imports_the_package() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("doc.typ"),
-        "#import \"lp.typ\": show-rule\n#show: show-rule\n= Woven\n",
+        "#import \"etch.typ\": show-rule\n#show: show-rule\n= Woven\n",
     )
     .expect("doc");
 
-    let output = lp(dir.path(), &["weave", "doc.typ", "doc.pdf"]);
+    let output = etch(dir.path(), &["weave", "doc.typ", "doc.pdf"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(
         dir.path().join("doc.pdf").exists(),
@@ -990,7 +992,7 @@ fn weave_renders_a_document_that_imports_the_package() {
 #[test]
 fn the_book_comes_back_out_whole() {
     let dir = TempDir::new().expect("temp dir");
-    let output = lp(dir.path(), &["self", "book", "--out", "unpacked"]);
+    let output = etch(dir.path(), &["self", "book", "--out", "unpacked"]);
     assert!(output.status.success(), "{}", stderr(&output));
 
     let beside = Path::new(env!("CARGO_MANIFEST_DIR")).join("book");
@@ -1020,7 +1022,7 @@ fn the_book_comes_back_out_whole() {
 #[test]
 fn reading_weaves_what_the_binary_carries() {
     let dir = TempDir::new().expect("temp dir");
-    let output = lp(dir.path(), &["self", "read", "--format", "html"]);
+    let output = etch(dir.path(), &["self", "read", "--format", "html"]);
     assert!(output.status.success(), "{}", stderr(&output));
 
     let path = PathBuf::from(stdout(&output).trim());
@@ -1039,7 +1041,7 @@ fn reading_weaves_what_the_binary_carries() {
 #[test]
 fn a_blank_line_in_an_indented_fragment_stays_blank() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
@@ -1048,7 +1050,7 @@ fn a_blank_line_in_an_indented_fragment_stays_blank() {
     )
     .expect("doc");
 
-    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    let output = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
     let written = std::fs::read_to_string(dir.path().join("tangled/src/main.rs")).expect("file");
 
@@ -1063,25 +1065,25 @@ fn a_blank_line_in_an_indented_fragment_stays_blank() {
 }
 ````)
 
-#chunk("flow: tangling_leaves_only_dot_lp_beside_the_document", ````rust
+#chunk("flow: tangling_leaves_only_dot_etch_beside_the_document", ````rust
 #[test]
-fn tangling_leaves_only_dot_lp_beside_the_document() {
+fn tangling_leaves_only_dot_etch_beside_the_document() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("demo.typ"),
         document("#file(\"main.py\", ```py\nprint('x')\n```)\n"),
     )
     .expect("doc");
 
-    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    let output = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
 
     let mut unexpected: Vec<String> = std::fs::read_dir(dir.path())
         .expect("the source directory")
         .flatten()
         .map(|entry| entry.file_name().to_string_lossy().to_string())
-        .filter(|name| !["lp.typ", "demo.typ", "tangled", ".lp"].contains(&name.as_str()))
+        .filter(|name| !["etch.typ", "demo.typ", "tangled", ".etch"].contains(&name.as_str()))
         .collect();
     unexpected.sort();
     assert!(unexpected.is_empty(), "the tool left {unexpected:?} behind");
@@ -1092,14 +1094,14 @@ fn tangling_leaves_only_dot_lp_beside_the_document() {
 #[test]
 fn a_pdf_gives_the_book_back() {
     let dir = TempDir::new().expect("temp dir");
-    let document = Path::new(env!("CARGO_MANIFEST_DIR")).join("book/lp.typ");
-    let woven = lp(
+    let document = Path::new(env!("CARGO_MANIFEST_DIR")).join("book/etch.typ");
+    let woven = etch(
         dir.path(),
         &["weave", document.to_str().expect("path"), "page.pdf"],
     );
     assert!(woven.status.success(), "{}", stderr(&woven));
 
-    let taken = lp(
+    let taken = etch(
         dir.path(),
         &["extract", "--format", "pdf", "page.pdf", "--out", "back"],
     );
@@ -1120,14 +1122,14 @@ fn weaving_a_document_with_no_book_carries_none() {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("plain.typ"), "= Plain\n\nJust words.\n").expect("doc");
 
-    let woven = lp(
+    let woven = etch(
         dir.path(),
         &["weave", "plain.typ", "plain.html", "--features", "html"],
     );
     assert!(woven.status.success(), "{}", stderr(&woven));
     let page = std::fs::read_to_string(dir.path().join("plain.html")).expect("page");
     assert!(
-        !page.contains("lp-source"),
+        !page.contains("etch-source"),
         "a document with no book got one"
     );
 }
@@ -1137,8 +1139,8 @@ fn weaving_a_document_with_no_book_carries_none() {
 #[test]
 fn a_page_gives_the_book_back() {
     let dir = TempDir::new().expect("temp dir");
-    let document = Path::new(env!("CARGO_MANIFEST_DIR")).join("book/lp.typ");
-    let woven = lp(
+    let document = Path::new(env!("CARGO_MANIFEST_DIR")).join("book/etch.typ");
+    let woven = etch(
         dir.path(),
         &[
             "weave",
@@ -1150,7 +1152,7 @@ fn a_page_gives_the_book_back() {
     );
     assert!(woven.status.success(), "{}", stderr(&woven));
 
-    let taken = lp(
+    let taken = etch(
         dir.path(),
         &["extract", "--format", "html", "page.html", "--out", "back"],
     );
@@ -1169,15 +1171,15 @@ fn a_page_gives_the_book_back() {
 #[test]
 fn the_book_is_carried_into_the_tree() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(dir.path().join("README.md"), "the book\n").expect("readme");
     std::fs::create_dir(dir.path().join("chapters")).expect("dir");
     std::fs::write(dir.path().join("chapters/one.typ"), "= One\n").expect("chapter");
     std::fs::write(dir.path().join("ignored.txt"), "not part of it\n").expect("ignored");
     std::fs::write(dir.path().join(".gitignore"), "ignored.txt\n").expect("gitignore");
-    std::fs::create_dir_all(dir.path().join(".lp/leftovers")).expect("dir");
+    std::fs::create_dir_all(dir.path().join(".etch/leftovers")).expect("dir");
     std::fs::write(
-        dir.path().join(".lp/leftovers/lib.typ"),
+        dir.path().join(".etch/leftovers/lib.typ"),
         "the tool's own state\n",
     )
     .expect("state");
@@ -1189,7 +1191,7 @@ fn the_book_is_carried_into_the_tree() {
     )
     .expect("doc");
 
-    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    let output = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(
         dir.path().join("tangled/book/demo.typ").exists(),
@@ -1208,7 +1210,7 @@ fn the_book_is_carried_into_the_tree() {
         "a file the list does not name is not part of the book, whatever the source's .gitignore says"
     );
     assert!(
-        !dir.path().join("tangled/book/.lp").exists(),
+        !dir.path().join("tangled/book/.etch").exists(),
         "and neither is the state the tool keeps for itself"
     );
 }
@@ -1218,7 +1220,7 @@ fn the_book_is_carried_into_the_tree() {
 #[test]
 fn an_unknown_tangle_option_is_refused() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
@@ -1227,7 +1229,7 @@ fn an_unknown_tangle_option_is_refused() {
     )
     .expect("doc");
 
-    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    let output = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(!output.status.success(), "an unknown key is not ignored");
     assert!(
         stderr(&output).contains("unknown tangle option"),
@@ -1241,7 +1243,7 @@ fn an_unknown_tangle_option_is_refused() {
 #[test]
 fn a_moved_book_copy_leaves_no_empty_directory() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::create_dir_all(dir.path().join("one")).expect("dir");
     std::fs::write(dir.path().join("one/x.txt"), "the book\n").expect("chapter");
     let source = |listed: &str| {
@@ -1250,14 +1252,14 @@ fn a_moved_book_copy_leaves_no_empty_directory() {
         )
     };
     std::fs::write(dir.path().join("demo.typ"), document(&source("one/x.txt"))).expect("doc");
-    let first = lp(dir.path(), &["tangle", "demo.typ"]);
+    let first = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(first.status.success(), "{}", stderr(&first));
     assert!(dir.path().join("tangled/book/one/x.txt").exists());
 
     std::fs::create_dir_all(dir.path().join("two")).expect("dir");
     std::fs::write(dir.path().join("two/x.txt"), "the book\n").expect("chapter");
     std::fs::write(dir.path().join("demo.typ"), document(&source("two/x.txt"))).expect("doc");
-    let moved = lp(dir.path(), &["tangle", "demo.typ"]);
+    let moved = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(moved.status.success(), "{}", stderr(&moved));
 
     assert!(dir.path().join("tangled/book/two/x.txt").exists());
@@ -1272,7 +1274,7 @@ fn a_moved_book_copy_leaves_no_empty_directory() {
 #[test]
 fn a_stale_book_copy_is_removed_and_check_refuses_it() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(dir.path().join("README.md"), "the pointer\n").expect("book file");
     std::fs::write(
         dir.path().join("demo.typ"),
@@ -1281,12 +1283,12 @@ fn a_stale_book_copy_is_removed_and_check_refuses_it() {
         ),
     )
     .expect("doc");
-    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    let output = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
 
     let stale = dir.path().join("tangled/book/old.txt");
     std::fs::write(&stale, "from a generation ago\n").expect("stale");
-    let checked = lp(dir.path(), &["tangle", "demo.typ", "--check"]);
+    let checked = etch(dir.path(), &["tangle", "demo.typ", "--check"]);
     assert!(
         !checked.status.success(),
         "check refuses a tree with a stale copy"
@@ -1297,7 +1299,7 @@ fn a_stale_book_copy_is_removed_and_check_refuses_it() {
         stderr(&checked)
     );
 
-    let again = lp(dir.path(), &["tangle", "demo.typ"]);
+    let again = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(again.status.success(), "{}", stderr(&again));
     assert!(
         !stale.exists(),
@@ -1310,7 +1312,7 @@ fn a_stale_book_copy_is_removed_and_check_refuses_it() {
 #[test]
 fn a_book_name_may_not_leave_the_tree() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
@@ -1319,7 +1321,7 @@ fn a_book_name_may_not_leave_the_tree() {
     )
     .expect("doc");
 
-    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    let output = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(
         !output.status.success(),
         "a name outside the tree is refused"
@@ -1336,7 +1338,7 @@ fn a_book_name_may_not_leave_the_tree() {
 #[test]
 fn a_book_without_a_directory_is_an_error() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("demo.typ"),
         document(
@@ -1345,7 +1347,7 @@ fn a_book_without_a_directory_is_an_error() {
     )
     .expect("doc");
 
-    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    let output = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(!output.status.success());
     assert!(
         stderr(&output).contains("book-directory"),
@@ -1359,7 +1361,7 @@ fn a_book_without_a_directory_is_an_error() {
 #[test]
 fn a_book_may_not_overwrite_an_output() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("main.py"),
         "a source file the book would carry\n",
@@ -1373,7 +1375,7 @@ fn a_book_may_not_overwrite_an_output() {
     )
     .expect("doc");
 
-    let output = lp(dir.path(), &["tangle", "demo.typ"]);
+    let output = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(
         !output.status.success(),
         "two writers for one path is refused"
@@ -1390,7 +1392,7 @@ fn a_book_may_not_overwrite_an_output() {
 #[test]
 fn list_reports_declarations() {
     let (_guard, dir, _) = project(DOC);
-    let output = lp(&dir, &["list", "demo.typ"]);
+    let output = etch(&dir, &["list", "demo.typ"]);
     assert!(output.status.success(), "{}", stderr(&output));
     let listed = stderr(&output);
     assert!(listed.contains("file  ⟪main.py⟫"), "{listed}");
@@ -1408,12 +1410,12 @@ fn list_reports_declarations() {
 fn a_chunk_built_by_code_is_attributed_to_itself() {
     let body = "#for i in range(2) [\n  #file(\"gen-\" + str(i) + \".py\", ```py\n  print(#i)\n  ```)\n]\n";
     let (_guard, dir, _) = project(body);
-    let output = lp(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    let output = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(dir.join("out/gen-0.py").exists());
     assert!(dir.join("out/gen-1.py").exists());
 
-    let mapped = lp(
+    let mapped = etch(
         &dir,
         &["map", "--file", "gen-0.py", "--line", "1", "--out", "out"],
     );
@@ -1442,12 +1444,12 @@ including, and the file it should never have reached for.
 #[test]
 fn a_chapter_a_document_includes_travels_with_it() {
     let dir = TempDir::new().expect("temp dir");
-    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");
     std::fs::write(dir.path().join("one.typ"), "= One\n").expect("chapter");
-    let body = "#import \"lp.typ\": chunk, file, tangle-options\n#tangle-options((book-directory: \"book\"))\n#include \"one.typ\"\n#file(\"main.py\", ```py\nprint(1)\n```)\n";
+    let body = "#import \"etch.typ\": chunk, file, tangle-options\n#tangle-options((book-directory: \"book\"))\n#include \"one.typ\"\n#file(\"main.py\", ```py\nprint(1)\n```)\n";
     std::fs::write(dir.path().join("demo.typ"), body).expect("doc");
 
-    let first = lp(dir.path(), &["tangle", "demo.typ"]);
+    let first = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(first.status.success(), "{}", stderr(&first));
     assert!(
         dir.path().join("tangled/book/one.typ").exists(),
@@ -1460,7 +1462,7 @@ fn a_chapter_a_document_includes_travels_with_it() {
         format!("{body}#include \"two.typ\"\n"),
     )
     .expect("doc");
-    let second = lp(dir.path(), &["tangle", "demo.typ"]);
+    let second = etch(dir.path(), &["tangle", "demo.typ"]);
     assert!(second.status.success(), "{}", stderr(&second));
     assert!(
         dir.path().join("tangled/book/two.typ").exists(),
@@ -1476,14 +1478,14 @@ fn a_document_that_reads_outside_itself_cannot_be_carried() {
     let dir = parent.path().join("docs");
     std::fs::create_dir_all(&dir).expect("dir");
     std::fs::write(parent.path().join("shared.typ"), "= Shared\n").expect("chapter");
-    std::fs::write(dir.join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.join("etch.typ"), PKG).expect("package");
     std::fs::write(
         dir.join("demo.typ"),
-        "#import \"lp.typ\": chunk, file, tangle-options\n#tangle-options((book-directory: \"book\"))\n#include \"../shared.typ\"\n#file(\"main.py\", ```py\nprint(1)\n```)\n",
+        "#import \"etch.typ\": chunk, file, tangle-options\n#tangle-options((book-directory: \"book\"))\n#include \"../shared.typ\"\n#file(\"main.py\", ```py\nprint(1)\n```)\n",
     )
     .expect("doc");
 
-    let output = lp(parent.path(), &["tangle", "docs/demo.typ"]);
+    let output = etch(parent.path(), &["tangle", "docs/demo.typ"]);
     assert!(
         !output.status.success(),
         "a book cannot leave its directory"

@@ -17,7 +17,7 @@ lives in `main.rs` — so no module that reports a failure has to know what a fa
 
 <<diag: what an error carries>>
 
-impl LpError {
+impl EtchError {
     <<diag: a plain error>>
 
     <<diag: adding advice>>
@@ -44,7 +44,7 @@ use std::fmt;
 
 #chunk("diag: what an error carries", ````rust
 #[derive(Debug)]
-pub struct LpError {
+pub struct EtchError {
     message: String,
     help: Option<String>,
 }
@@ -90,7 +90,7 @@ error, and `Diagnostic` hands miette the help that was collected. The fancy rend
 in `main.rs`; this file only promises that there is something to render.
 
 #chunk("diag: what a terminal needs", ````rust
-impl fmt::Display for LpError {
+impl fmt::Display for EtchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.message)
     }
@@ -98,11 +98,11 @@ impl fmt::Display for LpError {
 ````)
 
 #chunk("diag: the standard error trait", ````rust
-impl std::error::Error for LpError {}
+impl std::error::Error for EtchError {}
 ````)
 
 #chunk("diag: what miette needs", ````rust
-impl miette::Diagnostic for LpError {
+impl miette::Diagnostic for EtchError {
     fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
         self.help
             .as_ref()
