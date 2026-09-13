@@ -140,7 +140,7 @@ that is a program can do it. Three of the four steps are chapters of this book r
 *Install the package first, because nothing else can happen until it exists.* The document imports its own
 package at the top, so Typst cannot read the document until that package is somewhere Typst can find it —
 which is the one place this road reads markup instead of evaluating it. The package is ten fragments of one
-chapter, `chapters/package.typ`: the two it declares for `typst/lp.typ` and `typst/typst.toml`, and the
+chapter, `chapters/part-ii/package.typ`: the two it declares for `typst/lp.typ` and `typst/typst.toml`, and the
 fragments those two reference. Pull them out, by hand or with a script, expand the `<<…>>` references
 between them, and put the result where `--package-path` will point: `local/lp/0.1.0/lib.typ` and
 `local/lp/0.1.0/typst.toml`. The check is immediate: a two-line document that imports the package either

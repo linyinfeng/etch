@@ -10,131 +10,131 @@
     "lp.typ",
     "README.md",
     ".gitignore",
-    "chapters/abstract.typ",
-    "chapters/introduction.typ",
-    "chapters/quick-start.typ",
-    "chapters/the-tool-in-its-own-words.typ",
-    "chapters/four-claims.typ",
-    "chapters/writing-a-literate-program.typ",
-    "chapters/reading-a-literate-program.typ",
-    "chapters/when-not-to.typ",
-    "chapters/differences-from-web.typ",
-    "chapters/the-reader-that-is-not-a-person.typ",
-    "chapters/package.typ",
-    "chapters/weave.typ",
-    "chapters/errors.typ",
-    "chapters/the-disk-and-the-log.typ",
-    "chapters/metadata.typ",
-    "chapters/the-declarations-a-pass-works-from.typ",
-    "chapters/expanding-a-reference.typ",
-    "chapters/what-a-pass-plans.typ",
-    "chapters/writing-the-pass.typ",
-    "chapters/carrying-the-book.typ",
-    "chapters/what-the-binary-carries.typ",
-    "chapters/reading-a-diagnostic-back.typ",
-    "chapters/where-each-generated-line-came-from.typ",
-    "chapters/who-owns-the-output-directory.typ",
-    "chapters/the-ownership-rules-pinned.typ",
-    "chapters/the-command-line.typ",
-    "chapters/dispatch.typ",
-    "chapters/the-rules.typ",
-    "chapters/the-example.typ",
-    "chapters/how-the-tests-are-written.typ",
-    "chapters/tests-flow.typ",
-    "chapters/tests-lazy.typ",
-    "chapters/tests-metadata.typ",
-    "chapters/tests-owned.typ",
-    "chapters/tests-self.typ",
-    "chapters/the-build-environment.typ",
-    "chapters/the-programs-own-pipeline.typ",
-    "chapters/this-repository.typ",
-    "chapters/what-comes-from-outside.typ",
-    "chapters/appendix-what-is-pinned.typ",
+    "chapters/front/abstract.typ",
+    "chapters/front/introduction.typ",
+    "chapters/front/quick-start.typ",
+    "chapters/front/the-tool-in-its-own-words.typ",
+    "chapters/part-i/four-claims.typ",
+    "chapters/part-i/writing-a-literate-program.typ",
+    "chapters/part-i/reading-a-literate-program.typ",
+    "chapters/part-i/when-not-to.typ",
+    "chapters/part-i/differences-from-web.typ",
+    "chapters/part-i/the-reader-that-is-not-a-person.typ",
+    "chapters/part-ii/package.typ",
+    "chapters/part-ii/weave.typ",
+    "chapters/part-ii/errors.typ",
+    "chapters/part-ii/the-disk-and-the-log.typ",
+    "chapters/part-ii/metadata.typ",
+    "chapters/part-ii/the-declarations-a-pass-works-from.typ",
+    "chapters/part-ii/expanding-a-reference.typ",
+    "chapters/part-ii/what-a-pass-plans.typ",
+    "chapters/part-ii/writing-the-pass.typ",
+    "chapters/part-ii/carrying-the-book.typ",
+    "chapters/part-ii/what-the-binary-carries.typ",
+    "chapters/part-ii/reading-a-diagnostic-back.typ",
+    "chapters/part-ii/where-each-generated-line-came-from.typ",
+    "chapters/part-ii/who-owns-the-output-directory.typ",
+    "chapters/part-ii/the-ownership-rules-pinned.typ",
+    "chapters/part-ii/the-command-line.typ",
+    "chapters/part-ii/dispatch.typ",
+    "chapters/part-ii/the-rules.typ",
+    "chapters/part-iii/the-example.typ",
+    "chapters/part-iii/how-the-tests-are-written.typ",
+    "chapters/part-iii/tests-flow.typ",
+    "chapters/part-iii/tests-lazy.typ",
+    "chapters/part-iii/tests-metadata.typ",
+    "chapters/part-iii/tests-owned.typ",
+    "chapters/part-iii/tests-self.typ",
+    "chapters/part-iii/the-build-environment.typ",
+    "chapters/part-iii/the-programs-own-pipeline.typ",
+    "chapters/part-iii/this-repository.typ",
+    "chapters/part-iii/what-comes-from-outside.typ",
+    "chapters/part-iii/appendix-what-is-pinned.typ",
   ),
 ))
 
-#include "chapters/abstract.typ"
+#include "chapters/front/abstract.typ"
 
-#include "chapters/introduction.typ"
+#include "chapters/front/introduction.typ"
 
-#include "chapters/quick-start.typ"
+#include "chapters/front/quick-start.typ"
 
-#include "chapters/the-tool-in-its-own-words.typ"
+#include "chapters/front/the-tool-in-its-own-words.typ"
 
 = Part I — Writing a literate program
 
-#include "chapters/four-claims.typ"
+#include "chapters/part-i/four-claims.typ"
 
-#include "chapters/writing-a-literate-program.typ"
+#include "chapters/part-i/writing-a-literate-program.typ"
 
-#include "chapters/reading-a-literate-program.typ"
+#include "chapters/part-i/reading-a-literate-program.typ"
 
-#include "chapters/when-not-to.typ"
+#include "chapters/part-i/when-not-to.typ"
 
-#include "chapters/differences-from-web.typ"
+#include "chapters/part-i/differences-from-web.typ"
 
-#include "chapters/the-reader-that-is-not-a-person.typ"
+#include "chapters/part-i/the-reader-that-is-not-a-person.typ"
 
 = Part II — The tool
 
-#include "chapters/package.typ"
+#include "chapters/part-ii/package.typ"
 
-#include "chapters/weave.typ"
+#include "chapters/part-ii/weave.typ"
 
-#include "chapters/errors.typ"
+#include "chapters/part-ii/errors.typ"
 
-#include "chapters/the-disk-and-the-log.typ"
+#include "chapters/part-ii/the-disk-and-the-log.typ"
 
-#include "chapters/metadata.typ"
+#include "chapters/part-ii/metadata.typ"
 
-#include "chapters/the-declarations-a-pass-works-from.typ"
+#include "chapters/part-ii/the-declarations-a-pass-works-from.typ"
 
-#include "chapters/expanding-a-reference.typ"
+#include "chapters/part-ii/expanding-a-reference.typ"
 
-#include "chapters/what-a-pass-plans.typ"
+#include "chapters/part-ii/what-a-pass-plans.typ"
 
-#include "chapters/writing-the-pass.typ"
+#include "chapters/part-ii/writing-the-pass.typ"
 
-#include "chapters/carrying-the-book.typ"
+#include "chapters/part-ii/carrying-the-book.typ"
 
-#include "chapters/what-the-binary-carries.typ"
+#include "chapters/part-ii/what-the-binary-carries.typ"
 
-#include "chapters/reading-a-diagnostic-back.typ"
+#include "chapters/part-ii/reading-a-diagnostic-back.typ"
 
-#include "chapters/where-each-generated-line-came-from.typ"
+#include "chapters/part-ii/where-each-generated-line-came-from.typ"
 
-#include "chapters/who-owns-the-output-directory.typ"
+#include "chapters/part-ii/who-owns-the-output-directory.typ"
 
-#include "chapters/the-ownership-rules-pinned.typ"
+#include "chapters/part-ii/the-ownership-rules-pinned.typ"
 
-#include "chapters/the-command-line.typ"
+#include "chapters/part-ii/the-command-line.typ"
 
-#include "chapters/dispatch.typ"
+#include "chapters/part-ii/dispatch.typ"
 
-#include "chapters/the-rules.typ"
+#include "chapters/part-ii/the-rules.typ"
 
 = Part III — This repository
 
-#include "chapters/the-example.typ"
+#include "chapters/part-iii/the-example.typ"
 
-#include "chapters/how-the-tests-are-written.typ"
+#include "chapters/part-iii/how-the-tests-are-written.typ"
 
-#include "chapters/tests-flow.typ"
+#include "chapters/part-iii/tests-flow.typ"
 
-#include "chapters/tests-lazy.typ"
+#include "chapters/part-iii/tests-lazy.typ"
 
-#include "chapters/tests-metadata.typ"
+#include "chapters/part-iii/tests-metadata.typ"
 
-#include "chapters/tests-owned.typ"
+#include "chapters/part-iii/tests-owned.typ"
 
-#include "chapters/tests-self.typ"
+#include "chapters/part-iii/tests-self.typ"
 
-#include "chapters/the-build-environment.typ"
+#include "chapters/part-iii/the-build-environment.typ"
 
-#include "chapters/the-programs-own-pipeline.typ"
+#include "chapters/part-iii/the-programs-own-pipeline.typ"
 
-#include "chapters/this-repository.typ"
+#include "chapters/part-iii/this-repository.typ"
 
-#include "chapters/what-comes-from-outside.typ"
+#include "chapters/part-iii/what-comes-from-outside.typ"
 
-#include "chapters/appendix-what-is-pinned.typ"
+#include "chapters/part-iii/appendix-what-is-pinned.typ"

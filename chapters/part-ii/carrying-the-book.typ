@@ -6,7 +6,7 @@ A tree that cannot be read on its own is a build artifact; a tree that carries t
 produced it is a program with its source of truth beside it. So a document may ask for the copy:
 
 ```typst
-#tangle-options((book-directory: "book", book-files: ("lp.typ", "chapters/four-claims.typ", …)))
+#tangle-options((book-directory: "book", book-files: ("lp.typ", "chapters/part-i/four-claims.typ", …)))
 ```
 
 Each name is a file, relative to the document, and each one is copied into the output directory under
