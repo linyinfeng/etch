@@ -41,7 +41,8 @@
 
 #include "parts/front-matter/introduction.typ"
 
-#include "parts/front-matter/quick-start.typ"
+#include "parts/front-matter/bootstrap.typ"
+#include "parts/front-matter/the-loop.typ"
 
 #include "parts/front-matter/the-tool-in-its-own-words.typ"
 
