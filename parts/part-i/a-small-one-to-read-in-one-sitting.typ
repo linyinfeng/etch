@@ -43,7 +43,7 @@ greet() {
 
 = The preamble, and the message
 
-Both files need the same four lines, and this is where they are written — below the files that use them, which
+Both files need the same two lines, and this is where they are written — below the files that use them, which
 is the whole point of the exercise: the order here is the order of an explanation, not the order `sh` needs.
 
 #chunk("the preamble", ```sh
@@ -84,7 +84,7 @@ the tool keeps everywhere else — the output directory is a command-line decisi
 document's — and it is why the demo's `run.sh` is a runner rather than part of the program.
 
 *One fragment, two files.* `the preamble` is written once and referenced twice, and neither file contains it
-twice: `lib.sh` receives the four lines in place of the reference, and so does `greet.sh`. A fragment is a
+twice: `lib.sh` receives the two lines in place of the reference, and so does `greet.sh`. A fragment is a
 source of text, not a place in a file — which is what makes a shared preamble possible without a second copy of
 it to keep in step.
 
