@@ -252,8 +252,10 @@ the branch carries a generation that can read the document, and a generation onl
 
 So it is output in the strict sense: never edited, never checked out, never worked in. A worktree of
 it would be stale the moment the next generation is committed. Looking at it costs no worktree
-either: `git show tangled:<path>` reads one file, `git archive tangled | tar -x -C <dir>` unpacks a
-whole tree.
+either: `git show origin/tangled:<path>` reads one file, `git archive origin/tangled | tar -x -C <dir>`
+unpacks a whole tree. The remote is named on purpose: that is the published generation, and a clone has no
+local branch of that name — while a working checkout that happens to have one may be holding a generation
+nobody has refreshed.
 
 === What the branch carries, and what it does not
 
