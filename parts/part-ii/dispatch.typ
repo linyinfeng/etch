@@ -58,7 +58,7 @@ let _ = miette::set_hook(Box::new(|_| {
 The commands that answer questions build their values once and then either print a table and a sentence, or
 hand the same values here. There is one implementation of the envelope rather than one per command, because
 the promise is that every machine document starts the same way — a version and the command that produced it —
-and a promise made in five places is five promises. The version is a number to check, not a number to trust:
+and a promise made in six places is six promises. The version is a number to check, not a number to trust:
 a consumer that does not know `1` should stop rather than guess at fields that may have moved.
 
 #chunk("main: one document, for a program", ````rust
@@ -176,8 +176,8 @@ Command::Tangle { docs, out, check } => {
 
 Tangling is the one command with a *report* rather than a result: what was written, what was
 already right, what drifted, what was warned about, and what nothing accounts for. The exit
-status is 1 when there is drift and 0 otherwise, so `--check` is usable from a script without
-parsing anything.
+status is 1 when there is drift or a declared file is missing, and 0 otherwise, so `--check` is usable from a
+script without parsing anything.
 
 #chunk("main: plan, which decides nothing", ````rust
 Command::Plan { docs, out } => {
