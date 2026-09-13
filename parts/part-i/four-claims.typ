@@ -83,8 +83,8 @@ leaves to whatever watcher you keep), a diagnostic that comes back to the declar
 that only pays off later is a tax, and a tax gets uninstalled.
 
 The last decade added a reader that is neither a person nor a compiler, and that is a large enough change to
-have a chapter of its own at the end of this part. The short version: it makes an arrangement written for a
+have a chapter of its own in this part. The short version: it makes an arrangement written for a
 reader invisible, unless the document *is* what gets read.
 
-How to write one, how to read one, when not to, and where this tool departs from WEB are the next four
-chapters; the tool after them is this argument's longest example.
+How to write one, how to read one, when not to, and where this tool departs from WEB are four more chapters
+of this part; the tool after them is this argument's longest example.
