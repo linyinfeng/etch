@@ -1,6 +1,6 @@
 = Reading a literate program
 
-Every rule in the previous chapter is written for a reader, so it is worth saying what a reader is
+Every rule in the chapter on writing one is written for a reader, so it is worth saying what a reader is
 supposed to do with the page. The short answer is read it front to back, because the order is the author's
 order and the prose is doing the work the code cannot. The long answer is that a literate program is read
 in two directions at once, and the document has to make both of them possible.
@@ -71,13 +71,14 @@ it the code cannot supply — that sentence is the one to keep, and the rest is 
 does not say what the thing is costs the reader every time it appears, and it is the one repair that is cheap in
 this tool: a search and replace, with the tool's own drift check to confirm nothing else moved. A reference graph
 too deep to hold is the failure a reader cannot fix in place, because it is a property of the arrangement rather
-than of a section; the answers are in the previous chapter, and they mean moving sections.
+than of a section; the answers are in the chapter on writing one, and they mean moving sections.
 
 The failure a reader cannot repair is prose that is wrong. Nothing checks prose, so a sentence that contradicts
 the code below it is invisible until someone reads both, and the reader who notices it is now doing the work the
 document was supposed to do. That is the one thing worth reporting rather than fixing quietly: the document is
 the source, so prose that lies is a bug in the source, and it is the class of bug no compiler will ever find.
 
-The previous chapter's rule applies here too: the reader can only hold so much. A document that assumes more
+The rule about how much a reader can hold applies here too: the reader can only hold so much. A document
+that assumes more
 is a document whose references have to be followed to be understood, and a reader who is following
 references has stopped reading and started assembling.
