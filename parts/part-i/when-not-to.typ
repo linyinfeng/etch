@@ -94,5 +94,5 @@ a model, or a colleague with a search tool, can reconstruct a surprising amount 
 any prose at all. That is a real argument against spending the writer's time on explanation, and it is the
 reason the fourth claim of this book is stated as a claim rather than assumed. What it does not remove is what
 the ledger above pays for: the reasoning, which no reader can recover from code that does not contain it, and
-one source whose drift the build notices. What a machine reader does to that argument is the last chapter of
-this part.
+one source whose drift the build notices. What a machine reader does to that argument is the chapter on the
+reader that is not a person.
