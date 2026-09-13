@@ -16,8 +16,11 @@ nix shell nixpkgs#poppler-utils -c pdfdetach -saveall -o tangled/book etch.pdf
 
 That is the book itself, file for file, because the rendering carries it. The tree is the rest, and the
 rendering does not carry it as a file: it carries the fragments, each captioned with the path it is written to,
-and *This repository, and its seed* has the road that reads them back into a tree. With a tree on disk, build
-it:
+so the tree can be read back out of the same document by hand or by a script. Every file declaration is a
+root; expand the `<<...>>` references between them, give each one its newline, and write it where its name
+says. That is exactly the expansion `etch tangle` performs, and it can be done by hand. No clone and no
+branch are involved: the seed belongs to the pipeline, and *This repository, and its seed* is where that is
+told. With a tree on disk, build it:
 
 ```sh
 nix shell nixpkgs#typst nixpkgs#cargo nixpkgs#stdenv.cc -c cargo build --manifest-path tangled/Cargo.toml

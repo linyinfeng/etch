@@ -44,6 +44,9 @@ is the one place output can live without being a file next to the document.
 
 == Starting from nothing
 
+A reader who has only a rendering wants *Bootstrap*: it needs neither a repository nor the seed. The roads
+below are the ones that involve the repository, and they are the ones the project's own pipeline uses.
+
 A fresh clone of this repository holds six things and nothing else: this document, the chapters it includes,
 the package the document is written with, the pointer at the root that leads here, the `.gitignore` that says
 which of them git is told to keep, and the pipeline that hands each generation to the seed branch.
