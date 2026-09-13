@@ -614,6 +614,33 @@ fn the_book_comes_back_out_whole() {
 }
 
 #[test]
+fn a_map_from_another_version_is_refused() {
+    let (_guard, dir, _) = project(DOC);
+    let ran = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(ran.status.success(), "{}", stderr(&ran));
+
+    let path = dir.join("out/.etchmap.json");
+    let mut map: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).expect("the map")).expect("json");
+    map["version"] = serde_json::json!(0);
+    std::fs::write(&path, map.to_string()).expect("a map from nowhere");
+
+    let output = etch(
+        &dir,
+        &["map", "--file", "main.py", "--line", "3", "--out", "out"],
+    );
+    assert!(
+        !output.status.success(),
+        "a map from another version is not read"
+    );
+    assert!(
+        stderr(&output).contains("another version"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn the_book_is_carried_into_the_tree() {
     let dir = TempDir::new().expect("temp dir");
     std::fs::write(dir.path().join("etch.typ"), PKG).expect("package");

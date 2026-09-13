@@ -198,8 +198,18 @@ pub fn write_if_changed(&self, dir: &Path) -> Result<bool, EtchError> {
 pub fn read(dir: &Path) -> Result<Self, EtchError> {
     let path = dir.join(MAP_FILE);
     let text = disk::read(&path)?;
-    serde_json::from_str(&text)
-        .map_err(|err| EtchError::plain(format!("{}: {err}", path.display())))
+    let map: Self = serde_json::from_str(&text)
+        .map_err(|err| EtchError::plain(format!("{}: {err}", path.display())))?;
+    if map.version != VERSION {
+        return Err(EtchError::plain(format!(
+            "{}: a map from another version of the tool",
+            path.display()
+        ))
+        .with_help(
+            "tangle the document, and the maps are written again in the shape this pass reads",
+        ));
+    }
+    Ok(map)
 }
 ````)
 
@@ -207,9 +217,9 @@ The search is two fragments rather than one: the guard for an output directory t
 the walk.
 
 #chunk("map: when there is no output directory", ````rust
-pub fn read_all(out: &Path) -> Vec<(String, EtchMap)> {
+pub fn read_all(out: &Path) -> Result<Vec<(String, EtchMap)>, EtchError> {
     if !out.exists() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 ````)
 
@@ -226,12 +236,11 @@ pub fn read_all(out: &Path) -> Vec<(String, EtchMap)> {
         let Some(dir) = entry.path().parent() else {
             continue;
         };
-        if let Ok(map) = Self::read(dir) {
-            found.push((relative(out, dir), map));
-        }
+        let map = Self::read(dir)?;
+        found.push((relative(out, dir), map));
     }
     found.sort_by(|a, b| a.0.cmp(&b.0));
-    found
+    Ok(found)
 }
 ````)
 

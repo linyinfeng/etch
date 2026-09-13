@@ -27,7 +27,7 @@
         {
           "chunk": "book: carrying it over",
           "first": 78,
-          "last": 398
+          "last": 399
         }
       ]
     },
@@ -547,67 +547,67 @@
         {
           "chunk": "map: read one map",
           "first": 77,
-          "last": 82
+          "last": 92
         },
         {
           "chunk": "src/map.rs",
-          "first": 83,
-          "last": 83
+          "first": 93,
+          "last": 93
         },
         {
           "chunk": "map: when there is no output directory",
-          "first": 84,
-          "last": 87
+          "first": 94,
+          "last": 97
         },
         {
           "chunk": "src/map.rs",
-          "first": 88,
-          "last": 88
+          "first": 98,
+          "last": 98
         },
         {
           "chunk": "map: walk it",
-          "first": 89,
-          "last": 107
+          "first": 99,
+          "last": 116
         },
         {
           "chunk": "src/map.rs",
-          "first": 108,
-          "last": 108
-        },
-        {
-          "chunk": "map: the json, and where it goes",
-          "first": 109,
-          "last": 114
-        },
-        {
-          "chunk": "src/map.rs",
-          "first": 115,
+          "first": 117,
           "last": 117
         },
         {
-          "chunk": "map: which chunk produced a line",
+          "chunk": "map: the json, and where it goes",
           "first": 118,
-          "last": 125
+          "last": 123
         },
         {
           "chunk": "src/map.rs",
-          "first": 126,
-          "last": 127
+          "first": 124,
+          "last": 126
+        },
+        {
+          "chunk": "map: which chunk produced a line",
+          "first": 127,
+          "last": 134
+        },
+        {
+          "chunk": "src/map.rs",
+          "first": 135,
+          "last": 136
         },
         {
           "chunk": "map: paths, in one shape",
-          "first": 128,
-          "last": 148
+          "first": 137,
+          "last": 157
         },
         {
           "chunk": "src/map.rs",
-          "first": 149,
-          "last": 149
+          "first": 158,
+          "last": 158
         },
         {
           "chunk": "map: finding the map that knows a file",
-          "first": 150,
-          "last": 195
+          "first": 159,
+          "last": 204
         }
       ]
     },
@@ -645,7 +645,7 @@
           "last": 23
         },
         {
-          "chunk": "metadata: the two kinds",
+          "chunk": "metadata: the kinds",
           "first": 24,
           "last": 29
         },

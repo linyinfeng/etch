@@ -260,8 +260,8 @@ nobody has refreshed.
 === What the branch carries, and what it does not
 
 The branch carries what the tree's own repository commits: the declared files, `Cargo.lock`, and
-the tree's own `.gitignore`. The lock file is the one file in the seed that no declaration produces
-— a pinned resolution is a decision, not a derivation — and the `.gitignore` is there because the inner
+the tree's own `.gitignore`. The lock file is the one file in the seed that is not derived from anything:
+it is quoted in the appendix, because a pinned resolution is a decision rather than a derivation, and and the `.gitignore` is there because the inner
 repository needs it, not because a reader does. Everything else the tangle writes stays
 out, and each for a reason worth being able to say:
 

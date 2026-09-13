@@ -12,9 +12,9 @@ field, and only the sentence built from it is prose.
 == Two readers of one plan, and the command that asks
 
 A pass and a plan are the same look at the same document, and what separates them is what they do with the
-answer. `etch tangle` writes. `etch tangle --check` is a gate: it stops at the first thing that must not pass —
-drift, a book copy out of date, a file under the output directory that nothing accounts for — and what it
-prints is the evidence for a verdict, which is why it can stop early. `etch plan` is the question: what a
+answer. `etch tangle` writes. `etch tangle --check` is a gate: it fails on the first thing that must not pass —
+a book copy out of date, a file under the output directory that nothing accounts for — and it reports every
+drifted file at once, because a drift report is the list of places to look. `etch plan` is the question: what a
 pass would write, what it would leave alone, which fragments nobody references, which files are nobody's,
 all at once — and it exits zero, because finding something wrong is not the same as failing. That is the
 difference between the command a script gates on and the command a reader asks, or a program that is about

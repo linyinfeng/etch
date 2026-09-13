@@ -230,7 +230,7 @@ Command::Map {
     out,
 } => {
     let out = out_dir(out, &[]);
-    let maps = map::EtchMap::read_all(&out);
+    let maps = map::EtchMap::read_all(&out)?;
 ````)
 
 `map` has two directions, and they are different enough to be separate fragments. In reverse

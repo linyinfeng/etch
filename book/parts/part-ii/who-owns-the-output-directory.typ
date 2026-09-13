@@ -17,9 +17,9 @@ worth reporting, and it is reported as an error that names every entry.
 
 Two halves of that rule are easy to get backwards, so they are worth saying plainly. The
 declaration file is a list of what `etch` does *not* manage: matching means the file is
-protected, which is the opposite of what the word "ignore" suggests. And `etch` never deletes
-as a side effect of a pass — stale output is either declared, or removed by an explicit
-`etch unaccounted --delete`.
+protected, which is the opposite of what the word "ignore" suggests. And `etch` never deletes a file it does not
+derive: the sweep takes a stale book copy, a map that stopped applying goes with the file it explained, and
+everything else waits for an explicit `etch unaccounted --delete`.
 
 Why report at all, rather than tidy up? Because the answer is unknowable from the inside. A
 file that no chunk produces may be one a chunk *should* produce, a file the user put there,
@@ -124,7 +124,8 @@ builder
     .add_custom_ignore_filename(IGNORE_FILE);
 ````)
 
-The walker is the crate git itself uses, with its default filters switched off — this is not
+The walker is the crate that implements git's ignore rules — the one ripgrep uses — with its default
+filters switched off — this is not
 a git question — and `.etchignore` registered as *the* ignore file name. That choice is the
 whole reason there is no second implementation of ignore rules here: nesting, deepest-wins,
 whitelists and the `!` operator are the library's job, and a directory that declares

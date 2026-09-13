@@ -19,8 +19,8 @@ These are not style preferences; each one was paid for.
 - *An error points at a declaration*, never at a bare string: which chunk, and which
   line inside it.
 - *Unexplained files are errors, deletion is explicit.* Everything under the output
-  directory is produced by a declaration or listed in a `.etchignore`; `etch` never deletes
-  anything by itself.
+  directory is produced by a declaration or listed in a `.etchignore`; nothing unexplained is ever
+  deleted for you.
 - *Only changed bytes are written, and a document that does not evaluate is not tangled.*
   The previous good output stays until the document is valid again.
 - *No watcher.* The tool does know which files a pass reads — it asks Typst, which is the same answer the book

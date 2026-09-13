@@ -568,7 +568,7 @@ pub fn run(docs: &[PathBuf], out: &Path, check: bool) -> Result<Outcome, EtchErr
             map.write_if_changed(&out.join(&dir))?;
             live.insert(dir);
         }
-        for (dir, _) in EtchMap::read_all(out) {
+        for (dir, _) in EtchMap::read_all(out).unwrap_or_default() {
             if live.contains(&dir) {
                 continue;
             }

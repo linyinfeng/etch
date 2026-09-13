@@ -154,10 +154,11 @@ fn attach_pdf(page: &Path, directory: &str, copies: &[Copy]) -> Result<(), EtchE
         .catalog_mut()
         .map_err(pdf_err(page))?
         .set("Names", Object::Dictionary(names));
+    let mut bytes = Vec::new();
     document
-        .save(page)
-        .map(|_| ())
-        .map_err(|err| EtchError::io(page, err))
+        .save_to(&mut bytes)
+        .map_err(|err| EtchError::io(page, err))?;
+    disk::write(page, bytes)
 }
 
 pub fn extract(page: &Path, format: &str, out: &Path) -> Result<usize, EtchError> {

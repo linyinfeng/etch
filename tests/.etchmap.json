@@ -240,199 +240,209 @@
           "last": 615
         },
         {
-          "chunk": "flow: the_book_is_carried_into_the_tree",
+          "chunk": "flow: a_map_from_another_version_is_refused",
           "first": 616,
-          "last": 661
+          "last": 641
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 662,
-          "last": 662
+          "first": 642,
+          "last": 642
+        },
+        {
+          "chunk": "flow: the_book_is_carried_into_the_tree",
+          "first": 643,
+          "last": 688
+        },
+        {
+          "chunk": "tests/flow.rs",
+          "first": 689,
+          "last": 689
         },
         {
           "chunk": "flow: a_chapter_a_document_includes_travels_with_it",
-          "first": 663,
-          "last": 690
+          "first": 690,
+          "last": 717
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 691,
-          "last": 691
+          "first": 718,
+          "last": 718
         },
         {
           "chunk": "flow: a_document_that_reads_outside_itself_cannot_be_carried",
-          "first": 692,
-          "last": 713
+          "first": 719,
+          "last": 740
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 714,
-          "last": 714
+          "first": 741,
+          "last": 741
         },
         {
           "chunk": "flow: an_unknown_tangle_option_is_refused",
-          "first": 715,
-          "last": 734
+          "first": 742,
+          "last": 761
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 735,
-          "last": 735
+          "first": 762,
+          "last": 762
         },
         {
           "chunk": "flow: a_moved_book_copy_leaves_no_empty_directory",
-          "first": 736,
-          "last": 763
+          "first": 763,
+          "last": 790
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 764,
-          "last": 764
+          "first": 791,
+          "last": 791
         },
         {
           "chunk": "flow: a_stale_book_copy_is_removed_and_check_refuses_it",
-          "first": 765,
-          "last": 799
+          "first": 792,
+          "last": 826
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 800,
-          "last": 800
+          "first": 827,
+          "last": 827
         },
         {
           "chunk": "flow: a_book_name_may_not_leave_the_tree",
-          "first": 801,
-          "last": 823
+          "first": 828,
+          "last": 850
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 824,
-          "last": 824
+          "first": 851,
+          "last": 851
         },
         {
           "chunk": "flow: a_book_without_a_directory_is_an_error",
-          "first": 825,
-          "last": 844
+          "first": 852,
+          "last": 871
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 845,
-          "last": 845
+          "first": 872,
+          "last": 872
         },
         {
           "chunk": "flow: a_book_may_not_overwrite_an_output",
-          "first": 846,
-          "last": 873
+          "first": 873,
+          "last": 900
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 874,
-          "last": 874
+          "first": 901,
+          "last": 901
         },
         {
           "chunk": "flow: map_names_the_chunk_a_generated_line_came_from",
-          "first": 875,
-          "last": 907
+          "first": 902,
+          "last": 934
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 908,
-          "last": 908
+          "first": 935,
+          "last": 935
         },
         {
           "chunk": "flow: the_demo_tangles_and_runs",
-          "first": 909,
-          "last": 954
+          "first": 936,
+          "last": 981
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 955,
-          "last": 955
+          "first": 982,
+          "last": 982
         },
         {
           "chunk": "flow: tangle_speaks_json_about_what_it_wrote",
-          "first": 956,
-          "last": 989
+          "first": 983,
+          "last": 1016
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 990,
-          "last": 990
+          "first": 1017,
+          "last": 1017
         },
         {
           "chunk": "flow: plan_says_what_a_pass_would_do",
-          "first": 991,
-          "last": 1044
+          "first": 1018,
+          "last": 1071
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 1045,
-          "last": 1045
+          "first": 1072,
+          "last": 1072
         },
         {
           "chunk": "flow: map_takes_one_direction",
-          "first": 1046,
-          "last": 1075
+          "first": 1073,
+          "last": 1102
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 1076,
-          "last": 1076
+          "first": 1103,
+          "last": 1103
         },
         {
           "chunk": "flow: explain_rewrites_diagnostics_to_the_chunk",
-          "first": 1077,
-          "last": 1107
+          "first": 1104,
+          "last": 1134
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 1108,
-          "last": 1108
+          "first": 1135,
+          "last": 1135
         },
         {
           "chunk": "flow: list_reports_declarations",
-          "first": 1109,
-          "last": 1122
+          "first": 1136,
+          "last": 1149
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 1123,
-          "last": 1123
+          "first": 1150,
+          "last": 1150
         },
         {
           "chunk": "flow: the_reading_commands_speak_json",
-          "first": 1124,
-          "last": 1194
+          "first": 1151,
+          "last": 1221
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 1195,
-          "last": 1195
+          "first": 1222,
+          "last": 1222
         },
         {
           "chunk": "flow: a_closed_pipe_is_not_a_panic",
-          "first": 1196,
-          "last": 1223
+          "first": 1223,
+          "last": 1250
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 1224,
-          "last": 1224
+          "first": 1251,
+          "last": 1251
         },
         {
           "chunk": "flow: a_chunk_built_by_code_is_attributed_to_itself",
-          "first": 1225,
-          "last": 1243
+          "first": 1252,
+          "last": 1270
         },
         {
           "chunk": "tests/flow.rs",
-          "first": 1244,
-          "last": 1244
+          "first": 1271,
+          "last": 1271
         },
         {
           "chunk": "flow: the_declaration_is_where_the_line_lives",
-          "first": 1245,
-          "last": 1250
+          "first": 1272,
+          "last": 1277
         }
       ]
     },

@@ -9,7 +9,7 @@ pub fn run(out: &Path, input: &str) -> Result<usize, EtchError> {
     let pattern = Regex::new(r"^(?P<file>[^\s:]+\.\w+):(?P<line>\d+):(?P<col>\d+):\s?(?P<msg>.*)$")
         .map_err(|err| EtchError::plain(format!("internal: bad diagnostic pattern: {err}")))?;
 
-    let maps = EtchMap::read_all(out);
+    let maps = EtchMap::read_all(out)?;
     let mut mapped = 0;
 
     for line in input.lines() {

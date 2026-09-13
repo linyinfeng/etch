@@ -19,7 +19,7 @@ which is why the sources are never read.
 
 <<metadata: what a declaration says>>
 
-<<metadata: the two kinds>>
+<<metadata: the kinds>>
 
 impl Decl {
     <<metadata: a kind we do not know>>
@@ -168,13 +168,12 @@ struct Deps {
 }
 ````)
 
-== What a declaration says, and the two kinds it can be
+== What a declaration says, and the three kinds it can be
 
-A declaration is data: which of the two functions produced it, the name, the language from the fence, and
-the text. The kind is not free-form — the package emits `"chunk"` or `"file"` — so anything else is a
+A declaration is data: which function produced it, the name, the language from the fence, and the text.
+The kind is not free-form — the package emits `"chunk"`, `"file"` or `"options"` — so anything else is a
 mistake in the package or in whatever produced the metadata, and it is an error rather than a default. A
-third kind would mean the package grew a feature the tool has not learned yet, which is not something to
-guess at.
+kind nobody has taught the tool yet is not something to guess at either: it is refused where it was read.
 
 #chunk("metadata: what a declaration says", ````rust
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -191,7 +190,7 @@ pub struct Decl {
 }
 ````)
 
-#chunk("metadata: the two kinds", ````rust
+#chunk("metadata: the kinds", ````rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Chunk,
@@ -225,8 +224,9 @@ the document imports one, Typst resolves that import on its own, and what comes 
 `etch` document at all — is the metadata below. The package is a reference implementation of the functions that
 emit it; the interface is the records themselves.
 
-The only file this program writes beside a document is the wrapper, and it writes it under one reserved name
-so that no name a person might want is taken.
+Everything this program writes beside a document goes under one reserved name, `.etch`: the wrapper it
+asks its question with, and the two files one compile needs — the dependency list Typst writes and the
+throwaway page it lays out into. No name a person might want is taken.
 
 #chunk("metadata: where the tool's own file goes", ````rust
 pub const PACKAGE_ROOT: &str = ".etch";
@@ -250,7 +250,7 @@ pub fn binary() -> Result<PathBuf, EtchError> {
 
 == Asking the question
 
-Four fragments, and together they are the whole interaction with the outside world: make the paths
+Six fragments, and together they are the whole interaction with the outside world: make the paths
 absolute, decide where the wrapper lives, run Typst, and report what came back.
 
 #chunk("metadata: absolute documents, and where we are", ````rust

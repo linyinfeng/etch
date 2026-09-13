@@ -315,7 +315,7 @@ fn run() -> Result<i32, EtchError> {
             out,
         } => {
             let out = out_dir(out, &[]);
-            let maps = map::EtchMap::read_all(&out);
+            let maps = map::EtchMap::read_all(&out)?;
 
             if let Some(chunk) = typ {
                 let mut hits: Vec<(String, usize)> = Vec::new();

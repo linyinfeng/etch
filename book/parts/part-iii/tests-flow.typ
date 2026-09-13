@@ -59,6 +59,8 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: the_book_comes_back_out_whole>>
 
+<<flow: a_map_from_another_version_is_refused>>
+
 <<flow: the_book_is_carried_into_the_tree>>
 
 <<flow: a_chapter_a_document_includes_travels_with_it>>
@@ -130,6 +132,7 @@ The cases, in the order they appear:
 - `a_document_that_reads_outside_itself_cannot_be_carried` — a document whose reading reaches past its own directory is refused, and the file it reached for is named
 - `an_unknown_tangle_option_is_refused` — the package refuses a key it does not know, at the line that wrote it
 - `a_moved_book_copy_leaves_no_empty_directory` — a copy that moves to a different directory takes its old one with it, empty or not
+- `a_map_from_another_version_is_refused` — a map whose version is not this one is refused by name instead of being read as if it were
 - `a_stale_book_copy_is_removed_and_check_refuses_it` — the book directory is the list: a copy it no longer names is removed by a tangle and refused by `--check`
 - `a_book_name_may_not_leave_the_tree` — a name in `extra-book-files` that climbs out of the source tree is refused
 - `a_book_without_a_directory_is_an_error` — asking for a book without saying where it goes is refused by the tool
@@ -139,7 +142,7 @@ The cases, in the order they appear:
 - `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay in the log
 - `plan_says_what_a_pass_would_do` — `etch plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
 - `map_takes_one_direction` — an empty `etch map`, and a `--line` beside `--typ`, are refused by the surface (exit 2) rather than by the arm
-- `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
+- `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on the same stream
 - `list_reports_declarations` — `etch list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `the_reading_commands_speak_json` — the commands that answer a question hand back one JSON document each: the declarations, the whole text of a chunk, an exact line and a nearest one
 - `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
@@ -1164,6 +1167,35 @@ fn a_page_gives_the_book_back() {
         let beside = std::fs::read(carried.join(&name)).expect("beside");
         assert_eq!(back, beside, "{} did not survive the page", name.display());
     }
+}
+````)
+
+#chunk("flow: a_map_from_another_version_is_refused", ````rust
+#[test]
+fn a_map_from_another_version_is_refused() {
+    let (_guard, dir, _) = project(DOC);
+    let ran = etch(&dir, &["tangle", "demo.typ", "--out", "out"]);
+    assert!(ran.status.success(), "{}", stderr(&ran));
+
+    let path = dir.join("out/.etchmap.json");
+    let mut map: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).expect("the map")).expect("json");
+    map["version"] = serde_json::json!(0);
+    std::fs::write(&path, map.to_string()).expect("a map from nowhere");
+
+    let output = etch(
+        &dir,
+        &["map", "--file", "main.py", "--line", "3", "--out", "out"],
+    );
+    assert!(
+        !output.status.success(),
+        "a map from another version is not read"
+    );
+    assert!(
+        stderr(&output).contains("another version"),
+        "{}",
+        stderr(&output)
+    );
 }
 ````)
 
