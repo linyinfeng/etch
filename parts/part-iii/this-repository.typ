@@ -32,7 +32,8 @@ target
 == What git is asked to ignore
 
 Everything under `tangled/` is generated, so the whole directory is ignored: the crate, the package, the
-protect list and the maps. What git does track is the document and its chapters, the pointer, the pipeline,
+protect list and the maps. What git does track is the document and its chapters, the package they import, the
+pointer, the pipeline,
 and this file. `README.md` is that pointer, and there is one of it: a second name for the same text is a second
 name that can drift, which is the whole reason its text is a pointer. This `.gitignore` is written as the list
 itself — ignore everything, then allow these — so it cannot fall out of step with what the repository is. The
