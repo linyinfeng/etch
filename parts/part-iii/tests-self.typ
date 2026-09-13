@@ -2,44 +2,55 @@
 
 = tests/self.rs — the invariant that makes self-hosting real
 
-One case, and it is the one that keeps the rest honest: the binary re-tangles this document
+Two cases, and the first is the one that keeps the rest honest: the binary re-tangles this document
 into the working tree and insists on finding no difference. Every case above is about some
 other document; this one is about this one, and it is what makes editing `src/` by hand
-impossible.
+impossible. The second guards the one seam that check cannot see: this document *imports* one copy
+of its package, from beside the chapter, and *declares* another, which tangling writes at the
+tree's root — and `--check` compares each with its own source rather than with the other. Two copies
+of one file are one file only if something says so.
 
 #file("tests/self.rs", ````rust
 <<self: the fixtures and helpers>>
 
 <<self: the_document_regenerates_the_sources_we_are_running>>
+
+<<self: the_package_the_book_carries_is_the_one_the_tree_uses>>
 ````)
 
 The cases, in the order they appear:
 
 - `the_document_regenerates_the_sources_we_are_running` — the binary reproduces the sources it was built from, byte for byte
+- `the_package_the_book_carries_is_the_one_the_tree_uses` — the copy of the package the book carries and the one tangling writes are the same file
 
 #chunk("self: the fixtures and helpers", ````rust
 use std::path::Path;
 use std::process::Command;
-````)
 
-#chunk("self: the_document_regenerates_the_sources_we_are_running", ````rust
-#[test]
-fn the_document_regenerates_the_sources_we_are_running() {
-    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+fn book_and_document(crate_dir: &Path) -> (String, String) {
     let map: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(crate_dir.join(".lpmap.json")).expect("the map beside the crate"),
     )
     .expect("the map is json");
-    let document = match (
+    match (
         map["book"]["directory"].as_str(),
         map["docs"]
             .as_array()
             .and_then(|docs| docs.first())
             .and_then(|doc| doc.as_str()),
     ) {
-        (Some(book), Some(doc)) => format!("{book}/{doc}"),
+        (Some(book), Some(doc)) => (book.to_string(), doc.to_string()),
         _ => panic!("the map names neither a book nor a document: {map}"),
-    };
+    }
+}
+````)
+
+#chunk("self: the_document_regenerates_the_sources_we_are_running", ````rust
+#[test]
+fn the_document_regenerates_the_sources_we_are_running() {
+    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (book, doc) = book_and_document(crate_dir);
+    let document = format!("{book}/{doc}");
 
     let output = Command::new(env!("CARGO_BIN_EXE_lp"))
         .args(["tangle", &document, "--out", ".", "--check"])
@@ -52,6 +63,23 @@ fn the_document_regenerates_the_sources_we_are_running() {
         "--check reported drift between lp.typ and the sources it generated:\n{}{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
+    );
+}
+````)
+
+#chunk("self: the_package_the_book_carries_is_the_one_the_tree_uses", ````rust
+#[test]
+fn the_package_the_book_carries_is_the_one_the_tree_uses() {
+    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (book, _) = book_and_document(crate_dir);
+    let carried =
+        std::fs::read(crate_dir.join(&book).join("package/lib.typ")).expect("the book's package");
+    let used = std::fs::read(crate_dir.join("package/lib.typ")).expect("the tree's package");
+
+    assert_eq!(
+        String::from_utf8_lossy(&carried),
+        String::from_utf8_lossy(&used),
+        "the document imports one of them and declares the other, and they are one file"
     );
 }
 ````)
