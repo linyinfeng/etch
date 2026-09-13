@@ -27,6 +27,10 @@ outside this document: it is what the person reading has, not something the docu
 <<env: what only the tests need>>
 ````)
 
+The table's fields before the dependencies say what the crate is and who wrote it: `description` is the sentence the
+woven page prints under the title, and `authors` and `repository` are the same two facts for whoever reads the crate
+metadadata rather than the page.
+
 The dependencies are a decision like any other, and the policy (D7) is that a mature crate
 beats a hand-written wheel: clap for the command line, ignore for the ignore rules, miette for
 the error rendering, libc for the one signal this tool resets, regex for the diagnostic shapes,
@@ -43,7 +47,9 @@ name = "etch"
 version = "0.1.0"
 edition = "2024"
 publish = false
-description = "Typst-based literate programming: tangle source files out of a .typ document"
+description = "A literate literate programming program."
+authors = ["Lin Yinfeng <lin.yifeng@outlook.com>"]
+repository = "https://github.com/linyinfeng/etch"
 ````)
 
 #chunk("env: the runtime dependencies", ````toml

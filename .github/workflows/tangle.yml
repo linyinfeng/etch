@@ -58,8 +58,9 @@ jobs:
       - name: weave the document
         run: |
           set -euo pipefail
-          ./tangled/target/debug/etch weave etch.typ etch.pdf
-          ./tangled/target/debug/etch weave etch.typ etch.html --features html
+          stamp=$(git log -1 --format=%ad --date=short)
+          ./tangled/target/debug/etch weave etch.typ etch.pdf --input "date=$stamp"
+          ./tangled/target/debug/etch weave etch.typ etch.html --features html --input "date=$stamp"
 
       - uses: actions/upload-artifact@v7
         with:

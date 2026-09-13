@@ -1,6 +1,30 @@
 #import "package/lib.typ": chunk, file, show-rule, tangle-options
 #show: show-rule
 
+#let declared-date = sys.inputs.at("date", default: none)
+#let stamp = if declared-date == none {
+  datetime.today()
+} else {
+  let parts = declared-date.split("-").map(int)
+  datetime(year: parts.at(0), month: parts.at(1), day: parts.at(2))
+}
+
+#set document(
+  title: "Etch",
+  author: ("Lin Yinfeng <lin.yifeng@outlook.com>",),
+  date: stamp,
+)
+
+#align(center)[
+  #text(size: 2em, weight: "bold")[Etch]
+  #v(0.3em)
+  #text(size: 1.25em)[A literate literate programming program.]
+  #v(0.6em)
+  #text(size: 1em)[Lin Yinfeng \<lin.yifeng\@outlook.com\>]
+  #v(0.2em)
+  #text(size: 0.9em, fill: luma(110))[#stamp.display("[year]-[month]-[day]")]
+]
+
 // Where the tangled tree keeps this book, so that a tree can be read — and re-tangled — without the
 // repository it came from. The tree's own `.gitignore` travels with it: the book is the whole of what
 // this repository was before tangling, not only its prose.
