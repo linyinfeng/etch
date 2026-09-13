@@ -13,6 +13,11 @@ produces: the
 syntax and the tool that reads it share one source, so there is no second opinion about what a declaration
 looks like.
 
+The interface between a document and the tool is not this package, though, but the records it emits: a document
+that produced the same metadata another way would be tangled just the same, and this package is one
+implementation of the functions that emit it — the one this repository ships, and the one its own document
+imports by path.
+
 `chunk` and `file` do two things each: they attach a metadata record — the name, the language from the
 fence, the text — and then render the code as a titled block. That is the whole difference between a
 fragment and a root: the same body, one word, and a record that says which of the two it is. `show-rule`

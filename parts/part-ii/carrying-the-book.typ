@@ -6,15 +6,19 @@ A tree that cannot be read on its own is a build artifact; a tree that carries t
 produced it is a program with its source of truth beside it. So a document may ask for the copy:
 
 ```typst
-#tangle-options((book-directory: "book", extra-book-files: ("lp.typ", "parts/part-i/four-claims.typ", …)))
+#tangle-options((book-directory: "book", extra-book-files: ("README.md", ".gitignore")))
 ```
 
-Each name is a file, relative to the document, and each one is copied into the output directory under
-`book-directory` with the name it had. This document's own settings are the live example. The list is explicit
-and not a pattern: it is what the book *is*, it is what a rendering carries, and a
-list is something a reader can hold against the directory. The first version matched globs the way a
-`.gitignore` matches, walking the source tree to find them — more machinery than a list of names deserves, and
-a package could not have read a pattern anyway, since Typst has no `glob`.
+The book is two things put together. The first is what the document *reads*: ask Typst to compile a document
+that lays out nothing and it writes down every file it opened — the document itself, every chapter it includes,
+the package it imports — and that set is the book's body, derived rather than kept. The second is what the
+options name: files a reader needs that Typst never reads, like `README.md` and `.gitignore`, which is why the
+option is called `extra-book-files` and why this document names two files instead of forty-one.
+
+A document that reads something outside its own directory cannot be carried at all, and that is an error this
+rule produces before anything is written: a book is everything the document reads, so a document whose reading
+reaches past its own directory has a book with a hole in it. Each name is a file relative to the document, and
+each one is copied into the output directory under `book-directory` with the name it had.
 
 The copy is output like everything else: written only when its bytes differ, part of what `--check`
 compares, and accounted for by the ownership check rather than reported as a stray. The directory is the
@@ -95,8 +99,11 @@ pub fn plan(settings: &Book, anchor: &Path) -> Result<Vec<Copy>, LpError> {
     for name in &settings.files {
         let from = anchor.join(name);
         if !from.is_file() {
-            return Err(LpError::plain(format!("extra-book-files: {name} is not a file"))
-                .with_help("names are relative to the document, and the book is a list of them"));
+            return Err(
+                LpError::plain(format!("extra-book-files: {name} is not a file")).with_help(
+                    "names are relative to the document, and the book is a list of them",
+                ),
+            );
         }
         copies.push(Copy {
             from,

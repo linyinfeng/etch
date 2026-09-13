@@ -61,6 +61,10 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: the_book_is_carried_into_the_tree>>
 
+<<flow: a_chapter_a_document_includes_travels_with_it>>
+
+<<flow: a_document_that_reads_outside_itself_cannot_be_carried>>
+
 <<flow: an_unknown_tangle_option_is_refused>>
 
 <<flow: a_moved_book_copy_leaves_no_empty_directory>>
@@ -123,6 +127,8 @@ The cases, in the order they appear:
 - `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay in the log
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
 - `the_book_is_carried_into_the_tree` — the settings put the book beside its output, under the names it lists, and nothing else
+- `a_chapter_a_document_includes_travels_with_it` — a chapter added to the include list travels into the book with no change to the settings
+- `a_document_that_reads_outside_itself_cannot_be_carried` — a document whose reading reaches past its own directory is refused, and the file it reached for is named
 - `a_book_name_may_not_leave_the_tree` — a name in `extra-book-files` that climbs out of the source tree is refused
 - `a_stale_book_copy_is_removed_and_check_refuses_it` — the book directory is the list: a copy it no longer names is removed by a tangle and refused by `--check`
 - `a_moved_book_copy_leaves_no_empty_directory` — a copy that moves to a different directory takes its old one with it, empty or not
@@ -1424,5 +1430,64 @@ fn the_declaration_is_where_the_line_lives() {
     let (_guard, _dir, text) = project(DOC);
     assert!(line_of(&text, "#chunk(\"imports\"") > 0);
     assert!(line_of(&text, "print('two')") > 0);
+}
+````)
+
+Two consequences of that rule are worth a test each, because both are the kind that
+only shows up in a book that has already travelled: the chapter a document starts
+including, and the file it should never have reached for.
+
+#chunk("flow: a_chapter_a_document_includes_travels_with_it", ````rust
+#[test]
+fn a_chapter_a_document_includes_travels_with_it() {
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
+    std::fs::write(dir.path().join("one.typ"), "= One\n").expect("chapter");
+    let body = "#import \"lp.typ\": chunk, file, tangle-options\n#tangle-options((book-directory: \"book\"))\n#include \"one.typ\"\n#file(\"main.py\", ```py\nprint(1)\n```)\n";
+    std::fs::write(dir.path().join("demo.typ"), body).expect("doc");
+
+    let first = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(first.status.success(), "{}", stderr(&first));
+    assert!(
+        dir.path().join("tangled/book/one.typ").exists(),
+        "the chapter travelled"
+    );
+
+    std::fs::write(dir.path().join("two.typ"), "= Two\n").expect("chapter");
+    std::fs::write(
+        dir.path().join("demo.typ"),
+        format!("{body}#include \"two.typ\"\n"),
+    )
+    .expect("doc");
+    let second = lp(dir.path(), &["tangle", "demo.typ"]);
+    assert!(second.status.success(), "{}", stderr(&second));
+    assert!(
+        dir.path().join("tangled/book/two.typ").exists(),
+        "a chapter the document started including travels on its own"
+    );
+}
+````)
+
+#chunk("flow: a_document_that_reads_outside_itself_cannot_be_carried", ````rust
+#[test]
+fn a_document_that_reads_outside_itself_cannot_be_carried() {
+    let parent = TempDir::new().expect("temp dir");
+    let dir = parent.path().join("inside");
+    std::fs::create_dir_all(&dir).expect("dir");
+    std::fs::write(parent.path().join("outside.typ"), "= Outside\n").expect("chapter");
+    std::fs::write(dir.join("lp.typ"), PKG).expect("package");
+    std::fs::write(
+        dir.join("demo.typ"),
+        "#import \"lp.typ\": chunk, file, tangle-options\n#tangle-options((book-directory: \"book\"))\n#include \"../outside.typ\"\n#file(\"main.py\", ```py\nprint(1)\n```)\n",
+    )
+    .expect("doc");
+
+    let output = lp(&dir, &["tangle", "demo.typ"]);
+    assert!(
+        !output.status.success(),
+        "a book cannot leave its directory"
+    );
+    let message = stderr(&output);
+    assert!(message.contains("outside.typ"), "{message}");
 }
 ````)
