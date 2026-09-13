@@ -7,4 +7,4 @@ what gets edited, reviewed and diffed is the argument rather than a copy of it. 
 and its demonstration — the argument first, the code as its by-product, and one program's evidence that the
 position is livable — and nothing here checks the prose, the order of the argument or whether the argument is
 any good: those cannot be checked today, so they are the maintainer's responsibility, human or machine. The
-source, and whatever the latest version is, lives at https://github.com/linyinfeng/etch.
+source, and whatever the latest version is, lives at #link("https://linyinfeng.github.io/etch/")[the Web page] or #link("https://linyinfeng.github.io/etch/etch.pdf")[the PDF].
