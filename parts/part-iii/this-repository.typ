@@ -194,6 +194,29 @@ for a file that was already right and `wrote` for one that was not. That pass al
 generated files, which the tree's own tests read; `cargo test` after it is the whole suite, and the test that
 re-tangles this document into the tree it is running in is the same agreement, restated.
 
+
+== From the published rendering
+
+There is a fourth road, for a reader who has nothing but the book as it was published. Both renderings carry
+the whole source of this document: the HTML page has it in a `<script type="application/json"
+id="etch-source">` block, and the PDF carries it as embedded files, one per file of this document — 46 of them,
+the same set, so `pdfdetach -saveall` and a few lines of `jq` are two ways to the same directory, and either way
+it lands where the crate expects it: `book/`.
+
+What neither rendering carries as a file is the tree — the crate and the package — because the tree is what the
+fragments in this document produce. The fragments are in the rendering too, and a fragment's caption is the path
+it is written to, so the tree can be read back out of the page one tile at a time: every file declaration is a
+root, expand the `<<...>>` references between them, give each one its newline, and write it where its name says.
+That is the expansion `etch tangle` does, and a person or a script can do it exactly — it has been done from the
+published page alone, and the result was byte for byte the tree this document produces.
+
+The package is the piece worth naming first: `package/lib.typ` is one file built from fragments of a single
+chapter, and nothing in the document can be read until that file exists, so reconstruct it before the rest and
+the document itself can then be asked for everything else.
+
+This is the road the published page exists for. It is the slowest one, and the only one that needs no
+repository, no seed, and no copy of this document on disk.
+
 == Editing this book
 
 The loop above is a reader's. This section is the writer's — the one who arrived with a task rather than with
