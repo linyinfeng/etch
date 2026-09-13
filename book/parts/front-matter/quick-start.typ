@@ -2,7 +2,7 @@
 
 Five minutes from nothing to a tree that passes its own tests. What this does *not* explain is why it is worth
 doing — that is the introduction — and it is not the only way to begin: *This repository, and its seed* has
-three roads, including one that needs no seed at all.
+four roads, three of which need nothing but this document and one of those needs no seed at all.
 
 Everything below assumes `nix` with flakes and a terminal. Rust and Typst come from the flake; nothing else has
 to be installed for this.
