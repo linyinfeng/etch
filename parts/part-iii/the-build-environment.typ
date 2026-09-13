@@ -30,8 +30,10 @@ outside this document: it is what the person reading has, not something the docu
 The dependencies are a decision like any other, and the policy (D7) is that a mature crate
 beats a hand-written wheel: clap for the command line, ignore for the ignore rules, miette for
 the error rendering, libc for the one signal this tool resets, regex for the diagnostic shapes,
-serde for the maps, and tracing for the log — the second half of that policy is that every one of
-them is here for something the tool could not do well itself, and the log is a level, two writers and a
+serde and serde_json for the maps and for the documents on standard output, tracing and
+tracing-subscriber for the log, include_dir for the book the binary carries, and lopdf for that
+book's carrier in a PDF — the second half of that policy is that every one of them is here for something the
+tool could not do well itself, and the log is a level, two writers and a
 filter, which is exactly the kind of thing not to write by hand. `tempfile` is the only one the tests need, which is why it is in its own
 table.
 
@@ -55,7 +57,6 @@ miette = { version = "7", features = ["fancy"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = [
   "fmt",
@@ -65,6 +66,5 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
 
 #chunk("env: what only the tests need", ````toml
 [dev-dependencies]
-serde_json = "1"
 tempfile = "3"
 ````)

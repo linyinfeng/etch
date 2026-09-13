@@ -707,7 +707,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "thiserror",
  "tracing",
  "tracing-subscriber",
 ]
