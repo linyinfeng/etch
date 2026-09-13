@@ -305,7 +305,7 @@ and the second run should download them instead of building them. The name is th
 repository pushes to; the token comes from a secret, because a signing key in a workflow file is a signing
 key given away.
 
-The workflow asks for `contents: read` and nothing more, because neither job writes; it hands the matrix
+The workflow asks for `contents: read` and nothing more, because no job writes; it hands the matrix
 attribute in through the environment rather than into the shell; it passes `--no-update-lock-file`, because
 the lock is part of the book the tree carries and a lock that does not match is drift to fail on rather than
 one to quietly resolve; and it keeps a policy file beside it. Each
