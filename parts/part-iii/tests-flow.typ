@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk, file
+#import "../../package/lib.typ": chunk, file
 
 = tests/flow.rs — what tangling does
 
@@ -145,7 +145,7 @@ use std::process::{Command, Output, Stdio};
 
 use tempfile::TempDir;
 
-const PKG: &str = include_str!("../typst/lp.typ");
+const PKG: &str = include_str!("../package/lib.typ");
 
 fn document(body: &str) -> String {
     format!("#import \"lp.typ\": chunk, file, tangle-options, show-rule\n#show: show-rule\n{body}")
@@ -649,10 +649,21 @@ fn map_names_the_chunk_a_generated_line_came_from() {
 fn the_demo_tangles_and_runs() {
     let demo = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/demo");
     let dir = TempDir::new().expect("temp dir");
-    std::fs::copy(demo.join("literate.typ"), dir.path().join("literate.typ"))
-        .expect("the document");
+    let document = dir.path().join("examples/demo");
+    std::fs::create_dir_all(&document).expect("the document's directory");
+    std::fs::copy(demo.join("literate.typ"), document.join("literate.typ")).expect("the document");
+    let package = dir.path().join("package");
+    std::fs::create_dir_all(&package).expect("the package's directory");
+    std::fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("package/lib.typ"),
+        package.join("lib.typ"),
+    )
+    .expect("the package");
 
-    let tangled = lp(dir.path(), &["tangle", "literate.typ", "--out", "build"]);
+    let tangled = lp(
+        dir.path(),
+        &["tangle", "examples/demo/literate.typ", "--out", "build"],
+    );
     assert!(tangled.status.success(), "{}", stderr(&tangled));
 
     let ran = Command::new("sh")
@@ -670,7 +681,13 @@ fn the_demo_tangles_and_runs() {
 
     let checked = lp(
         dir.path(),
-        &["tangle", "literate.typ", "--out", "build", "--check"],
+        &[
+            "tangle",
+            "examples/demo/literate.typ",
+            "--out",
+            "build",
+            "--check",
+        ],
     );
     assert!(checked.status.success(), "{}", stderr(&checked));
 }
@@ -946,9 +963,10 @@ fn explain_rewrites_diagnostics_to_the_chunk() {
 #[test]
 fn weave_renders_a_document_that_imports_the_package() {
     let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("doc.typ"),
-        "#import \"@local/lp:0.1.0\": show-rule\n#show: show-rule\n= Woven\n",
+        "#import \"lp.typ\": show-rule\n#show: show-rule\n= Woven\n",
     )
     .expect("doc");
 

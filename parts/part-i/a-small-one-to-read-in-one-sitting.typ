@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk, file
+#import "../../package/lib.typ": chunk, file
 
 = A small one, to read in one sitting
 
@@ -16,7 +16,7 @@ chapter is the case it exists for: a document that *contains* another document i
 the demo's references have to survive the book's tangle and be left for the demo's own.
 
 #file("examples/demo/literate.typ", ````typst
-#import "@local/lp:0.1.0": chunk, file, show-rule, tangle-options
+#import "../../package/lib.typ": chunk, file, show-rule, tangle-options
 
 #show: show-rule
 

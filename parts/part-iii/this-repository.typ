@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": file
+#import "../../package/lib.typ": file
 
 = This repository, and its seed
 
@@ -140,13 +140,11 @@ document is what it claims to be: everything needed to rebuild the tool is in th
 that is a program can do it. Three of the four steps are chapters of this book rather than inventions.
 
 *Install the package first, because nothing else can happen until it exists.* The document imports its own
-package at the top, so Typst cannot read the document until that package is somewhere Typst can find it —
-which is the one place this road reads markup instead of evaluating it. The package is ten fragments of one
-chapter, `parts/part-ii/package.typ`: the two it declares for `typst/lp.typ` and `typst/typst.toml`, and the
-fragments those two reference. Pull them out, by hand or with a script, expand the `<<…>>` references
-between them, and put the result where `--package-path` will point: `local/lp/0.1.0/lib.typ` and
-`local/lp/0.1.0/typst.toml`. The check is immediate: a two-line document that imports the package either
-compiles or does not.
+package at the top, so Typst cannot read the document until that one file is on disk — which is the only
+place this road reads markup instead of evaluating it. The package is ten fragments of one chapter,
+`parts/part-ii/package.typ`, and it is a single file: `package/lib.typ`, the path the import names. Pull
+those fragments out, by hand or with a script, and expand the `<<…>>` references between them. The check is
+immediate: a document that imports it either evaluates or does not.
 
 Take the expansion rules from the chapter on expanding a reference rather than from a guess: a reference is
 a whole line, the indentation of the reference indents its expansion, a blank line inside an indented
@@ -154,11 +152,11 @@ fragment stays blank, and a name resolves to every declaration of that name in d
 what makes expansion recursive, and recursion is not optional.
 
 *Then stop reading markup.* Ask the document for its declarations the way the tool does: one query, through
-a wrapper document that includes the documents, with `--root` and `--package-path` set.
+a wrapper document that includes the documents, with `--root` set.
 
 ```sh
 typst eval 'query(<lp-decl>).map(declaration => declaration.value)' \
-  --in wrapper.typ --root . --package-path pkgs
+  --in wrapper.typ --root .
 ```
 
 The answer is JSON, and it carries both kinds of thing at once: the declarations, and the options — the

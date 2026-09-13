@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk, file
+#import "../../package/lib.typ": chunk, file
 
 = Weaving the document
 
@@ -7,10 +7,8 @@ it is already done — `typst compile` renders a document. A second renderer ins
 second thing to keep in step with the compiler, which is the kind of duplication this document keeps
 refusing.
 
-What the tool does have, and a writer should not have to remember, is where the package went. The document
-imports `@local/lp:0.1.0`, and Typst resolves that through a package path: the directory the tangle
-unpacked next to the document. `lp weave` is `typst compile` with that path filled in, a root that covers
-the document, and every other argument passed through untouched:
+What the tool does have, and a writer should not have to remember, is where the document sits: `lp weave` is
+`typst compile` with a root that covers the document, and every other argument passed through untouched:
 
 ```sh
 lp weave lp.typ lp.pdf                          # the book, as Typst renders it
@@ -43,7 +41,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::diag::LpError;
-use crate::metadata::{binary, common_ancestor, unpack_package};
+use crate::metadata::{binary, common_ancestor};
 ````)
 
 #chunk("weave: the command", ````rust
@@ -53,7 +51,6 @@ pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, L
         .map_err(|err| LpError::plain(format!("cannot read the working directory: {err}")))?;
     let anchor = doc.canonicalize().map_err(|err| LpError::io(doc, err))?;
     let docs = vec![anchor.clone()];
-    let packages = unpack_package(&common_ancestor(&docs))?;
     let mut root = docs;
     root.push(cwd);
 
@@ -62,9 +59,7 @@ pub fn run(doc: &Path, output: Option<&Path>, extra: &[String]) -> Result<i32, L
         .arg("compile")
         .arg(doc)
         .arg("--root")
-        .arg(common_ancestor(&root))
-        .arg("--package-path")
-        .arg(&packages);
+        .arg(common_ancestor(&root));
     if let Some(output) = output {
         command.arg(output);
     }

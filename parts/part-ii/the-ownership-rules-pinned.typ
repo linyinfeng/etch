@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk
+#import "../../package/lib.typ": chunk
 
 = The ownership rules, pinned in the file
 
@@ -137,10 +137,7 @@ mod tests {
         let out = dir.path();
         write(&out.join(".lpignore"), "theirs.txt\n");
         write(&out.join("theirs.txt"), "protected");
-        write(
-            &out.join(".lp/packages/local/lp/0.1.0/lib.typ"),
-            "the package",
-        );
+        write(&out.join(".lp/package/lib.typ"), "the package");
         write(&out.join("src/.lpmap.json"), "the map");
 
         let produced: BTreeMap<String, BTreeSet<String>> =

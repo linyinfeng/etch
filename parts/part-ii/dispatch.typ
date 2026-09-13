@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk
+#import "../../package/lib.typ": chunk
 
 = Dispatch, one arm per promise
 

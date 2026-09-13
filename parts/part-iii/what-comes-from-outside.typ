@@ -7,12 +7,9 @@ where each one is written down, how it moves, and what complains when it should.
 
 == Each outside thing, and where it is written
 
-*The compiler.* Typst itself, and the constraint is in the package: one line in `typst/typst.toml`,
-`compiler`, naming the version the package is written against. Typst enforces it — a package whose declared
-compiler is newer than the one reading it is refused, with both versions in the message — so it is a
-statement that fails in the direction that matters: an older reader is stopped instead of half-served. It is
-also the only version of anything that this document states as a number, and raising it is how a reader is
-told to move.
+*The compiler.* Typst itself, and this document states no version for it. It used to, as a `compiler` line in
+the package's manifest — but Typst reads that line only when it resolves a package by name, and the package
+is imported by path, so the line would now be a sentence nobody reads.
 
 The Typst that *builds* the tree is not a number here. It comes from nixpkgs through the tree's flake, and
 the pin is the lock file below. The bootstrap's `nix shell nixpkgs#typst` is the exception, and on purpose:
@@ -58,9 +55,9 @@ it is maintained by hand. Its pins are its own list rather than the tree's, and 
 other: an action that moves in one place has to be moved in the other by someone who knows both are there.
 
 *The packages this document imports.* There are none from outside, and that is a decision rather than an
-accident: the only import is `@local/lp:0.1.0`, this tool's own package, because a package from a registry
-would be fetched by name and version, and the copy the document is read with would stop being the copy the
-binary carries. Nothing to update, which is the point of the chapter on publishing.
+accident: the only import is the document's own package, by the path it sits at, because a package fetched
+from a registry by name and version would be a copy nobody in this repository can see or pin. Nothing to
+update, which is the point of the chapter on publishing.
 
 == What the seed has to do with it
 

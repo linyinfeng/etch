@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk, file
+#import "../../package/lib.typ": chunk, file
 
 = Asking the document what it declares
 
@@ -25,7 +25,7 @@ impl Decl {
     <<metadata: a kind we do not know>>
 }
 
-<<metadata: unpacking the package>>
+<<metadata: where the tool's own file goes>>
 
 <<metadata: finding typst>>
 
@@ -123,37 +123,19 @@ pub fn kind(&self) -> Result<Kind, LpError> {
 }
 ````)
 
-== Finding typst, and putting the package where it can be imported
+== Finding typst
 
-Two things have to be true before the question can be asked: there has to be a Typst binary, and the package
-the document imports has to be where Typst will look for it. The first is a hard dependency with an explicit
-override (`LP_TYPST`) in front of it and a failure that says what to do rather than what went wrong. The second is
-the copy of the package this binary carries, unpacked under `.lp` next to the document and rewritten only when
-its bytes differ — which is what keeps its mtime, and everything downstream of it, still. They are two fragments
-because they answer two questions, and the names say which.
+This is the one hard dependency, and it has an explicit override (`LP_TYPST`) in front of it and a failure
+that says what to do rather than what went wrong. Where the package comes from is not this tool's business:
+the document imports one, Typst resolves that import on its own, and what comes back — if the document is an
+`lp` document at all — is the metadata below. The package is a reference implementation of the functions that
+emit it; the interface is the records themselves.
 
-#chunk("metadata: unpacking the package", ````rust
-const PACKAGE_MANIFEST: &str = include_str!("../typst/typst.toml");
-const PACKAGE_ENTRY: &str = include_str!("../typst/lp.typ");
+The only file this program writes beside a document is the wrapper, and it writes it under one reserved name
+so that no name a person might want is taken.
 
+#chunk("metadata: where the tool's own file goes", ````rust
 pub const PACKAGE_ROOT: &str = ".lp";
-
-const PACKAGE_DIR: &str = "packages";
-
-const PACKAGE_NAMESPACE: &str = "local/lp/0.1.0";
-
-pub fn unpack_package(root: &Path) -> Result<PathBuf, LpError> {
-    let packages = root.join(PACKAGE_ROOT).join(PACKAGE_DIR);
-    let dir = packages.join(PACKAGE_NAMESPACE);
-
-    for (name, text) in [("typst.toml", PACKAGE_MANIFEST), ("lib.typ", PACKAGE_ENTRY)] {
-        let path = dir.join(name);
-        if disk::read_ok(&path)?.as_deref() != Some(text) {
-            disk::write(&path, text)?;
-        }
-    }
-    Ok(packages)
-}
 ````)
 
 #chunk("metadata: finding typst", ````rust
@@ -203,7 +185,6 @@ documents, including them relatively, with the root computed as the deepest dire
 everything involved.
 
 #chunk("metadata: ask typst, and let the wrapper go", ````rust
-let packages = unpack_package(&common_ancestor(&docs))?;
 let wrapper = Wrapper::write(&common_ancestor(&docs), &docs)?;
 let output = Command::new(typst)
     .arg("eval")
@@ -212,8 +193,6 @@ let output = Command::new(typst)
     .arg(&wrapper.path)
     .arg("--root")
     .arg(&root)
-    .arg("--package-path")
-    .arg(&packages)
     .current_dir(&cwd)
     .output();
 drop(wrapper);

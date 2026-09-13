@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk, file
+#import "../../package/lib.typ": chunk, file
 
 = The package: what a declaration is
 
@@ -8,7 +8,8 @@ put together in, which is the order a reader who is going to change it needs; a 
 it should take the second path in the introduction's table instead.
 
 This document is written with four functions — `chunk`, `file`, `tangle-options` and `show-rule` — and none
-of them is built into the tool. They are declared in `typst/lp.typ`, which this document produces: the
+of them is built into the tool. They are declared in `package/lib.typ`, which this document
+produces: the
 syntax and the tool that reads it share one source, so there is no second opinion about what a declaration
 looks like.
 
@@ -22,11 +23,7 @@ hide it from a query, and that is not a hypothesis: a styling rule once made eve
 vanish from the pass that collects them (ADR D12). So the metadata is attached where the declaration is
 written, and rendering is free to be as decorative as it likes afterwards.
 
-#file("typst/typst.toml", ````toml
-<<package: the manifest>>
-````)
-
-#file("typst/lp.typ", ````typst
+#file("package/lib.typ", ````typst
 <<package: what a reference looks like>>
 
 <<package: the escape>>
@@ -136,24 +133,15 @@ records nothing.
 #let lang-of(code) = code.at("lang", default: none)
 ````)
 
-== The manifest
+== Why there is no manifest
 
-A local package is a directory with a manifest and an entry point, so the manifest is part of what this
-document produces: name, version, and the file Typst should read. Its name and version are the other half
-of the import at the top of this file — `@local/lp:0.1.0` — and the only thing tying the two together is
-that a wrong pair fails loudly, with Typst saying it cannot find the package. The fourth line is the
-compiler the package is written against, and Typst enforces it: a package that asks for a newer compiler
-than the one reading it is refused, with the two versions in the message. That is the loud half of a
-mistake, and the reason the line is here rather than a version in prose. The number is the one this
-repository is tested with, so raising it is how a reader is told to move.
-
-#chunk("package: the manifest", ````toml
-[package]
-name = "lp"
-version = "0.1.0"
-entrypoint = "lib.typ"
-compiler = "0.15.1"
-````)
+A local package is a directory with a manifest and an entry point, and this document produces neither: the
+import at the top of this file names the package's one file, so there is nothing for Typst to look up and
+nothing to declare. A manifest would be a second statement of the same facts — the name, the version, the
+entry point — read by nobody, and the only line in it that did anything was a compiler floor, which Typst
+enforces only when it resolves a package by name. This repository states no such floor: the compiler it is
+built and tested with comes from nixpkgs through the tree's flake, which is a pin with a lock file rather
+than a sentence in a file.
 
 == The two declarations
 

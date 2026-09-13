@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk, file
+#import "../../package/lib.typ": chunk, file
 
 = tests/owned.rs — who owns the output directory
 
@@ -54,7 +54,7 @@ use std::process::{Command, Output};
 
 use tempfile::TempDir;
 
-const PKG: &str = include_str!("../typst/lp.typ");
+const PKG: &str = include_str!("../package/lib.typ");
 
 const DOC: &str = "\
 = Demo

@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk, file, show-rule, tangle-options
+#import "package/lib.typ": chunk, file, show-rule, tangle-options
 #show: show-rule
 
 // Where the tangled tree keeps this book, so that a tree can be read — and re-tangled — without the
@@ -10,6 +10,7 @@
     "lp.typ",
     "README.md",
     ".gitignore",
+    "package/lib.typ",
     "parts/front-matter/abstract.typ",
     "parts/front-matter/introduction.typ",
     "parts/front-matter/quick-start.typ",

@@ -1,4 +1,4 @@
-#import "@local/lp:0.1.0": chunk, file
+#import "../../package/lib.typ": chunk, file
 
 = tests/metadata.rs — what the document declares
 
@@ -44,7 +44,7 @@ use std::process::{Command, Output};
 
 use tempfile::TempDir;
 
-const PKG: &str = include_str!("../typst/lp.typ");
+const PKG: &str = include_str!("../package/lib.typ");
 
 fn typst_available() -> bool {
     Command::new("typst")
@@ -296,9 +296,10 @@ fn a_document_needs_nothing_but_itself() {
     }
 
     let dir = TempDir::new().expect("temp dir");
+    std::fs::write(dir.path().join("lp.typ"), PKG).expect("package");
     std::fs::write(
         dir.path().join("alone.typ"),
-        "#import \"@local/lp:0.1.0\": chunk, file, show-rule\n#show: show-rule\n\n#file(\"main.py\", ```py\n<<body>>\n```)\n\n#chunk(\"body\", ```py\nprint('alone')\n```)\n",
+        "#import \"lp.typ\": chunk, file, show-rule\n#show: show-rule\n\n#file(\"main.py\", ```py\n<<body>>\n```)\n\n#chunk(\"body\", ```py\nprint('alone')\n```)\n",
     )
     .expect("doc");
     let path = dir.path().to_path_buf();
