@@ -23,11 +23,13 @@ These are not style preferences; each one was paid for.
   anything by itself.
 - *Only changed bytes are written, and a document that does not evaluate is not tangled.*
   The previous good output stays until the document is valid again.
-- *No watcher.* A watcher has to know which files a pass reads, and this tool never parses Typst, so that set is
-  unknowable to it — everything left is a superset and a guess. The first version of that guess watched itself
-  and ran a pass every two hundred milliseconds, forever; the second borrowed git's view of the tree and was
-  right more often, which is not the same as right. So the loop belongs to somebody else's tool:
-  `watchexec -e typ -r -- lp tangle lp.typ` is the whole of what this one would have done. What the tool owes
+- *No watcher.* The tool does know which files a pass reads — it asks Typst, which is the same answer the book
+  is built from — but knowing the set is not the same as being a watcher: a watcher is a second loop inside
+  this program, with its own idea of when a file changed and its own ways to be wrong about a half-written one.
+  The first version of that loop watched itself and ran a pass every two hundred milliseconds, forever; the
+  second borrowed git's view of the tree and was right more often, which is not the same as right. So the loop
+  belongs to somebody else's tool: `watchexec -e typ -r -- lp tangle lp.typ` is the whole of what this one
+  would have done. What the tool owes
   that arrangement it already has: a pass writes only changed bytes, and a document that does not evaluate
   leaves the last good output in place, so re-running the command blindly costs the run and nothing else.
 - *A read is not an edit, and what the tool writes is not a reason to run again.* These two are why the watcher
