@@ -51,7 +51,7 @@ edition = "2024"
 publish = false
 description = "A literate literate programming program."
 license = "MIT"
-authors = ["Lin Yinfeng <lin.yifeng@outlook.com>"]
+authors = ["Lin Yinfeng <lin.yinfeng@outlook.com>"]
 repository = "https://github.com/linyinfeng/etch"
 ````)
 
