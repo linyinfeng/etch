@@ -90,9 +90,9 @@ is in the order a compiler wants. So the useful question is not where to start b
 - *Someone who wants to use the tool.* *The command line, and what each command is for*, then *The package: what
   a declaration is* and *Expanding a reference*, with *Where each generated line came from* and *Reading a
   diagnostic back to the declaration* for the two questions above.
-- *Someone who has to get it running from nothing.* *Bootstrap* first; then *This repository, and its seed*
-  for the four roads, *The build environment* for what the commands expect, and *What comes from outside, and
-  how it moves* for when the outside moves.
+- *Someone who has to get it running from nothing.* *Bootstrap* first, then *The loop* for the day-to-day;
+*This repository, and its seed* has the roads that involve the repository, *The build environment* for what
+the commands expect, and *What comes from outside, and how it moves* for when the outside moves.
 - *Someone who has to maintain it.* *How the tests are written* and the five `tests/*.rs` chapters are the
   contract; *The program's own pipeline* and *This repository* are the machinery around it; *What comes from
   outside, and how it moves* is the update procedure; *The rules* is what must stay true and why.
