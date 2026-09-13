@@ -73,6 +73,8 @@ tool writes beside a document, and the only thing under `book/` that is not part
 
 <<flow: map_names_the_chunk_a_generated_line_came_from>>
 
+<<flow: the_demo_tangles_and_runs>>
+
 <<flow: tangle_speaks_json_about_what_it_wrote>>
 
 <<flow: plan_says_what_a_pass_would_do>>
@@ -114,7 +116,7 @@ The cases, in the order they appear:
 - `explain_rewrites_diagnostics_to_the_chunk` — a `file:line:col:` line is echoed unchanged and annotated on stderr
 - `list_reports_declarations` — `lp list` prints every declaration, marks the unreferenced ones, and lists the outputs; a code block in prose is not one
 - `a_closed_pipe_is_not_a_panic` — a reader that stops reading (`| head`) ends the tool quietly instead of panicking on a broken pipe
-- `the_reading_commands_speak_json` — `list`, `metadata` and `map` hand a program one JSON document, with the data behind the readout
+- `the_demo_tangles_and_runs` — the small example this book declares tangles from its own document, runs, and prints what it promised
 - `plan_says_what_a_pass_would_do` — `lp plan` writes nothing, says `would write` then `nothing to do`, and does not fail on bad news
 - `tangle_speaks_json_about_what_it_wrote` — a pass that wrote reports what it wrote as one JSON document, and the book counts stay in the log
 - `weave_renders_a_document_that_imports_the_package` — `lp weave` renders a document whose import resolves only through the package this tool unpacks
@@ -636,6 +638,38 @@ fn map_names_the_chunk_a_generated_line_came_from() {
         "{}",
         stderr(&reverse)
     );
+}
+````)
+
+#chunk("flow: the_demo_tangles_and_runs", ````rust
+#[test]
+fn the_demo_tangles_and_runs() {
+    let demo = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/demo");
+    let dir = TempDir::new().expect("temp dir");
+    std::fs::copy(demo.join("literate.typ"), dir.path().join("literate.typ"))
+        .expect("the document");
+
+    let tangled = lp(dir.path(), &["tangle", "literate.typ", "--out", "build"]);
+    assert!(tangled.status.success(), "{}", stderr(&tangled));
+
+    let ran = Command::new("sh")
+        .arg(dir.path().join("build/greet.sh"))
+        .env("NAME", "reader")
+        .current_dir(dir.path())
+        .output()
+        .expect("run the demo");
+    assert!(
+        ran.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&ran.stdout), "hello, reader\n");
+
+    let checked = lp(
+        dir.path(),
+        &["tangle", "literate.typ", "--out", "build", "--check"],
+    );
+    assert!(checked.status.success(), "{}", stderr(&checked));
 }
 ````)
 

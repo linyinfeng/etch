@@ -17,6 +17,7 @@
     "chapters/part-i/four-claims.typ",
     "chapters/part-i/the-reader-that-is-not-a-person.typ",
     "chapters/part-i/writing-a-literate-program.typ",
+    "chapters/part-i/a-small-one-to-read-in-one-sitting.typ",
     "chapters/part-i/reading-a-literate-program.typ",
     "chapters/part-i/when-not-to.typ",
     "chapters/part-i/differences-from-web.typ",
@@ -68,6 +69,8 @@
 #include "chapters/part-i/the-reader-that-is-not-a-person.typ"
 
 #include "chapters/part-i/writing-a-literate-program.typ"
+
+#include "chapters/part-i/a-small-one-to-read-in-one-sitting.typ"
 
 #include "chapters/part-i/reading-a-literate-program.typ"
 

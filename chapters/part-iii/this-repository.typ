@@ -22,6 +22,8 @@ target
 #file(".lpignore", ````gitignore
 /.git
 
+/examples/demo/build
+
 /result
 
 /target
