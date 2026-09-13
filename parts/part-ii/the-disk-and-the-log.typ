@@ -9,7 +9,7 @@ sentence to standard output, and nothing in it writes a byte to the disk outside
 
 That is the whole reason the chapter exists. A rule about logging is a rule nobody keeps — there is always
 one more place that writes a file — so instead of a rule there is one door: every write, every removal, and
-every read goes through the functions below, and each of them says so. The log cannot miss an operation the
+every read of a file goes through the functions below, and each of them says so. The log cannot miss an operation the
 tool did, because there is no other way to do one.
 
 The levels are not decoration either. A real change to the outside world is `INFO`, because it is the thing
