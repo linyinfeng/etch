@@ -5,7 +5,7 @@
 This part is the tool's own specification, and it is also an implementation of the position the introduction
 states: the argument is the source, and the code falls out of it. Its chapters follow the order the tool is
 put together in, which is the order a reader who is going to change it needs; a reader who only wants to *use*
-it should take the second path in the introduction's table instead.
+it should take the second path in the introduction's list instead.
 
 This document is written with four functions — `chunk`, `file`, `tangle-options` and `show-rule` — and none
 of them is built into the tool. They are declared in `package/lib.typ`, which this document
