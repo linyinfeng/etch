@@ -16,12 +16,9 @@
 )
 
 #align(center)[
-  #text(size: 2em, weight: "bold")[Etch]
-  #v(0.3em)
-  #text(size: 1.25em)[A literate literate programming program.]
-  #v(0.6em)
-  #text(size: 1em)[Lin Yinfeng \<lin.yifeng\@outlook.com\>]
-  #v(0.2em)
+  #text(size: 2em, weight: "bold")[Etch] \
+  #text(size: 1.25em)[A literate literate programming program.] \
+  #text(size: 1em)[Lin Yinfeng \<lin.yifeng\@outlook.com\>] \
   #text(size: 0.9em, fill: luma(110))[#stamp.display("[year]-[month]-[day]")]
 ]
 
@@ -120,3 +117,5 @@
 #include "parts/part-iii/what-comes-from-outside.typ"
 
 #include "parts/part-iii/appendix-what-is-pinned.typ"
+
+#include "parts/back-matter/license.typ"
