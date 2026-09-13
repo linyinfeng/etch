@@ -36,7 +36,7 @@ The cases, in the order they appear:
 - `a_document_outside_the_working_directory_can_be_tangled` — a document outside the working directory works, and no wrapper file is left behind
 - `a_declaration_of_an_unknown_kind_is_an_error` — a metadata record with an unknown kind is refused instead of defaulting
 - `a_document_without_declarations_says_what_to_do` — a document with no declarations is told to import the package
-- `a_document_needs_nothing_but_itself` — a document that imports the package by name tangles in a directory holding nothing else (D21)
+- `a_document_needs_nothing_but_itself` — a document and the package beside it tangle in a directory holding nothing else (D21)
 
 #chunk("metadata: the fixtures and helpers", ````rust
 use std::path::Path;

@@ -38,7 +38,7 @@ what `--check` and `--delete` each do.
 The cases, in the order they appear:
 
 - `a_dropped_declaration_is_an_error_until_it_is_resolved` — deleting a root strands its file as an unaccounted error, with `--delete` as the way out
-- `a_refused_pass_writes_nothing` — a pass that refuses a stray has not written a byte of the document s content
+- `a_refused_pass_writes_nothing` — a pass that refuses a stray has not written a byte of the document's content
 - `declared_files_are_accounted_for` — files and directories listed in `.lpignore` are left alone
 - `the_pattern_language_is_gitignores` — `build/` and `**/*.log` behave exactly as they do in git
 - `a_deeper_ignore_file_can_take_a_file_back` — a nested ignore file decides for its own directory, deepest winning
